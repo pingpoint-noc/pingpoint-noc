@@ -1,0 +1,8 @@
+# Para ejecutar los tests (TestClient de FastAPI usa httpx).
+-r requirements.txt
+httpx>=0.28
+
+# Opcional: tests de navegador (tests/browser). Sin esto se saltan solos.
+#   pip install playwright
+#   python -m playwright install chromium
+# playwright>=1.50

@@ -1,0 +1,22 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+*.log
+.idea/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite*
+*.pcap
+nfcapd.*
+mini-noc.env
+
+
+# Browser-tool output (screenshots, logs) from manual UI checks
+.playwright-mcp/
+*.bmp
+
+# RouterOS script with the SNMPv3 keys (python -m tools.generate_router_config --snmp-v3): never published
+data/setup_router_snmpv3.rsc
