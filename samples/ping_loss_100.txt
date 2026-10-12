@@ -1,0 +1,21 @@
+# ping (iputils, Debian 13) en el lab, 09-11-2026, ejecutado como root. Copiado de la terminal del laboratorio.
+# Comando: ping -c 3 -W 1 192.168.88.250   (IP sin equipo: 100 % de perdida)
+PING 192.168.88.250 (192.168.88.250) 56(84) bytes of data.
+
+--- 192.168.88.250 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2035ms
+
+# Como usuario admin (el que corre los servicios) el mismo comando falla:
+#   ping: socktype: SOCK_RAW
+#   ping: socket: Operation not permitted
+#   ping: => missing cap_net_raw+p capability or setuid?
+
+# Con respuestas (ping -c 3 192.168.88.1, root):
+PING 192.168.88.1 (192.168.88.1) 56(84) bytes of data.
+64 bytes from 192.168.88.1: icmp_seq=1 ttl=64 time=0.186 ms
+64 bytes from 192.168.88.1: icmp_seq=2 ttl=64 time=0.182 ms
+64 bytes from 192.168.88.1: icmp_seq=3 ttl=64 time=0.210 ms
+
+--- 192.168.88.1 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2025ms
+rtt min/avg/max/mdev = 0.182/0.192/0.210/0.012 ms

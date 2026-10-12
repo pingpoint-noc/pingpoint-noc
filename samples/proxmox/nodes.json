@@ -1,0 +1,19 @@
+{
+  "data": [
+    {
+      "maxmem": 4104617984,
+      "uptime": 1583,
+      "disk": 4440113152,
+      "cpu": 0.00551267916207277,
+      "node": "proxmox",
+      "type": "node",
+      "status": "online",
+      "maxcpu": 2,
+      "maxdisk": 14513811456,
+      "mem": 1506160640,
+      "ssl_fingerprint": "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99",
+      "id": "node/proxmox",
+      "level": ""
+    }
+  ]
+}

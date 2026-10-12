@@ -1,0 +1,29 @@
+{
+  "total": 2,
+  "data": [
+    {
+      "endtime": 1794309850,
+      "type": "startall",
+      "id": "",
+      "pid": 1128,
+      "upid": "UPID:proxmox:00000468:00000DB7:6AF2FEDA:startall::root@pam:",
+      "pstart": 3511,
+      "status": "OK",
+      "user": "root@pam",
+      "starttime": 1794309850,
+      "node": "proxmox"
+    },
+    {
+      "node": "proxmox",
+      "starttime": 1794309842,
+      "user": "root@pam",
+      "status": "command 'apt-get update' failed: exit code 100",
+      "pstart": 2742,
+      "upid": "UPID:proxmox:00000435:00000AB6:6AF2FED2:aptupdate::root@pam:",
+      "pid": 1077,
+      "id": "",
+      "type": "aptupdate",
+      "endtime": 1794309845
+    }
+  ]
+}

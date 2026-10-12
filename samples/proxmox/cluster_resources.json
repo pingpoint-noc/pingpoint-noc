@@ -1,0 +1,51 @@
+{
+  "data": [
+    {
+      "maxdisk": 14513811456,
+      "mem": 1521152000,
+      "status": "online",
+      "maxcpu": 2,
+      "id": "node/proxmox",
+      "level": "",
+      "cgroup-mode": 2,
+      "cpu": 0.0188679245283019,
+      "node": "proxmox",
+      "uptime": 1603,
+      "maxmem": 4104617984,
+      "disk": 4440113152,
+      "type": "node"
+    },
+    {
+      "content": "images,rootdir",
+      "plugintype": "lvmthin",
+      "shared": 0,
+      "id": "storage/proxmox/local-lvm",
+      "type": "storage",
+      "maxdisk": 12704546816,
+      "node": "proxmox",
+      "storage": "local-lvm",
+      "status": "available",
+      "disk": 0
+    },
+    {
+      "maxdisk": 14513811456,
+      "node": "proxmox",
+      "storage": "local",
+      "disk": 4440113152,
+      "status": "available",
+      "id": "storage/proxmox/local",
+      "shared": 0,
+      "plugintype": "dir",
+      "content": "vztmpl,backup,import,iso",
+      "type": "storage"
+    },
+    {
+      "network-type": "zone",
+      "network": "localnetwork",
+      "node": "proxmox",
+      "id": "network/proxmox/zone/localnetwork",
+      "type": "network",
+      "status": "ok"
+    }
+  ]
+}

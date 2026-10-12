@@ -1,0 +1,32 @@
+# MikroTik health, 2026-11-09T18:27:16Z, router 192.168.88.1 (lab, RouterOS CHR)
+# Salida de snmpget/snmpwalk copiada desde el laboratorio. SNMPv2c, comunidad omitida. Solo lectura.
+## sysDescr / sysObjectID
+iso.3.6.1.2.1.1.1.0 = STRING: "RouterOS CHR"
+iso.3.6.1.2.1.1.2.0 = OID: iso.3.6.1.4.1.14988.1
+## mtxrHealth (1.3.6.1.4.1.14988.1.1.3)
+iso.3.6.1.4.1.14988.1.1.3.1.0 = INTEGER: 0
+iso.3.6.1.4.1.14988.1.1.3.2.0 = INTEGER: 0
+iso.3.6.1.4.1.14988.1.1.3.3.0 = INTEGER: 0
+iso.3.6.1.4.1.14988.1.1.3.4.0 = INTEGER: 0
+iso.3.6.1.4.1.14988.1.1.3.5.0 = INTEGER: 0
+iso.3.6.1.4.1.14988.1.1.3.6.0 = INTEGER: 0
+iso.3.6.1.4.1.14988.1.1.3.7.0 = INTEGER: 0
+iso.3.6.1.4.1.14988.1.1.3.14.0 = INTEGER: 2100
+## hrProcessorLoad (CPU)
+iso.3.6.1.2.1.25.3.3.1.1.1 = OID: ccitt.0
+iso.3.6.1.2.1.25.3.3.1.2.1 = INTEGER: 0
+## hrStorage (memoria y disco)
+iso.3.6.1.2.1.25.2.3.1.1.65536 = INTEGER: 65536
+iso.3.6.1.2.1.25.2.3.1.1.131072 = INTEGER: 131072
+iso.3.6.1.2.1.25.2.3.1.2.65536 = OID: iso.3.6.1.2.1.25.2.1.2
+iso.3.6.1.2.1.25.2.3.1.2.131072 = OID: iso.3.6.1.2.1.25.2.1.4
+iso.3.6.1.2.1.25.2.3.1.3.65536 = STRING: "main memory"
+iso.3.6.1.2.1.25.2.3.1.3.131072 = STRING: "system disk"
+iso.3.6.1.2.1.25.2.3.1.4.65536 = INTEGER: 1024
+iso.3.6.1.2.1.25.2.3.1.4.131072 = INTEGER: 1024
+iso.3.6.1.2.1.25.2.3.1.5.65536 = INTEGER: 262144
+iso.3.6.1.2.1.25.2.3.1.5.131072 = INTEGER: 91372
+iso.3.6.1.2.1.25.2.3.1.6.65536 = INTEGER: 218828
+iso.3.6.1.2.1.25.2.3.1.6.131072 = INTEGER: 18500
+iso.3.6.1.2.1.25.2.3.1.7.65536 = Counter32: 0
+iso.3.6.1.2.1.25.2.3.1.7.131072 = Counter32: 0

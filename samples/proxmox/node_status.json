@@ -1,0 +1,56 @@
+{
+  "data": {
+    "loadavg": [
+      "0.02",
+      "0.04",
+      "0.05"
+    ],
+    "idle": 0,
+    "wait": 0,
+    "pveversion": "pve-manager/9.2.2/b9984c6d90a4bd80",
+    "kversion": "Linux 7.0.2-6-pve #1 SMP PREEMPT_DYNAMIC PMX 7.0.2-6 (2026-05-20T08:55Z)",
+    "rootfs": {
+      "avail": 9314111488,
+      "free": 10073698304,
+      "total": 14513811456,
+      "used": 4440113152
+    },
+    "memory": {
+      "free": 2405228544,
+      "total": 4104617984,
+      "used": 1507987456,
+      "available": 2596630528
+    },
+    "uptime": 1594,
+    "ksm": {
+      "shared": 0
+    },
+    "cpu": 0,
+    "cpuinfo": {
+      "hvm": "1",
+      "sockets": 1,
+      "vendor": "GenuineIntel",
+      "flags": "fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 cx16 pdcm pcid sse4_1 sse4_2 x2apic popcnt tsc_deadline_timer aes hypervisor lahf_lm cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid tsc_adjust arat vnmi umip flush_l1d arch_capabilities",
+      "cores": 2,
+      "user_hz": 100,
+      "cpus": 2,
+      "mhz": "2665.908",
+      "model": "Intel(R) Xeon(R) CPU           X5650  @ 2.67GHz",
+      "family": "6"
+    },
+    "boot-info": {
+      "mode": "legacy-bios"
+    },
+    "swap": {
+      "total": 4102025216,
+      "used": 0,
+      "free": 4102025216
+    },
+    "current-kernel": {
+      "sysname": "Linux",
+      "machine": "x86_64",
+      "version": "#1 SMP PREEMPT_DYNAMIC PMX 7.0.2-6 (2026-05-20T08:55Z)",
+      "release": "7.0.2-6-pve"
+    }
+  }
+}

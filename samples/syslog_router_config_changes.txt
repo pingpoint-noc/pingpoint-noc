@@ -1,0 +1,7 @@
+2026-11-11T01:05:08.156831+01:00 192.168.88.1 192.168.88.1 user.notice system,info,account user admin logged in from 192.168.88.100 via ssh
+2026-11-11T01:05:08.287625+01:00 192.168.88.1 192.168.88.1 user.notice system,info address list entry added by ssh-cmd:admin@192.168.88.100 (*1 = /ip firewall address-list add address=192.0.2.77 comment="tmp test 0711" list=tmp-test-0711)
+2026-11-11T01:05:08.289188+01:00 192.168.88.1 192.168.88.1 user.notice system,info address list entry changed by ssh-cmd:admin@192.168.88.100/action:0 (/ip firewall address-list set *1 comment="tmp test 0711 changed")
+2026-11-11T01:05:08.291187+01:00 192.168.88.1 192.168.88.1 user.notice system,info address list entry changed by ssh-cmd:admin@192.168.88.100/action:1 (/ip firewall address-list set *1 disabled=yes)
+2026-11-11T01:05:08.293433+01:00 192.168.88.1 192.168.88.1 user.notice system,info address list entry changed by ssh-cmd:admin@192.168.88.100/action:2 (/ip firewall address-list set *1 disabled=no)
+2026-11-11T01:05:08.295512+01:00 192.168.88.1 192.168.88.1 user.notice system,info address list entry removed by ssh-cmd:admin@192.168.88.100/action:3 (/ip firewall address-list remove *1)
+2026-11-11T01:05:10.312266+01:00 192.168.88.1 192.168.88.1 user.notice system,info,account user admin logged out from 192.168.88.100 via ssh

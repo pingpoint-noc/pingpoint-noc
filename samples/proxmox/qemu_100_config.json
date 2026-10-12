@@ -1,0 +1,23 @@
+{
+  "boot": "order=scsi0;ide2;net0",
+  "cores": 2,
+  "cpu": "x86-64-v2-AES",
+  "description": "MikroTik RouterOS lab router. Credentials removed from this description on 2026-11-07.",
+  "digest": "aef33fb652c2f228ac74d094a1c4bd3fbf8ade72",
+  "ide2": "none,media=cdrom",
+  "memory": "2048",
+  "meta": "creation-qemu=11.0.3,ctime=1789465554",
+  "name": "MikroTik-RouterOS",
+  "net0": "virtio=BC:24:11:AC:78:BB,bridge=vmbr1,firewall=1",
+  "net1": "virtio=BC:24:11:29:4C:31,bridge=RouterOS,firewall=1",
+  "net2": "virtio=BC:24:11:C8:21:18,bridge=RouterOS,firewall=1",
+  "numa": 0,
+  "onboot": 1,
+  "ostype": "l26",
+  "scsi0": "SSD_Pool:100/vm-100-disk-0.qcow2,iothread=1,size=4G",
+  "scsihw": "virtio-scsi-single",
+  "smbios1": "uuid=a72b7162-32c2-4295-8b62-067fce761c49",
+  "sockets": 1,
+  "startup": "order=1",
+  "vmgenid": "77e71644-d74e-4bc2-ac62-fe052eb18dfc"
+}

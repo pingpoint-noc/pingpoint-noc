@@ -1,0 +1,10 @@
+2026-10-15T10:41:03+02:00 192.168.88.1 MikroTik local0.info Hello collector, this is the router
+2026-10-15T10:41:07+02:00 192.168.88.1 MikroTik local0.info address list entry added by ssh:admin@192.168.88.4 (*1 = /ip firewall address-list add address=192.0.2.1 comment="L2 test" list=lab-test)
+2026-10-15T10:41:10+02:00 192.168.88.1 MikroTik local0.info address list entry removed by ssh:admin@192.168.88.4/action:0 (/ip firewall address-list remove *1)
+2026-10-15T10:41:34+02:00 192.168.88.1 MikroTik local0.err login failure for user nobody-here from 192.168.89.3 via ssh
+2026-10-15T10:41:36+02:00 192.168.88.1 MikroTik local0.err login failure for user nobody-here from 192.168.89.3 via ssh
+2026-10-15T10:41:38+02:00 192.168.88.1 MikroTik local0.err login failure for user nobody-here from 192.168.89.3 via ssh
+2026-10-15T10:42:35+02:00 192.168.88.1 MikroTik local0.info filter rule added by ssh:admin@192.168.88.4 (*1 = /ip firewall filter add action=accept chain=input comment="L2 lab: log pings" log=yes log-prefix=L2-ICMP protocol=icmp)
+2026-10-15T10:42:43+02:00 192.168.88.1 MikroTik local0.info L2-ICMP input: in:lan89 out:(unknown 0), connection-state:new src-mac bc:24:11:86:40:16, proto ICMP (type 8, code 0), 192.168.89.3->192.168.88.1, len 84
+2026-10-16T10:17:53+02:00 192.168.88.1 MikroTik local0.info time test
+2026-10-13T10:43:24.412044+00:00 192.168.89.3 lan-host user.notice labtest first remote message over UDP

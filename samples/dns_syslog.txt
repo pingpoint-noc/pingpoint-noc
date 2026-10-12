@@ -1,0 +1,11 @@
+Nov 08 09:20:15 pihole dnsmasq[123]: query[A] api.github.com from 192.168.88.96
+Nov 08 09:20:15 pihole dnsmasq[123]: forwarded api.github.com to 1.1.1.1
+Nov 08 09:20:15 pihole dnsmasq[123]: reply api.github.com is 140.82.121.6
+Nov 08 09:20:18 pihole dnsmasq[123]: query[A] telemetry.microsoft.com from 192.168.88.96
+Nov 08 09:20:18 pihole dnsmasq[123]: /etc/pihole/gravity.list telemetry.microsoft.com is 0.0.0.0
+Nov 08 09:20:20 pihole dnsmasq[123]: query[AAAA] example.org from 192.168.88.95
+Nov 08 09:20:20 pihole dnsmasq[123]: forwarded example.org to 1.1.1.1
+Nov 08 09:20:20 pihole dnsmasq[123]: reply example.org is NODATA
+Nov 08 09:20:22 pihole dnsmasq[123]: query[A] doubleclick.net from 192.168.88.97
+Nov 08 09:20:22 pihole dnsmasq[123]: gravity blocked doubleclick.net is 0.0.0.0
+
