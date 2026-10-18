@@ -1,0 +1,159 @@
+#!/bin/bash
+# Mini-NOC onboarding for Proxmox VE: creates read-only auditor token, forwards syslog and registers the hypervisor.
+#   install:    curl -fsS "http://<noc>:<port>/api/bootstrap-pve.sh" | sudo bash
+#   uninstall:  curl -fsS "http://<noc>:<port>/api/bootstrap-pve.sh" | sudo bash -s -- --uninstall
+# Safe to run again. Exit code 0 = token configured and node registered, 1 = something failed.
+set -euo pipefail
+
+NOC_IP="@NOC_IP@"
+NOC_PORT="@NOC_PORT@"
+CONF="/etc/rsyslog.d/99-mininoc.conf"
+PVE_USER="mininoc-monitor@pve"
+PVE_TOKEN_NAME="noc-poller"
+PVE_TOKEN_ID="${PVE_USER}!${PVE_TOKEN_NAME}"
+
+say()  { echo "[*] $*"; }
+ok()   { echo "[OK] $*"; }
+warn() { echo "[!] $*" >&2; }
+
+ACTION="install"
+case "${1:-}" in
+    "") ;;
+    --uninstall) ACTION="uninstall" ;;
+    *) warn "Unknown option: $1 (the only one is --uninstall)."; exit 2 ;;
+esac
+
+NOC_HOST="$NOC_IP"
+case "$NOC_IP" in
+    *:*) NOC_HOST="[$NOC_IP]" ;;
+esac
+
+if [ "$(id -u)" -ne 0 ]; then
+    warn "Run this script as root on the Proxmox VE host (e.g.: curl -fsS URL | sudo bash)."
+    exit 1
+fi
+
+if ! command -v pveversion >/dev/null 2>&1; then
+    warn "pveversion not found: this script must be run on a Proxmox VE host."
+    exit 1
+fi
+
+restart_rsyslog() {
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl reset-failed rsyslog >/dev/null 2>&1 || true
+        if systemctl restart rsyslog >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    if command -v service >/dev/null 2>&1 && service rsyslog restart >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+if [ "$ACTION" = "uninstall" ]; then
+    say "Uninstalling Mini-NOC monitor from Proxmox VE..."
+    pveum user token remove "$PVE_USER" "$PVE_TOKEN_NAME" >/dev/null 2>&1 || true
+    pveum acl modify / -user "$PVE_USER" --delete >/dev/null 2>&1 || true
+    pveum user delete "$PVE_USER" >/dev/null 2>&1 || true
+    rm -f "$CONF"
+    restart_rsyslog || true
+    ok "Mini-NOC Proxmox integration uninstalled."
+    exit 0
+fi
+
+say "Proxmox VE detected: $(pveversion)"
+
+# 1. Create auditor user if missing
+if ! pveum user list 2>/dev/null | grep -q "^$PVE_USER"; then
+    say "Creating read-only auditor user: $PVE_USER..."
+    pveum user add "$PVE_USER" -comment "Mini-NOC Read-Only Auditor"
+fi
+
+# 2. Ensure PVEAuditor role on /
+say "Configuring PVEAuditor ACL permissions..."
+pveum acl modify / -user "$PVE_USER" -role PVEAuditor
+
+# 3. Create or recreate API token
+say "Generating API Token: $PVE_TOKEN_ID..."
+pveum user token remove "$PVE_USER" "$PVE_TOKEN_NAME" >/dev/null 2>&1 || true
+TOKEN_OUTPUT=$(pveum user token add "$PVE_USER" "$PVE_TOKEN_NAME" -privsep 0 --output-format json)
+
+TOKEN_SECRET=""
+if command -v jq >/dev/null 2>&1; then
+    TOKEN_SECRET=$(echo "$TOKEN_OUTPUT" | jq -r '.value // empty')
+else
+    # Fallback to sed/grep without jq
+    TOKEN_SECRET=$(echo "$TOKEN_OUTPUT" | grep -o '"value"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"value"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+fi
+
+if [ -z "$TOKEN_SECRET" ]; then
+    warn "Failed to extract API token secret from Proxmox response."
+    exit 1
+fi
+
+# 4. Configure rsyslog forwarding
+mkdir -p "$(dirname "$CONF")"
+cat > "$CONF" <<EOF
+*.* @${NOC_HOST}:514
+EOF
+
+if restart_rsyslog; then
+    ok "Syslog forwarding active -> ${NOC_HOST}:514"
+else
+    warn "Could not restart rsyslog: check systemctl status rsyslog"
+fi
+
+# 5. Resolve host identity
+HOST_NAME="$(hostname -f 2>/dev/null || hostname)"
+NODE_NAME="$(hostname -s 2>/dev/null || hostname)"
+HOST_IP=""
+
+# Try finding IP that reaches NOC
+if command -v ip >/dev/null 2>&1; then
+    HOST_IP=$(ip -o route get "$NOC_IP" 2>/dev/null | sed -n 's/.*src \([0-9a-fA-F:.]*\).*/\1/p' | head -1)
+fi
+
+# Fallback to hostname -I
+if [ -z "$HOST_IP" ]; then
+    HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+fi
+
+say "Registering node with Mini-NOC (${HOST_IP:-unknown IP})..."
+
+PAYLOAD=$(cat <<EOF
+{
+  "ip": "${HOST_IP}",
+  "hostname": "${HOST_NAME}",
+  "token_id": "${PVE_TOKEN_ID}",
+  "token_secret": "${TOKEN_SECRET}",
+  "node_name": "${NODE_NAME}"
+}
+EOF
+)
+
+REGISTER_URL="http://${NOC_HOST}:${NOC_PORT}/api/nodes/register-proxmox"
+REGISTER_OK=0
+
+if command -v curl >/dev/null 2>&1; then
+    HTTP_CODE=$(curl -fsS -o /dev/null -w "%{http_code}" -X POST "$REGISTER_URL" \
+        -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true)
+    if [ "$HTTP_CODE" = "200" ]; then
+        REGISTER_OK=1
+    fi
+elif command -v wget >/dev/null 2>&1; then
+    if wget -q -O /dev/null --post-data="$PAYLOAD" --header="Content-Type: application/json" "$REGISTER_URL" 2>/dev/null; then
+        REGISTER_OK=1
+    fi
+fi
+
+if [ "$REGISTER_OK" -eq 1 ]; then
+    ok "Proxmox VE hypervisor successfully registered in Mini-NOC!"
+else
+    warn "Registration endpoint returned an error or was unreachable at $REGISTER_URL."
+    warn "You can add the token manually in mini-noc.env:"
+    echo "  MININOC_PVE_TOKEN_ID=${PVE_TOKEN_ID}"
+    echo "  MININOC_PVE_TOKEN_SECRET=${TOKEN_SECRET}"
+    exit 1
+fi
+

@@ -1,0 +1,231 @@
+#!/bin/bash
+# Mini-NOC onboarding for a Linux host or container: forwards its syslog to the collector and registers it.
+#   install:    curl -fsS "http://<noc>:<port>/api/bootstrap.sh" | sudo bash
+#   uninstall:  curl -fsS "http://<noc>:<port>/api/bootstrap.sh" | sudo bash -s -- --uninstall
+# Safe to run again: it rewrites the same file. Exit code 0 = forwarding set and host registered, 1 = something failed.
+set -euo pipefail
+
+NOC_IP="@NOC_IP@"
+NOC_PORT="@NOC_PORT@"
+CONF="/etc/rsyslog.d/99-mininoc.conf"
+
+say()  { echo "[*] $*"; }
+ok()   { echo "[OK] $*"; }
+warn() { echo "[!] $*" >&2; }
+
+ACTION="install"
+case "${1:-}" in
+    "") ;;
+    --uninstall) ACTION="uninstall" ;;
+    *) warn "Unknown option: $1 (the only one is --uninstall)."; exit 2 ;;
+esac
+
+# An IPv6 collector needs brackets in the rsyslog target and in the URL.
+NOC_HOST="$NOC_IP"
+case "$NOC_IP" in
+    *:*) NOC_HOST="[$NOC_IP]" ;;
+esac
+
+if [ "$(id -u)" -ne 0 ]; then
+    warn "Run this script as root (for example: curl -fsS URL | sudo bash)."
+    exit 1
+fi
+
+# Re-read the rsyslog configuration: systemd first, then SysV, then a HUP (containers without systemd).
+restart_rsyslog() {
+    if command -v systemctl >/dev/null 2>&1; then
+        # After several quick restarts systemd refuses more ("start-limit-hit"): clear that state first.
+        systemctl reset-failed rsyslog >/dev/null 2>&1 || true
+        if systemctl restart rsyslog >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    if command -v service >/dev/null 2>&1 && service rsyslog restart >/dev/null 2>&1; then
+        return 0
+    fi
+    if command -v pkill >/dev/null 2>&1 && pkill -HUP -x rsyslogd >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+if [ "$ACTION" = "uninstall" ]; then
+    rm -f "$CONF"
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl disable --now mininoc-telemetry.timer >/dev/null 2>&1 || true
+        systemctl stop mininoc-telemetry.service >/dev/null 2>&1 || true
+        rm -f /etc/systemd/system/mininoc-telemetry.timer /etc/systemd/system/mininoc-telemetry.service
+        systemctl daemon-reload >/dev/null 2>&1 || true
+    fi
+    rm -f /usr/local/bin/mininoc-agent.sh /etc/cron.d/mininoc-telemetry
+    rm -rf /etc/mininoc
+    if restart_rsyslog; then
+        ok "Telemetry agent and syslog forwarding to $NOC_IP removed. The host stays in the inventory until it is deleted in Health & Inventory."
+    else
+        warn "Forwarding file and agent removed, but rsyslog could not be restarted: restart it by hand."
+        exit 1
+    fi
+    exit 0
+fi
+
+say "Configuring telemetry towards Mini-NOC at $NOC_IP..."
+
+# 0. rsyslog (and curl) must exist: without them nothing is forwarded, so a failure here stops the script.
+if ! command -v rsyslogd >/dev/null 2>&1; then
+    say "Installing rsyslog..."
+    if command -v apt-get >/dev/null 2>&1; then
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq && apt-get install -y -qq rsyslog curl >/dev/null
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y -q rsyslog curl >/dev/null
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y -q rsyslog curl >/dev/null
+    elif command -v apk >/dev/null 2>&1; then
+        apk add --quiet rsyslog curl >/dev/null
+    else
+        warn "rsyslog is not installed and no package manager was found (apt, dnf, yum, apk): install it and run this again."
+        exit 1
+    fi
+    if ! command -v rsyslogd >/dev/null 2>&1; then
+        warn "rsyslog could not be installed."
+        exit 1
+    fi
+fi
+
+# 1. Forward everything over UDP 514. The new file is checked before rsyslog reads it; a bad one is rolled back.
+mkdir -p "$(dirname "$CONF")"
+BACKUP=""
+if [ -f "$CONF" ]; then
+    BACKUP="$(mktemp)"
+    cp "$CONF" "$BACKUP"
+fi
+printf '%s\n' "*.* @$NOC_HOST:514" > "$CONF"
+if ! rsyslogd -N1 >/dev/null 2>&1; then
+    warn "rsyslog rejected the new configuration; restoring the previous state."
+    if [ -n "$BACKUP" ]; then
+        cp "$BACKUP" "$CONF"
+    else
+        rm -f "$CONF"
+    fi
+    exit 1
+fi
+[ -z "$BACKUP" ] || rm -f "$BACKUP"
+if restart_rsyslog; then
+    ok "Rsyslog configured."
+else
+    warn "Rsyslog configured but it could not be restarted: restart it by hand."
+fi
+
+# 2. Who am I: a name with only safe characters (it goes into JSON) and the source address towards the collector
+#    (the first address of `hostname -I` can be a Docker bridge).
+HOST_NAME="$( (hostname 2>/dev/null || uname -n) | tr -cd 'A-Za-z0-9._-')"
+[ -n "$HOST_NAME" ] || HOST_NAME="unknown"
+HOST_IP=""
+if command -v ip >/dev/null 2>&1; then
+    HOST_IP="$(ip -4 route get "$NOC_IP" 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -n1 || true)"
+fi
+if [ -z "$HOST_IP" ] && command -v hostname >/dev/null 2>&1; then
+    HOST_IP="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+(\.[0-9]+){3}$' | head -n1 || true)"
+fi
+
+# A first syslog line, to see the host arrive in the Syslog Stream.
+if command -v logger >/dev/null 2>&1; then
+    logger -t mininoc-bootstrap "Host $HOST_NAME (${HOST_IP:-no address}) onboarded to Mini-NOC" || true
+fi
+
+# 3. Register. Only a 2xx answer counts; the last message says what really happened.
+REGISTERED=0
+URL="http://$NOC_HOST:$NOC_PORT/api/nodes/register"
+BODY="{\"hostname\": \"$HOST_NAME\", \"ip\": \"$HOST_IP\"}"
+RESPONSE=""
+if [ -z "$HOST_IP" ]; then
+    warn "Could not find this host's IPv4 address."
+elif command -v curl >/dev/null 2>&1; then
+    if RESPONSE=$(curl -fsS --max-time 10 -X POST "$URL" -H "Content-Type: application/json" -d "$BODY" 2>/dev/null); then
+        REGISTERED=1
+    fi
+elif command -v wget >/dev/null 2>&1; then
+    TMP_OUT=$(mktemp)
+    if wget -q -O "$TMP_OUT" --timeout=10 --post-data="$BODY" --header="Content-Type: application/json" "$URL"; then
+        RESPONSE=$(cat "$TMP_OUT")
+        REGISTERED=1
+    fi
+    rm -f "$TMP_OUT"
+else
+    warn "Neither curl nor wget is installed."
+fi
+
+if [ "$REGISTERED" -ne 1 ]; then
+    warn "Syslog is forwarded, but the host did not register at $URL. Check the address and port, then run it again."
+    exit 1
+fi
+
+ok "Host registered with Mini-NOC ($HOST_NAME, $HOST_IP)."
+
+# 4. Install and configure periodic Telemetry Agent (CPU, RAM, Disks, Systemd Services)
+NODE_TOKEN=$(printf '%s\n' "$RESPONSE" | sed -n 's/.*"node_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+DEV_ID=$(printf '%s\n' "$RESPONSE" | sed -n 's/.*"device_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+[ -n "$DEV_ID" ] || DEV_ID=$(printf '%s\n' "$RESPONSE" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+[ -n "$DEV_ID" ] || DEV_ID="$HOST_NAME"
+
+say "Configuring periodic Linux telemetry agent..."
+mkdir -p /etc/mininoc
+cat <<EOF > /etc/mininoc/agent.conf
+# Mini-NOC Telemetry Agent Configuration
+NOC_URL="http://$NOC_HOST:$NOC_PORT/api/nodes/telemetry"
+NODE_TOKEN="$NODE_TOKEN"
+DEVICE_ID="$DEV_ID"
+HOSTNAME="$HOST_NAME"
+EOF
+chmod 600 /etc/mininoc/agent.conf
+
+AGENT_BIN="/usr/local/bin/mininoc-agent.sh"
+if command -v curl >/dev/null 2>&1; then
+    curl -fsS --max-time 10 "http://$NOC_HOST:$NOC_PORT/api/mininoc-agent.sh" -o "$AGENT_BIN" 2>/dev/null || true
+fi
+if [ ! -s "$AGENT_BIN" ] && command -v wget >/dev/null 2>&1; then
+    wget -q -O "$AGENT_BIN" --timeout=10 "http://$NOC_HOST:$NOC_PORT/api/mininoc-agent.sh" 2>/dev/null || true
+fi
+
+if [ -s "$AGENT_BIN" ]; then
+    chmod 755 "$AGENT_BIN"
+    if command -v systemctl >/dev/null 2>&1; then
+        cat <<'EOF' > /etc/systemd/system/mininoc-telemetry.service
+[Unit]
+Description=Mini-NOC Host Health & Telemetry Agent
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/mininoc-agent.sh
+StandardOutput=journal
+StandardError=journal
+EOF
+
+        cat <<'EOF' > /etc/systemd/system/mininoc-telemetry.timer
+[Unit]
+Description=Mini-NOC Host Health & Telemetry Agent Timer
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=15s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
+EOF
+
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        systemctl enable --now mininoc-telemetry.timer >/dev/null 2>&1 || true
+        "$AGENT_BIN" >/dev/null 2>&1 || true
+        ok "Telemetry agent running every 15s via systemd timer."
+    elif [ -d /etc/cron.d ]; then
+        echo "* * * * * root /usr/local/bin/mininoc-agent.sh >/dev/null 2>&1" > /etc/cron.d/mininoc-telemetry
+        chmod 644 /etc/cron.d/mininoc-telemetry
+        ok "Telemetry agent configured in cron."
+    fi
+else
+    warn "Could not download mininoc-agent.sh from collector; telemetry agent not started."
+fi
+
+ok "Onboarding completed successfully ($HOST_NAME, $HOST_IP)."
