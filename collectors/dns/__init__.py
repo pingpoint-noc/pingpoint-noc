@@ -1,0 +1,2 @@
+"""DNS collector package."""
+
