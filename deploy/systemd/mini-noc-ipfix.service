@@ -1,0 +1,23 @@
+[Unit]
+Description=Mini-NOC IPFIX ingestor
+After=network-online.target nfcapd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@RUN_USER@
+WorkingDirectory=@INSTALL_DIR@
+Environment="MININOC_DB_PATH=@INSTALL_DIR@/data/mini_noc.db"
+EnvironmentFile=-@INSTALL_DIR@/mini-noc.env
+ExecStart=@INSTALL_DIR@/.venv/bin/python -m collectors.ipfix.ingestor
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=@INSTALL_DIR@/data
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

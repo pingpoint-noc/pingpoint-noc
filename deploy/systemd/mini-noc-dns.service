@@ -1,0 +1,25 @@
+[Unit]
+Description=Mini-NOC DNS metrics poller and probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@RUN_USER@
+WorkingDirectory=@INSTALL_DIR@
+Environment="MININOC_DB_PATH=@INSTALL_DIR@/data/mini_noc.db"
+Environment="MININOC_DNS_POLL_INTERVAL=30"
+EnvironmentFile=-@INSTALL_DIR@/mini-noc.env
+ExecStart=@INSTALL_DIR@/.venv/bin/python -m collectors.dns.poller
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=@INSTALL_DIR@/data
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target
+

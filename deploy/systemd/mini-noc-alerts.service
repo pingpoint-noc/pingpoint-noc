@@ -1,0 +1,29 @@
+[Unit]
+Description=Mini-NOC alert evaluation engine
+After=network-online.target mini-noc-snmp.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@RUN_USER@
+WorkingDirectory=@INSTALL_DIR@
+Environment="MININOC_DB_PATH=@INSTALL_DIR@/data/mini_noc.db"
+Environment="MININOC_ALERT_INTERVAL=30"
+Environment="MININOC_ALERT_BW_BPS=10000000"
+Environment="MININOC_ALERT_BW_HOLD_SECONDS=120"
+Environment="MININOC_ALERT_FAILED_LOGINS=5"
+Environment="MININOC_ALERT_STALE_SECONDS=300"
+EnvironmentFile=-@INSTALL_DIR@/mini-noc.env
+ExecStart=@INSTALL_DIR@/.venv/bin/python -m alerts.engine
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=@INSTALL_DIR@/data
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target
+

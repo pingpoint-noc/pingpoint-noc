@@ -1,0 +1,26 @@
+Comandos de RouterOS para que el router envie al colector (entorno de referencia). Los aplica UNA PERSONA, nunca la IA.
+Antes de nada, mira que hay ya con los "print"; en los routers de referencia SNMP viene activado y con una
+comunidad preparada. NO toques las comunidades SNMP, la accion de syslog "remote" ni un destino IPFIX que
+ya exista. El colector de ejemplo es 192.168.88.4.
+
+--- Comprobar ---
+/snmp print
+/snmp community print
+/system logging action print
+/system logging print
+/ip traffic-flow print
+/ip traffic-flow target print
+
+--- Syslog (practica P2, apartado 7.2): una accion NUEVA, sin tocar "remote" ---
+/system logging action add name=collector target=remote remote=192.168.88.4 remote-port=514 bsd-syslog=yes syslog-facility=local0
+/system logging add topics=info action=collector
+/system logging add topics=warning action=collector
+/system logging add topics=error action=collector
+/system logging add topics=critical action=collector
+
+--- IPFIX (practica P3) ---
+/ip traffic-flow set enabled=yes
+/ip traffic-flow target add dst-address=192.168.88.4 port=2055 version=ipfix
+
+--- Interfaz de prueba para la verificacion de "interfaz caida" (crearla UNA sola vez; nunca ether4) ---
+(VLAN test-down con vlan-id=99 sobre lan89)

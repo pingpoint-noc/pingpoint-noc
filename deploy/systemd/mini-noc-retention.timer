@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Mini-NOC retention every hour
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

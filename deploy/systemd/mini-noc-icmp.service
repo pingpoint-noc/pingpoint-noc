@@ -1,0 +1,30 @@
+[Unit]
+Description=Mini-NOC ICMP latency, jitter and loss probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@RUN_USER@
+WorkingDirectory=@INSTALL_DIR@
+Environment="MININOC_DB_PATH=@INSTALL_DIR@/data/mini_noc.db"
+Environment="MININOC_ICMP_POLL_INTERVAL=60"
+# The parser of collectors/icmp/poller.py reads the English output of iputils ping with a decimal point.
+Environment="LC_ALL=C"
+EnvironmentFile=-@INSTALL_DIR@/mini-noc.env
+ExecStart=@INSTALL_DIR@/.venv/bin/python -m collectors.icmp.poller
+# ping needs a raw socket and the service user cannot open one (K77): give it CAP_NET_RAW and nothing else.
+# Proven in a lab with systemd-run and NoNewPrivileges=yes.
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=@INSTALL_DIR@/data
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target
