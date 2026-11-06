@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PingPoint NOC</title>
+  <meta name="color-scheme" content="dark light">
+  <meta name="mini-noc-tz" content="{{ tz }}">
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ asset_v }}">
+  <script src="/static/theme-init.js?v={{ asset_v }}"></script>
+  <link rel="stylesheet" href="/static/styles.css?v={{ asset_v }}">
+</head>
+<body class="noc-body" data-active-tab="tab-overview">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <!-- Phones only: the header scrolls away, so a thin strip keeps a firing alert or a stalled engine in view -->
+  <button type="button" id="alert-strip" class="alert-strip hidden" aria-live="polite"></button>
+  <!-- Top Navigation Header -->
+{% include "partials/header_nav.html" %}
+
+  <!-- Main Multi-Tab Viewport -->
+  <main class="noc-viewport" id="main-content" tabindex="-1">
+    <h1 class="visually-hidden">PingPoint NOC operations dashboard</h1>
+{% include "partials/tab_overview.html" %}
+{% include "partials/tab_topology.html" %}
+{% include "partials/tab_bandwidth.html" %}
+{% include "partials/tab_flows.html" %}
+{% include "partials/tab_syslog.html" %}
+{% include "partials/tab_timeline.html" %}
+{% include "partials/tab_health.html" %}
+{% include "partials/tab_settings.html" %}
+  </main>
+
+{% include "partials/modals.html" %}
+
+  <script src="/static/vendor/chart.umd.js"></script>
+  <script src="/static/app.js?v={{ asset_v }}"></script>
+</body>
+</html>
