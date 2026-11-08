@@ -1,0 +1,210 @@
+<!-- ============================================================== -->
+    <div id="tab-bandwidth" class="tab-pane" role="tabpanel">
+      <!-- Device Status Summary Header -->
+      <section class="panel" id="device-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Device Status &amp; Probed Interfaces</h2>
+            <span class="panel-subtitle">SNMPv2c Poller &middot; Target RouterOS SNMP Engine</span>
+          </div>
+          <div class="panel-actions">
+            <div id="device-freshness" class="freshness-badge">Loading...</div>
+          </div>
+        </div>
+        <div id="device-summary-cards" class="summary-cards"></div>
+
+        <!-- Interfaces Table with Selectors -->
+        <div tabindex="0" role="region" aria-labelledby="interfaces-table-caption" class="table-container">
+          <table class="data-table table-stack table-stack-dense table-interfaces">
+            <caption id="interfaces-table-caption">Router interfaces, operational status and live sample telemetry</caption>
+            <thead>
+              <tr>
+                <th>Interface</th>
+                <th>ifIndex</th>
+                <th>Admin Status</th>
+                <th>Oper Status</th>
+                <th>Speed (bps)</th>
+                <th>Sample Age</th>
+                <th>Quick Actions</th>
+              </tr>
+            </thead>
+            <tbody id="interfaces-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Main High-Resolution Bandwidth Chart Panel -->
+      <section class="panel" id="bandwidth-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Interface Bandwidth Telemetry (bit/s)</h2>
+            <span class="panel-subtitle">Computed on-the-fly from 64-bit ifHCInOctets / ifHCOutOctets with reset isolation</span>
+          </div>
+          <div class="panel-actions">
+            <div class="control-group">
+              <label for="bw-if-select" class="control-label">Interface</label>
+              <select id="bw-if-select" class="form-select form-select-small"></select>
+            </div>
+
+            <div class="chart-toggles" role="group" aria-label="Chart series visibility">
+              <label class="toggle-chip"><input type="checkbox" id="chk-show-rx" checked> <span class="chip-label text-cyan">RX</span></label>
+              <label class="toggle-chip"><input type="checkbox" id="chk-show-tx" checked> <span class="chip-label text-purple">TX</span></label>
+              <label class="toggle-chip"><input type="checkbox" id="chk-show-peaks" checked> <span class="chip-label text-amber">Peaks</span></label>
+              <label class="toggle-chip" title="Reference lines at the 95th percentile of RX and TX in this window"><input type="checkbox" id="chk-show-p95"> <span class="chip-label">p95</span></label>
+              <label class="toggle-chip" title="Compare with throughput 24 hours ago"><input type="checkbox" id="chk-compare-24h"> <span class="chip-label text-emerald">vs -24h</span></label>
+            </div>
+
+            <div class="export-button-group">
+              <a id="export-bw-csv" class="btn btn-secondary btn-small" href="#" download>Export CSV</a>
+              <a id="export-bw-json" class="btn btn-secondary btn-small" href="#" download>Export JSON</a>
+            </div>
+
+            <span id="bw-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+
+        <div id="bw-empty-reason" class="empty-reason-card hidden"></div>
+
+        <div class="chart-wrapper high-res-chart">
+          <canvas id="bw-canvas" class="noc-chart-canvas" height="300" role="img" aria-label="High-resolution interface bandwidth chart"></canvas>
+          <div id="bw-chart-tooltip" class="noc-chart-tooltip hidden"></div>
+        </div>
+
+        <div id="bw-legend" class="chart-stats-ribbon"></div>
+        <div id="bw-capacity" class="chart-stats-ribbon bw-capacity" aria-live="polite"></div>
+      </section>
+
+      <!-- Modular Host & DNS Telemetry Panel (shown when target has no SNMP interfaces) -->
+      <section class="panel hidden" id="bandwidth-host-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2 id="host-panel-title">Host Telemetry &amp; Network Profile</h2>
+            <span id="host-panel-subtitle" class="panel-subtitle">Linux container / virtual service connected via network bridge</span>
+          </div>
+          <div class="panel-actions">
+            <div id="host-chart-mode-bar" class="chart-toggles hidden" role="group" aria-label="DNS chart mode">
+              <button type="button" class="btn btn-secondary btn-small is-active" id="btn-host-mode-dns" data-host-mode="dns">DNS Latency &amp; Queries</button>
+              <button type="button" class="btn btn-secondary btn-small" id="btn-host-mode-traffic" data-host-mode="traffic">IPFIX Traffic (bit/s)</button>
+            </div>
+            <div class="export-button-group">
+              <a id="export-host-csv" class="btn btn-secondary btn-small" href="#" download>Export CSV</a>
+              <a id="export-host-json" class="btn btn-secondary btn-small" href="#" download>Export JSON</a>
+            </div>
+            <div id="host-freshness" class="freshness-badge">Loading...</div>
+          </div>
+        </div>
+
+        <div class="host-banner-note" id="host-telemetry-banner">
+          <svg class="host-banner-icon" id="host-banner-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-host"></use></svg>
+          <div class="host-banner-body">
+            <strong id="host-banner-title">Host Telemetry (Passive Network Attribution)</strong>
+            <p id="host-banner-text">Telemetry for this target is computed dynamically from IPFIX NetFlows, Syslog streams, and service probes.</p>
+          </div>
+        </div>
+
+        <!-- Host Quick Metrics Cards -->
+        <div id="host-summary-cards" class="summary-cards"></div>
+
+        <!-- Interactive Time-Series Chart for Host / DNS Targets -->
+        <div class="overview-top-if-section" style="margin-top: 1.25rem;">
+          <div class="overview-top-if-header">
+            <strong id="host-chart-heading">Inbound &amp; Outbound Network Throughput (bit/s)</strong>
+            <span id="host-chart-subheading" class="overview-top-if-subtitle">Time-bucketed IPFIX flow rates attributed to this target</span>
+          </div>
+          <div id="host-empty-reason" class="empty-reason-card hidden" style="margin-top: 0.75rem;"></div>
+          <div class="chart-wrapper high-res-chart" style="margin-top: 0.75rem;">
+            <canvas id="host-telemetry-canvas" class="noc-chart-canvas" height="280" role="img" aria-label="Host telemetry time-series chart"></canvas>
+            <div id="host-chart-tooltip" class="noc-chart-tooltip hidden"></div>
+          </div>
+          <div id="host-chart-legend" class="chart-stats-ribbon"></div>
+        </div>
+
+        <!-- DNS Specific Section (visible when device is DNS / Pi-hole) -->
+        <div id="host-dns-section" class="overview-top-if-section hidden" style="margin-top: 1.5rem;">
+          <div class="overview-top-if-header">
+            <strong>DNS Service Activity &amp; Filtering Stats</strong>
+            <span class="overview-top-if-subtitle">Active RFC 1035 socket probe &middot; Pi-hole gravity filter metrics</span>
+          </div>
+          <div class="host-overview-stats" style="margin-top: 0.75rem;">
+            <div class="host-stat-box">
+              <span class="stat-label">UDP 53 Latency</span>
+              <span id="host-dns-latency" class="stat-value text-cyan">--</span>
+              <span id="host-dns-latency-sub" class="stat-sub">Socket RTT</span>
+            </div>
+            <div class="host-stat-box">
+              <span class="stat-label">Total Queries</span>
+              <span id="host-dns-queries" class="stat-value text-emerald">--</span>
+              <span id="host-dns-queries-sub" class="stat-sub">Active session</span>
+            </div>
+            <div class="host-stat-box">
+              <span class="stat-label">Filtered &amp; Blocked</span>
+              <span id="host-dns-blocked" class="stat-value text-amber">--</span>
+              <span id="host-dns-blocked-sub" class="stat-sub">Ad/tracker blocks</span>
+            </div>
+            <div class="host-stat-box">
+              <span class="stat-label">Gravity Blocklist</span>
+              <span id="host-dns-gravity" class="stat-value text-purple">--</span>
+              <span id="host-dns-gravity-sub" class="stat-sub">Domains blocked</span>
+            </div>
+          </div>
+{% include "partials/dns_insights.html" %}
+        </div>
+
+        <!-- Host Flow Traffic Summary (IPFIX) -->
+        <div class="overview-top-if-section" style="margin-top: 1.5rem;">
+          <div class="overview-top-if-header">
+            <strong>Host Network Traffic &amp; Peer Breakdown</strong>
+            <span class="overview-top-if-subtitle">Total volume and top conversation peers in current window</span>
+          </div>
+          <div class="host-overview-stats" style="margin-top: 0.75rem;">
+            <div class="host-stat-box">
+              <span class="stat-label">Flow Volume in Window</span>
+              <span id="host-bw-flow-vol" class="stat-value text-cyan">--</span>
+              <span id="host-bw-flow-count" class="stat-sub">-- flows</span>
+            </div>
+            <div class="host-stat-box">
+              <span class="stat-label">Top Conversation Partner</span>
+              <span id="host-bw-top-peer" class="stat-value text-purple">--</span>
+              <span id="host-bw-top-peer-vol" class="stat-sub">--</span>
+            </div>
+            <div class="host-stat-box">
+              <span class="stat-label">Syslog Events Logged</span>
+              <span id="host-bw-log-count" class="stat-value text-amber">--</span>
+              <span id="host-bw-log-sub" class="stat-sub">Security &amp; system feed</span>
+            </div>
+          </div>
+
+          <div tabindex="0" role="region" aria-labelledby="host-peers-caption" class="table-container" style="margin-top: 1rem;">
+            <table class="data-table">
+              <caption id="host-peers-caption" class="visually-hidden">Top conversation partners and destination ports for this host</caption>
+              <thead>
+                <tr>
+                  <th>Conversation Peer / Endpoint</th>
+                  <th>Flows</th>
+                  <th>Packets</th>
+                  <th>Volume</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="host-peers-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Quick actions and Router link switcher -->
+        <div class="host-quick-actions" style="margin-top: 1.5rem;">
+          <button type="button" class="btn btn-secondary btn-small jump-tab-btn" data-target="tab-flows">
+            IPFIX &amp; NAT &rarr;
+          </button>
+          <button type="button" class="btn btn-ghost btn-small jump-tab-btn" data-target="tab-syslog">
+            Syslog Stream &rarr;
+          </button>
+          <button type="button" id="btn-switch-router-bw" class="btn btn-secondary btn-small">
+            Switch Target to Router (edge-router-1) to View Physical SNMP Interfaces &rarr;
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 3: IPFIX FLOWS & NAT ATTRIBUTION                          -->

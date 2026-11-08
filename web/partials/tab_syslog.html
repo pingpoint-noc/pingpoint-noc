@@ -1,0 +1,96 @@
+<!-- ============================================================== -->
+    <div id="tab-syslog" class="tab-pane" role="tabpanel">
+      <section class="panel panel-wide" id="logs-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2 id="syslog-panel-title">Syslog Stream: RouterOS</h2>
+            <span id="syslog-panel-subtitle" class="panel-subtitle">Ingested from rsyslog buffer with RFC 3339 collector timezone normalisation to UTC</span>
+          </div>
+          <div class="panel-actions">
+            <div class="control-group">
+              <label for="log-severity-select" class="control-label">Severity</label>
+              <select id="log-severity-select" class="form-select form-select-small">
+                <option value="">All severities</option>
+                <option value="emerg">emerg (0)</option>
+                <option value="alert">alert (1)</option>
+                <option value="crit">crit (2)</option>
+                <option value="err">err (3)</option>
+                <option value="warning">warning (4)</option>
+                <option value="notice">notice (5)</option>
+                <option value="info">info (6)</option>
+                <option value="debug">debug (7)</option>
+              </select>
+            </div>
+
+            <div class="search-input-group">
+              <input type="search" id="log-search-input" class="form-input form-input-small" placeholder="Filter message text" aria-label="Filter syslog message text">
+              <button type="button" id="log-filter-btn" class="btn btn-primary btn-small">Apply Filter</button>
+            </div>
+
+            <div class="export-button-group">
+              <a id="export-logs-csv" class="btn btn-secondary btn-small" href="#" download>Export CSV</a>
+              <a id="export-logs-json" class="btn btn-secondary btn-small" href="#" download>Export JSON</a>
+            </div>
+
+            <span id="logs-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+
+        <!-- Severity Distribution Pills -->
+        <div class="severity-bar">
+          <span class="severity-bar-label">Severity Breakdown:</span>
+          <div id="log-severity-pills" class="severity-pills"></div>
+        </div>
+
+        <div id="logs-empty-reason" class="empty-reason-card hidden"></div>
+
+        <!-- Live syslog table -->
+        <div tabindex="0" role="region" aria-labelledby="syslog-table-caption" class="table-container log-console-container">
+          <table class="data-table table-logs console-mode">
+            <caption id="syslog-table-caption">Newest syslog events converted from UTC to {{ tz }}</caption>
+            <thead>
+              <tr>
+                <th style="width: 175px;">Time ({{ tz }})</th>
+                <th style="width: 90px;">Severity</th>
+                <th style="width: 90px;">Facility</th>
+                <th>Event Message</th>
+                <th style="width: 100px;">Timeline</th>
+              </tr>
+            </thead>
+            <tbody id="logs-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Configuration changes read from the router's syslog -->
+      <section class="panel panel-wide" id="config-changes-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Configuration Changes</h2>
+            <span class="panel-subtitle">Who changed what on this device in the last 7 days, read from its syslog (read-only)</span>
+          </div>
+          <div class="panel-actions">
+            <span id="config-changes-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+        <p id="config-changes-empty" class="empty-reason-card" hidden></p>
+        <div tabindex="0" role="region" aria-labelledby="config-changes-caption" class="table-container">
+          <table class="data-table table-stack">
+            <caption id="config-changes-caption">Configuration changes: time, what, who, from where and the command</caption>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Change</th>
+                <th>By</th>
+                <th>From</th>
+                <th>Command</th>
+              </tr>
+            </thead>
+            <tbody id="config-changes-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 5: INCIDENT TIMELINE                                      -->

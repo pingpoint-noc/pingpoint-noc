@@ -1,0 +1,156 @@
+<!-- ============================================================== -->
+    <div id="tab-flows" class="tab-pane" role="tabpanel">
+      <section class="panel panel-wide" id="flows-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2 id="flows-panel-title">IPFIX &amp; NAT: Top Talkers &amp; Attribution</h2>
+            <span id="flows-panel-subtitle" class="panel-subtitle">Deduplicated flow records resolved to internal LAN origin host across RouterOS NAT</span>
+          </div>
+          <div class="panel-actions">
+            <div class="export-button-group">
+              <a id="export-flows-csv" class="btn btn-secondary btn-small" href="#" download>Export CSV</a>
+              <a id="export-flows-json" class="btn btn-secondary btn-small" href="#" download>Export JSON</a>
+            </div>
+            <span id="flows-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+
+        <div id="flows-empty-reason" class="empty-reason-card hidden"></div>
+
+        <div id="flow-consistency-banner" class="consistency-banner" style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-card, #1e222d); border:1px solid var(--border-color, #2a2e39); border-radius:6px; padding:10px 16px; margin-bottom:16px;">
+          <div>
+            <strong>Flow &harr; SNMP Consistency (L3 &sect;11):</strong>
+            <span id="flow-consistency-text" style="margin-left:8px; color:var(--text-muted, #8b949e);">Analyzing consistency...</span>
+          </div>
+          <div>
+            <span id="flow-consistency-pill" class="badge badge-info">Checking...</span>
+          </div>
+        </div>
+
+        <div class="three-col-grid">
+          <!-- Column 1: Top Hosts -->
+          <div class="flow-category-card">
+            <div class="category-header">
+              <h3 id="cat-top-hosts-title">Top Internal Hosts</h3>
+              <span class="category-sub" id="cat-top-hosts-sub">Click a host to drill down</span>
+            </div>
+            <div tabindex="0" role="region" aria-labelledby="top-hosts-caption" class="table-container compact">
+              <table class="data-table table-stack table-top-hosts">
+                <caption id="top-hosts-caption">Internal LAN hosts ordered by transfer volume</caption>
+                <thead>
+                  <tr>
+                    <th>Host IP</th>
+                    <th>Volume</th>
+                    <th>Share</th>
+                    <th>Flows</th>
+                  </tr>
+                </thead>
+                <tbody id="top-hosts-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Column 2: Top Pairs -->
+          <div class="flow-category-card">
+            <div class="category-header">
+              <h3>Top Conversations (Src &rarr; Dst)</h3>
+              <span class="category-sub">Pair endpoints &middot; Host attribution</span>
+            </div>
+            <div tabindex="0" role="region" aria-labelledby="top-pairs-caption" class="table-container compact">
+              <table class="data-table table-stack table-top-pairs">
+                <caption id="top-pairs-caption">Top source-destination network pairs</caption>
+                <thead>
+                  <tr>
+                    <th>Pair (Src &rarr; Dst)</th>
+                    <th>Internal Host</th>
+                    <th>Bytes</th>
+                    <th>Flows</th>
+                  </tr>
+                </thead>
+                <tbody id="top-pairs-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Column 3: Top Ports -->
+          <div class="flow-category-card">
+            <div class="category-header">
+              <h3>Top Destination Ports</h3>
+              <span class="category-sub">Target services &middot; Protocols</span>
+            </div>
+            <div tabindex="0" role="region" aria-labelledby="top-ports-caption" class="table-container compact">
+              <table class="data-table table-stack table-top-ports">
+                <caption id="top-ports-caption">Top destination ports and transport protocols</caption>
+                <thead>
+                  <tr>
+                    <th>Port / Service</th>
+                    <th>Bytes</th>
+                    <th>Packets</th>
+                    <th>Flows</th>
+                  </tr>
+                </thead>
+                <tbody id="top-ports-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Persistent Sessions Across Flow Rotations (L3 §10, §12.3) -->
+        <div class="flow-category-card" style="margin-top:16px;">
+          <div class="category-header">
+            <h3>Persistent Sessions (5-Tuple Session Reconstruction)</h3>
+            <span class="category-sub">Reconstructed long sessions across 60s nfcapd rotations &middot; Duration &amp; Transfer Rates</span>
+          </div>
+          <div tabindex="0" role="region" aria-labelledby="sessions-caption" class="table-container compact">
+            <table class="data-table table-stack table-sessions">
+              <caption id="sessions-caption">Active and historical reconstructed sessions by volume</caption>
+              <thead>
+                <tr>
+                  <th>5-Tuple (Proto Src:Port &rarr; Dst:Port)</th>
+                  <th>Duration</th>
+                  <th>Flow Chunks</th>
+                  <th>Total Bytes</th>
+                  <th>Avg Rate</th>
+                </tr>
+              </thead>
+              <tbody id="flow-sessions-tbody">
+                <tr><td colspan="5" class="table-empty">Loading persistent sessions...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Drill-Down Drawer for Host Conversations -->
+        <div id="host-drilldown-box" class="drilldown-drawer hidden">
+          <div class="drilldown-header">
+            <div class="drilldown-title-wrap">
+              <span class="drilldown-tag">FLOW DRILL-DOWN</span>
+              <h3 id="host-drilldown-title">Host Conversations</h3>
+            </div>
+            <button type="button" id="close-host-drilldown-btn" class="btn btn-secondary btn-small" title="Close conversation drawer">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg> Close Drill-down
+            </button>
+          </div>
+          <div tabindex="0" role="region" aria-labelledby="host-flows-caption" class="table-container">
+            <table class="data-table table-stack table-host-flows">
+              <caption id="host-flows-caption">Detailed per-flow translation and pre/post NAT mapping</caption>
+              <thead>
+                <tr>
+                  <th>Timestamp ({{ tz }})</th>
+                  <th>Proto</th>
+                  <th>Pre-NAT Source</th>
+                  <th>Post-NAT Src (WAN)</th>
+                  <th>Destination</th>
+                  <th>Internal Host</th>
+                  <th>Bytes</th>
+                </tr>
+              </thead>
+              <tbody id="host-flows-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 4: SYSLOG STREAM                                          -->

@@ -1,0 +1,494 @@
+<!-- ============================================================== -->
+    <div id="tab-overview" class="tab-pane active" role="tabpanel">
+      <!-- Home: greeting, the real state in one sentence, device availability and task shortcuts -->
+      <section id="welcome" class="welcome" aria-labelledby="welcome-title">
+        <div class="welcome-head">
+          <div class="welcome-line">
+            <h2 id="welcome-title" class="welcome-title">Welcome</h2>
+            <p id="welcome-status" class="welcome-status">Checking the system...</p>
+          </div>
+          <button type="button" id="welcome-toggle" class="btn btn-secondary btn-small" aria-expanded="true" aria-controls="welcome-more">Hide tips</button>
+        </div>
+        <p id="welcome-devices-summary" class="avail-summary" aria-live="polite"></p>
+        <div id="welcome-devices" class="avail-strip" role="group" aria-label="Device availability"></div>
+        <div id="welcome-more" class="welcome-more">
+          <p class="welcome-ask">What do you want to check?</p>
+          <div class="welcome-tasks">
+            <button type="button" class="task-chip" data-goto="tab-bandwidth">How busy are the links?</button>
+            <button type="button" class="task-chip" data-goto="tab-flows">Who is talking the most?</button>
+            <button type="button" class="task-chip" data-goto="tab-syslog">What just happened?</button>
+            <button type="button" class="task-chip" data-goto="tab-timeline">What was going on at a given moment?</button>
+            <button type="button" class="task-chip" data-goto="tab-health">Are all the collectors alive?</button>
+            <button type="button" class="task-chip" data-goto="tab-settings">Where do the alerts go?</button>
+          </div>
+          <p class="welcome-hint">Press <kbd>?</kbd> for the keyboard shortcuts and <kbd>H</kbd> to come back here. The logo also brings you home.</p>
+        </div>
+      </section>
+
+      <!-- One row on a desktop: the NOC indicators and the selected device's indicators side by side -->
+      <div class="kpi-row">
+      <!-- NOC Global Infrastructure Summary -->
+      <div class="kpi-group kpi-group-noc">
+      <div class="overview-section-header">
+        <span class="section-tag">NOC Infrastructure</span>
+        <span class="section-desc">Global network health, alarms, and flow traffic</span>
+      </div>
+      <section class="kpi-ribbon noc-global-ribbon" aria-label="NOC Global Infrastructure Indicators">
+        <div class="kpi-card" id="kpi-global-nodes">
+          <span class="kpi-label">Monitored Nodes</span>
+          <div class="kpi-main">
+            <span id="kpi-global-nodes-val" class="kpi-value text-emerald">--</span>
+            <span id="kpi-global-nodes-sub" class="kpi-sub">Nodes UP</span>
+          </div>
+          <span id="kpi-global-nodes-caption" class="kpi-caption">Total monitored: --</span>
+        </div>
+
+        <div class="kpi-card" id="kpi-alerts-card">
+          <div class="kpi-header-row">
+            <span class="kpi-label">Incident Alarms</span>
+            <div id="spark-alerts" class="kpi-sparkline-wrap" aria-hidden="true"></div>
+          </div>
+          <div class="kpi-main">
+            <span id="kpi-alerts-count" class="kpi-value text-emerald">0 Firing</span>
+            <span class="kpi-sub">Active State</span>
+          </div>
+          <span id="kpi-alerts-sub" class="kpi-caption">Evaluated every 30s</span>
+        </div>
+
+        <div class="kpi-card" id="kpi-flows-card">
+          <div class="kpi-header-row">
+            <span class="kpi-label">Network IPFIX Flows</span>
+            <div id="spark-flows" class="kpi-sparkline-wrap" aria-hidden="true"></div>
+          </div>
+          <div class="kpi-main">
+            <span id="kpi-flows-val" class="kpi-value text-amber">--</span>
+            <span id="kpi-flows-sub" class="kpi-sub">Flows in Window</span>
+          </div>
+          <span id="kpi-top-talker" class="kpi-caption">Top: --</span>
+        </div>
+
+        <div class="kpi-card" id="kpi-health-card">
+          <span class="kpi-label">Engine Health</span>
+          <div class="kpi-main">
+            <span id="kpi-health-status" class="kpi-value text-emerald">HEALTHY</span>
+            <span class="kpi-sub">SQLite WAL</span>
+          </div>
+          <span id="kpi-db-size" class="kpi-caption">Size: -- MB</span>
+        </div>
+      </section>
+      </div>
+
+      <!-- Selected Target Device Telemetry -->
+      <div class="kpi-group kpi-group-target">
+      <div class="overview-section-header">
+        <span class="section-tag" id="target-section-tag">Target Device Telemetry</span>
+        <span class="section-desc" id="target-section-desc">Selected target state and operational metrics</span>
+        <div id="target-hypervisor-badge-wrap" class="hidden" style="margin-top: 0.35rem;">
+          <span id="target-hypervisor-badge" class="badge badge-subtle text-purple" style="cursor:pointer;" title="Click to inspect parent hypervisor"></span>
+        </div>
+      </div>
+      <section class="kpi-ribbon target-device-ribbon" aria-label="Selected Target Device Indicators">
+        <div class="kpi-card" id="kpi-reachability">
+          <span class="kpi-label">Device Connectivity</span>
+          <div class="kpi-main">
+            <span id="kpi-reach-val" class="kpi-value text-emerald">Reachable</span>
+            <span id="kpi-ip-val" class="kpi-sub">--</span>
+          </div>
+          <span id="kpi-uptime-val" class="kpi-caption">Status: --</span>
+        </div>
+
+        <!-- Proxmox Only: Node CPU & Loadavg (hidden for router/host/dns) -->
+        <div class="kpi-card hidden" id="kpi-pve-cpu">
+          <div class="kpi-header-row">
+            <span class="kpi-label">Hypervisor CPU</span>
+            <div id="spark-pve-cpu" class="kpi-sparkline-wrap" aria-hidden="true"></div>
+          </div>
+          <div class="kpi-main">
+            <span id="kpi-pve-cpu-val" class="kpi-value text-cyan">--</span>
+            <span class="kpi-sub">Load Average</span>
+          </div>
+          <span id="kpi-pve-loadavg-val" class="kpi-caption">1m: -- &middot; 5m: -- &middot; 15m: --</span>
+        </div>
+
+        <!-- Proxmox Only: Node RAM Memory (hidden for router/host/dns) -->
+        <div class="kpi-card hidden" id="kpi-pve-mem">
+          <div class="kpi-header-row">
+            <span class="kpi-label">Node RAM Memory</span>
+            <div id="spark-pve-mem" class="kpi-sparkline-wrap" aria-hidden="true"></div>
+          </div>
+          <div class="kpi-main">
+            <span id="kpi-pve-mem-val" class="kpi-value text-emerald">--</span>
+            <span class="kpi-sub">Used RAM</span>
+          </div>
+          <span id="kpi-pve-mem-sub" class="kpi-caption">-- / --</span>
+        </div>
+
+        <!-- Proxmox Only: Virtual Guests (hidden for router/host/dns) -->
+        <div class="kpi-card hidden" id="kpi-pve-guests">
+          <span class="kpi-label">Virtual Guests</span>
+          <div class="kpi-main">
+            <span id="kpi-pve-guests-val" class="kpi-value text-purple">--</span>
+            <span class="kpi-sub">Active Running</span>
+          </div>
+          <span id="kpi-pve-guests-sub" class="kpi-caption">-- VMs &middot; -- LXC</span>
+        </div>
+
+        <!-- Router Only: Current Interface Rate -->
+        <div class="kpi-card" id="kpi-traffic">
+          <div class="kpi-header-row">
+            <span class="kpi-label">Current Interface Rate</span>
+            <div id="spark-traffic" class="kpi-sparkline-wrap" aria-hidden="true"></div>
+          </div>
+          <div class="kpi-main">
+            <span id="kpi-rx-val" class="kpi-value text-cyan">0 bit/s</span>
+            <span class="kpi-sub">RX in</span>
+          </div>
+          <span id="kpi-tx-val" class="kpi-caption text-purple">TX Out: 0 bit/s</span>
+        </div>
+
+        <!-- Host Only: Flow Volume (hidden for routers) -->
+        <div class="kpi-card hidden" id="kpi-host-traffic">
+          <div class="kpi-header-row">
+            <span class="kpi-label">Host Flow Traffic</span>
+            <div id="spark-host-traffic" class="kpi-sparkline-wrap" aria-hidden="true"></div>
+          </div>
+          <div class="kpi-main">
+            <span id="kpi-host-bytes-val" class="kpi-value text-cyan">--</span>
+            <span id="kpi-host-flows-sub" class="kpi-sub">-- flows</span>
+          </div>
+          <span id="kpi-host-traffic-caption" class="kpi-caption text-purple">Bidirectional IPFIX volume</span>
+        </div>
+
+        <!-- Router Only: Interface Topology -->
+        <div class="kpi-card" id="kpi-interfaces">
+          <span class="kpi-label">Interface Topology</span>
+          <div class="kpi-main">
+            <span id="kpi-if-up-val" class="kpi-value">--</span>
+            <span class="kpi-sub">Interfaces UP</span>
+          </div>
+          <span id="kpi-if-total-val" class="kpi-caption">Total probed: --</span>
+        </div>
+
+        <!-- Host Only: Syslog Activity (hidden for routers) -->
+        <div class="kpi-card hidden" id="kpi-host-syslog">
+          <div class="kpi-header-row">
+            <span class="kpi-label">Host Syslog Activity</span>
+            <div id="spark-host-syslog" class="kpi-sparkline-wrap" aria-hidden="true"></div>
+          </div>
+          <div class="kpi-main">
+            <span id="kpi-host-logs-val" class="kpi-value text-amber">--</span>
+            <span class="kpi-sub">Events logged</span>
+          </div>
+          <span id="kpi-host-logs-caption" class="kpi-caption">Security &amp; system feed</span>
+        </div>
+
+        <!-- DNS Only: Resolution Latency (hidden for routers/hosts) -->
+        <div class="kpi-card hidden" id="kpi-dns-latency">
+          <div class="kpi-header-row">
+            <span class="kpi-label">Resolution Latency</span>
+            <div id="spark-dns-latency" class="kpi-sparkline-wrap" aria-hidden="true"></div>
+          </div>
+          <div class="kpi-main">
+            <span id="kpi-dns-latency-val" class="kpi-value text-cyan">--</span>
+            <span class="kpi-sub">UDP 53 RTT</span>
+          </div>
+          <span id="kpi-dns-latency-caption" class="kpi-caption text-purple">Socket response time</span>
+        </div>
+
+        <!-- DNS Only: Query Activity (hidden for routers/hosts) -->
+        <div class="kpi-card hidden" id="kpi-dns-queries">
+          <div class="kpi-header-row">
+            <span class="kpi-label">DNS Query Volume</span>
+            <div id="spark-dns-queries" class="kpi-sparkline-wrap" aria-hidden="true"></div>
+          </div>
+          <div class="kpi-main">
+            <span id="kpi-dns-queries-val" class="kpi-value text-emerald">--</span>
+            <span id="kpi-dns-queries-sub" class="kpi-sub">Total queries</span>
+          </div>
+          <span id="kpi-dns-queries-caption" class="kpi-caption">Resolution requests</span>
+        </div>
+
+        <!-- DNS Only: Blocked Protection (hidden for routers/hosts) -->
+        <div class="kpi-card hidden" id="kpi-dns-blocked">
+          <div class="kpi-header-row">
+            <span class="kpi-label">Ad &amp; Threat Blocking</span>
+            <div id="spark-dns-blocked" class="kpi-sparkline-wrap" aria-hidden="true"></div>
+          </div>
+          <div class="kpi-main">
+            <span id="kpi-dns-blocked-val" class="kpi-value text-amber">--</span>
+            <span id="kpi-dns-blocked-sub" class="kpi-sub">Blocked %</span>
+          </div>
+          <span id="kpi-dns-blocked-caption" class="kpi-caption">Filtering efficiency</span>
+        </div>
+      </section>
+      </div>
+      </div>
+
+      <!-- Overview Split View: Main Traffic + Quick Alerts & Top Hosts -->
+      <div class="overview-split-layout">
+        <!-- Main Bandwidth / Host Overview Card -->
+        <div class="panel overview-chart-panel">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <h3 id="overview-bw-title">Bandwidth Throughput</h3>
+              <span id="overview-bw-subtitle" class="panel-subtitle">64-bit high-capacity counters &middot; Live delta rates in bit/s</span>
+            </div>
+            <div class="panel-actions">
+              <div class="overview-if-picker-wrap" id="overview-if-picker-wrap">
+                <label for="overview-if-select" class="visually-hidden">Overview interface</label>
+                <select id="overview-if-select" class="form-select form-select-small" aria-label="Select Interface for Overview Chart">
+                  <option value="0">All Interfaces (Combined)</option>
+                </select>
+              </div>
+              <span id="overview-bw-badge" class="badge badge-subtle">All Interfaces (Combined)</span>
+              <button type="button" class="btn btn-secondary btn-small jump-tab-btn" id="overview-bw-jump" data-target="tab-bandwidth">
+                Bandwidth &amp; Interfaces &rarr;
+              </button>
+              <span id="overview-device-freshness" class="freshness-badge">Loading...</span>
+            </div>
+          </div>
+          <!-- Dynamic Primary Chart Canvas Wrap (shown for ALL targets: Router, DNS, and Host) -->
+          <div id="overview-router-bw-wrap">
+            <div class="chart-wrapper">
+              <canvas id="overview-chart" class="noc-chart-canvas" height="240" role="img" aria-label="Inbound and outbound throughput of the selected device over the chosen window"></canvas>
+              <div id="overview-chart-tooltip" class="noc-chart-tooltip hidden"></div>
+            </div>
+            <div class="chart-legend-strip">
+              <span class="legend-item"><span class="legend-dot bg-cyan"></span><strong id="ov-rx-label">RX Inbound:</strong> <span id="ov-rx-current">0 bit/s</span></span>
+              <span class="legend-item"><span class="legend-dot bg-purple"></span><strong id="ov-tx-label">TX Outbound:</strong> <span id="ov-tx-current">0 bit/s</span></span>
+              <span class="legend-meta" id="ov-chart-meta-note">Counter resets rendered honestly as gaps</span>
+            </div>
+            <!-- Top Interfaces Ranking (Router) -->
+            <div id="overview-top-if-wrap" class="overview-top-if-section">
+              <div class="overview-top-if-header">
+                <strong>Top Interfaces by Traffic</strong>
+                <span class="overview-top-if-subtitle">Ranked by current load (RX + TX) &middot; Click any row to plot above</span>
+                <button type="button" class="btn btn-ghost btn-small phone-fold-btn" data-fold="overview-top-if-table" aria-expanded="false" aria-controls="overview-top-if-table">Show</button>
+              </div>
+              <div id="overview-top-if-table" tabindex="0" role="region" aria-labelledby="top-if-table-caption" class="table-container top-if-table-container">
+                <table class="data-table top-if-table">
+                  <caption id="top-if-table-caption" class="visually-hidden">Top router interfaces ranked by current traffic load</caption>
+                  <thead>
+                    <tr>
+                      <th>Interface</th>
+                      <th>Status</th>
+                      <th>RX Rate</th>
+                      <th>TX Rate</th>
+                      <th>Total Load</th>
+                      <th id="top-if-p95-head" title="95th percentile of the busier direction in the selected range">p95</th>
+                    </tr>
+                  </thead>
+                  <tbody id="overview-top-if-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <!-- Host Activity Wrap (shown below primary chart when target is host) -->
+          <div id="overview-host-activity-wrap" class="host-activity-container hidden">
+            <div class="host-overview-stats">
+              <div class="host-stat-box">
+                <span class="stat-label">Flow Volume in Window</span>
+                <span id="ov-host-flow-vol" class="stat-value text-cyan">--</span>
+                <span id="ov-host-flow-count" class="stat-sub">-- flows</span>
+              </div>
+              <div class="host-stat-box">
+                <span class="stat-label">Top Conversation Partner</span>
+                <span id="ov-host-top-peer" class="stat-value text-purple">--</span>
+                <span id="ov-host-top-peer-vol" class="stat-sub">--</span>
+              </div>
+              <div class="host-stat-box">
+                <span class="stat-label">Security &amp; Errors Logged</span>
+                <span id="ov-host-log-count" class="stat-value text-amber">--</span>
+                <span id="ov-host-log-last" class="stat-sub">Last contact: --</span>
+              </div>
+            </div>
+            <div class="host-quick-actions">
+              <button type="button" class="btn btn-secondary btn-small jump-tab-btn" data-target="tab-flows">IPFIX &amp; NAT &rarr;</button>
+              <button type="button" class="btn btn-ghost btn-small jump-tab-btn" data-target="tab-syslog">Syslog Stream &rarr;</button>
+            </div>
+          </div>
+          <!-- DNS Activity Wrap (shown below primary chart when target is DNS node) -->
+          <div id="overview-dns-activity-wrap" class="host-activity-container hidden">
+            <div class="host-overview-stats">
+              <div class="host-stat-box">
+                <span class="stat-label">Resolution Latency (RTT)</span>
+                <span id="ov-dns-latency" class="stat-value text-cyan">--</span>
+                <span id="ov-dns-latency-sub" class="stat-sub">Socket UDP 53</span>
+              </div>
+              <div class="host-stat-box">
+                <span class="stat-label">Total Queries</span>
+                <span id="ov-dns-queries" class="stat-value text-emerald">--</span>
+                <span id="ov-dns-queries-sub" class="stat-sub">Active session</span>
+              </div>
+              <div class="host-stat-box">
+                <span class="stat-label">Filtered &amp; Blocked</span>
+                <span id="ov-dns-blocked" class="stat-value text-amber">--</span>
+                <span id="ov-dns-blocked-sub" class="stat-sub">Ad/tracker blocks</span>
+              </div>
+              <div class="host-stat-box">
+                <span class="stat-label">Gravity Blocklist</span>
+                <span id="ov-dns-gravity" class="stat-value text-purple">--</span>
+                <span id="ov-dns-gravity-sub" class="stat-sub">Domains blocked</span>
+              </div>
+            </div>
+
+            <!-- Secondary DNS stats grid -->
+            <div class="overview-top-if-section" style="margin-top: 1rem;">
+              <div class="overview-top-if-header">
+                <strong>Resolution Breakdown &amp; Clients</strong>
+                <span class="overview-top-if-subtitle">Cache performance, forward destination and active client nodes</span>
+              </div>
+              <div class="table-container">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                      <th>Operational Meaning</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>Cached Queries</strong></td>
+                      <td id="ov-dns-cached">--</td>
+                      <td>Served instantly from local memory cache (zero WAN delay)</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Forwarded Queries</strong></td>
+                      <td id="ov-dns-forwarded">--</td>
+                      <td>Resolved recursively via upstream DNS servers</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Unique Domains</strong></td>
+                      <td id="ov-dns-domains">--</td>
+                      <td>Distinct fully-qualified domain names requested</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Active Clients</strong></td>
+                      <td id="ov-dns-clients">--</td>
+                      <td>Internal lab hosts directing DNS queries to this server</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+{% include "partials/dns_insights.html" %}
+          </div>
+          <!-- Proxmox Activity Wrap (shown below primary chart when target is Proxmox hypervisor) -->
+          <div id="overview-proxmox-wrap" class="host-activity-container hidden">
+            <div class="host-overview-stats">
+              <div class="host-stat-box">
+                <span class="stat-label">Root Filesystem (/)</span>
+                <span id="ov-pve-rootfs-pct" class="stat-value text-cyan">--</span>
+                <span id="ov-pve-rootfs-sub" class="stat-sub">-- / --</span>
+              </div>
+              <div class="host-stat-box">
+                <span class="stat-label">Running QEMU VMs</span>
+                <span id="ov-pve-qemu-count" class="stat-value text-emerald">--</span>
+                <span id="ov-pve-qemu-sub" class="stat-sub">Virtual Machines</span>
+              </div>
+              <div class="host-stat-box">
+                <span class="stat-label">Running LXC Containers</span>
+                <span id="ov-pve-lxc-count" class="stat-value text-purple">--</span>
+                <span id="ov-pve-lxc-sub" class="stat-sub">Linux Containers</span>
+              </div>
+              <div class="host-stat-box">
+                <span class="stat-label">Hypervisor Uptime</span>
+                <span id="ov-pve-uptime" class="stat-value text-amber">--</span>
+                <span id="ov-pve-uptime-sub" class="stat-sub">PVE Node</span>
+              </div>
+            </div>
+
+            <!-- Storage Pools Section -->
+            <div class="overview-top-if-section" style="margin-top: 1rem;">
+              <div class="overview-top-if-header">
+                <strong>Storage Pools (Disks &amp; Datastores)</strong>
+                <span class="overview-top-if-subtitle">Allocated storage volumes reported via Proxmox storage API</span>
+              </div>
+              <div tabindex="0" role="region" aria-labelledby="pve-storage-table-caption" class="table-container">
+                <table class="data-table">
+                  <caption id="pve-storage-table-caption" class="visually-hidden">Proxmox storage pools and utilization</caption>
+                  <thead>
+                    <tr>
+                      <th>Pool</th>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th>Usage</th>
+                      <th>Used / Total</th>
+                      <th>Available</th>
+                      <th>Content Types</th>
+                    </tr>
+                  </thead>
+                  <tbody id="overview-pve-storage-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Virtual Guests Section -->
+            <div class="overview-top-if-section" style="margin-top: 1.5rem;">
+              <div class="overview-top-if-header">
+                <strong>Hosted Virtual Guests (VMs &amp; LXC)</strong>
+                <span class="overview-top-if-subtitle">Discovered guests, resource allocations, and automatic NOC inventory mapping</span>
+              </div>
+              <div tabindex="0" role="region" aria-labelledby="pve-guests-table-caption" class="table-container">
+                <table class="data-table">
+                  <caption id="pve-guests-table-caption" class="visually-hidden">Proxmox hosted virtual guests and correlation</caption>
+                  <thead>
+                    <tr>
+                      <th>VMID</th>
+                      <th>Type</th>
+                      <th>Name</th>
+                      <th>Status</th>
+                      <th>vCPUs</th>
+                      <th>Allocated RAM</th>
+                      <th>Allocated Disk</th>
+                      <th>Network IP(s)</th>
+                      <th>NOC Monitored Node</th>
+                    </tr>
+                  </thead>
+                  <tbody id="overview-pve-guests-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side: Top Talkers Snapshot & Recent Logs -->
+        <div class="overview-side-stack">
+          <!-- Top Talkers Summary -->
+          <div class="panel side-panel">
+            <div class="panel-header">
+              <div class="panel-title-wrap">
+                <h4 id="overview-talkers-title">Top Internal Talkers (IPFIX)</h4>
+                <span id="overview-talkers-subtitle" class="panel-subtitle">NAT-Attributed hosts in current window</span>
+              </div>
+              <div class="panel-actions">
+                <button type="button" class="btn btn-ghost btn-small phone-fold-btn" data-fold="overview-top-hosts-list" aria-expanded="false" aria-controls="overview-top-hosts-list">Show</button>
+                <button type="button" class="btn btn-ghost btn-small jump-tab-btn" data-target="tab-flows">IPFIX &amp; NAT &rarr;</button>
+                <span id="overview-flows-freshness" class="freshness-badge">Loading...</span>
+              </div>
+            </div>
+            <div id="overview-top-hosts-list" class="overview-mini-list"></div>
+          </div>
+
+          <!-- Syslog Errors Snapshot -->
+          <div class="panel side-panel">
+            <div class="panel-header">
+              <div class="panel-title-wrap">
+                <h4 id="overview-syslog-title">Recent Syslog</h4>
+                <span id="overview-syslog-subtitle" class="panel-subtitle">Latest syslog events</span>
+              </div>
+              <div class="panel-actions">
+                <button type="button" class="btn btn-ghost btn-small phone-fold-btn" data-fold="overview-logs-list" aria-expanded="false" aria-controls="overview-logs-list">Show</button>
+                <button type="button" class="btn btn-ghost btn-small jump-tab-btn" data-target="tab-syslog">Syslog Stream &rarr;</button>
+                <span id="overview-logs-freshness" class="freshness-badge">Loading...</span>
+              </div>
+            </div>
+            <div id="overview-logs-list" class="overview-mini-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 2: BANDWIDTH & INTERFACES                                  -->

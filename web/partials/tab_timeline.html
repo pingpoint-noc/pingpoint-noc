@@ -1,0 +1,71 @@
+<!-- ============================================================== -->
+    <div id="tab-timeline" class="tab-pane" role="tabpanel">
+      <section class="panel panel-wide" id="timeline-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2 id="tl-panel-title">Incident Timeline Correlation</h2>
+            <span id="tl-panel-subtitle" class="panel-subtitle">Multi-source triage aligning Bandwidth Spikes &middot; Syslog Markers &middot; Active IPFIX Flows</span>
+          </div>
+          <div class="panel-actions">
+            <span id="timeline-window-label" class="window-span-badge">Window: last 15 min</span>
+
+            <div class="control-group">
+              <label for="tl-window-select" class="control-label">Span</label>
+              <select id="tl-window-select" class="form-select form-select-small">
+                <option value="300">5 min</option>
+                <option value="900" selected>15 min</option>
+                <option value="3600">1 hour</option>
+              </select>
+            </div>
+
+            <button type="button" id="tl-reset-now-btn" class="btn btn-secondary btn-small">
+              Reset to Live Now
+            </button>
+
+            <div class="export-button-group">
+              <a id="export-tl-csv" class="btn btn-secondary btn-small" href="#" download>Export CSV</a>
+              <a id="export-tl-json" class="btn btn-secondary btn-small" href="#" download>Export JSON</a>
+              <a id="export-tl-report" class="btn btn-primary btn-small" href="#" download>Incident Report (MD)</a>
+            </div>
+
+            <span id="timeline-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+
+        <!-- Which alert this view was opened for (shown only when it was opened from one, K115) -->
+        <p id="tl-origin" class="tl-origin hidden" role="status"><strong>Opened from alert:</strong> <span id="tl-origin-text"></span></p>
+
+        <!-- Correlated Interactive Chart -->
+        <div class="chart-wrapper timeline-chart-wrapper">
+          <canvas id="tl-canvas" class="noc-chart-canvas" height="240" role="img" aria-label="Incident timeline correlation chart with event markers"></canvas>
+          <div id="tl-chart-tooltip" class="noc-chart-tooltip hidden"></div>
+        </div>
+        <div class="timeline-legend-bar">
+          <span class="legend-item"><span class="legend-dot bg-cyan"></span> <span id="tl-legend-rx">Inbound (RX)</span></span>
+          <span class="legend-item"><span class="legend-dot bg-purple"></span> <span id="tl-legend-tx">Outbound (TX)</span></span>
+          <span class="legend-item"><span class="legend-line-marker bg-rose"></span> Syslog Incident Marker (Hover for message)</span>
+          <span id="tl-origin-legend" class="legend-item hidden"><span class="legend-line-marker bg-amber"></span> Alert fired</span>
+        </div>
+
+        <!-- Correlated Dual Columns -->
+        <div class="two-col-grid timeline-details-grid">
+          <div class="correlated-box">
+            <div class="box-header">
+              <h3 class="sub-heading">Syslog Events in Incident Window (<span id="tl-log-count">0</span>)</h3>
+              <span class="box-sub">Click event to center timeline</span>
+            </div>
+            <ul id="tl-logs-list" class="timeline-event-list"></ul>
+          </div>
+          <div class="correlated-box">
+            <div class="box-header">
+              <h3 class="sub-heading"><span id="tl-hosts-heading">Top Internal Hosts in Incident Window</span> (<span id="tl-flow-count">0</span> flows)</h3>
+              <span class="box-sub">Flows coinciding with time window</span>
+            </div>
+            <ul id="tl-hosts-list" class="timeline-hosts-list"></ul>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 6: HEALTH & INVENTORY                                     -->

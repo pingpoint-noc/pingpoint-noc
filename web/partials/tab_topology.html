@@ -1,0 +1,153 @@
+<!-- ============================================================== -->
+<!-- TOPOLOGY TAB VIEW (Network & Infrastructure Hierarchy)       -->
+<!-- ============================================================== -->
+<div id="tab-topology" class="tab-pane" role="tabpanel" aria-labelledby="nav-tab-topology">
+  <section class="panel panel-wide" id="topology-panel">
+    <div class="panel-header">
+      <div class="panel-title-wrap">
+        <h2 id="topology-panel-title">Infrastructure Topology &amp; Dependency Tree</h2>
+        <span id="topology-panel-subtitle" class="panel-subtitle">Dynamic network hierarchy, Proxmox hypervisor guests, and alert suppression pathways</span>
+      </div>
+      <div class="panel-actions">
+        <button type="button" id="topology-refresh-btn" class="btn btn-secondary btn-small" title="Refresh topology data">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"></path></svg>
+          Refresh
+        </button>
+        <span id="topology-freshness" class="freshness-badge">Loading...</span>
+      </div>
+    </div>
+
+    <!-- Topology Control Toolbar -->
+    <div class="topology-toolbar" role="toolbar" aria-label="Topology map controls">
+      <div class="topology-toolbar-group">
+        <label for="topo-search-input" class="visually-hidden">Search node</label>
+        <div class="topo-search-wrap">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="search" id="topo-search-input" class="form-input form-input-small topo-search-input" placeholder="Search by name, IP, or VMID..." autocomplete="off">
+        </div>
+      </div>
+
+      <div class="topology-toolbar-group">
+        <span class="toolbar-label">Filter:</span>
+        <div class="pill-group" role="group" aria-label="Device type filter">
+          <button type="button" class="btn-pill active" data-topo-filter="all" aria-pressed="true">All</button>
+          <button type="button" class="btn-pill" data-topo-filter="router" aria-pressed="false">Routers</button>
+          <button type="button" class="btn-pill" data-topo-filter="proxmox" aria-pressed="false">Proxmox</button>
+          <button type="button" class="btn-pill" data-topo-filter="guest" aria-pressed="false">Guests (LXC/VM)</button>
+          <button type="button" class="btn-pill" data-topo-filter="host" aria-pressed="false">Linux / DNS</button>
+        </div>
+        <button type="button" id="topo-filter-issues-btn" class="btn btn-secondary btn-small topo-issues-btn" aria-pressed="false">
+          <span class="issue-dot"></span> Only Issues
+        </button>
+      </div>
+
+      <div class="topology-toolbar-group topo-zoom-controls">
+        <button type="button" id="topo-zoom-in" class="btn btn-secondary btn-small topo-zoom-btn" title="Zoom in" aria-label="Zoom in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+        <button type="button" id="topo-zoom-out" class="btn btn-secondary btn-small topo-zoom-btn" title="Zoom out" aria-label="Zoom out"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+        <button type="button" id="topo-zoom-fit" class="btn btn-secondary btn-small" title="Fit to view">Fit View</button>
+        <button type="button" id="topo-zoom-reset" class="btn btn-secondary btn-small" title="Reset zoom and position">Reset</button>
+      </div>
+    </div>
+
+    <!-- Status Legend Strip -->
+    <div class="topology-legend" aria-label="Status legend">
+      <span class="legend-item"><span class="legend-dot status-healthy"></span> Healthy</span>
+      <span class="legend-item"><span class="legend-dot status-warning"></span> Warning Alert</span>
+      <span class="legend-item"><span class="legend-dot status-critical"></span> Critical / Down</span>
+      <span class="legend-item"><span class="legend-dot status-suppressed"></span> Suppressed by Parent</span>
+      <span class="legend-item"><span class="legend-dot status-maintenance"></span> Maintenance</span>
+      <span class="legend-sep">&vert;</span>
+      <span class="legend-item"><span class="legend-line line-network"></span> Subnet Link</span>
+      <span class="legend-item"><span class="legend-line line-hypervisor"></span> Proxmox Hosted Guest</span>
+      <span class="legend-item"><span class="legend-line line-dependency"></span> Dependency</span>
+    </div>
+
+    <!-- Map and detail drawer share one positioned box: the drawer is absolute, so without it it was anchored to the document
+         (hidden under the header, or above the screen on a phone) instead of to the map. -->
+    <div class="topology-stage">
+    <!-- Topology Canvas Viewport -->
+    <div id="topology-viewport" class="topology-viewport" tabindex="0" role="region" aria-label="Network topology diagram">
+      <div id="topology-empty" class="empty-reason-card hidden">
+        <p>No topology data available. Discover nodes or register devices in inventory.</p>
+      </div>
+      <!-- The search or the filters hide every node: say so instead of leaving a map of dimmed cards (K119) -->
+      <div id="topo-no-match" class="topo-no-match hidden" role="status">
+        <span id="topo-no-match-text"></span>
+        <button type="button" class="btn btn-secondary btn-small">Clear search and filters</button>
+      </div>
+      <svg id="topology-svg" class="topology-svg">
+        <defs>
+          <!-- Arrow marker for directed dependency lines -->
+          <marker id="topo-arrow-dep" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="var(--color-warn)"></path>
+          </marker>
+          <marker id="topo-arrow-hyp" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="var(--color-cyan)"></path>
+          </marker>
+        </defs>
+        <g id="topology-root-group" class="topology-root">
+          <!-- Subnet bounds and group backdrops -->
+          <g id="topo-layer-backdrops"></g>
+          <!-- Interconnection lines -->
+          <g id="topo-layer-links"></g>
+          <!-- Node elements -->
+          <g id="topo-layer-nodes"></g>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Node Detail Drawer (Slide-out panel on node selection) -->
+    <aside id="topology-drawer" class="topology-drawer hidden" aria-labelledby="drawer-node-name" role="dialog" aria-modal="false">
+      <div class="drawer-header">
+        <div class="drawer-title-wrap">
+          <span id="drawer-node-type-badge" class="badge">DEVICE</span>
+          <h3 id="drawer-node-name" class="drawer-title">Node Details</h3>
+          <span id="drawer-node-ip" class="drawer-subtitle">192.168.88.X</span>
+        </div>
+        <button type="button" id="drawer-close-btn" class="btn-icon drawer-close-btn" title="Close details panel" aria-label="Close details panel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+      </div>
+
+      <div class="drawer-body">
+        <!-- Status summary card -->
+        <div class="drawer-status-card" id="drawer-status-card">
+          <div class="drawer-status-header">
+            <span class="drawer-status-dot" id="drawer-status-dot"></span>
+            <span id="drawer-status-text" class="drawer-status-text">HEALTHY</span>
+          </div>
+          <p id="drawer-status-desc" class="drawer-status-desc">Device reachable, all services operational.</p>
+        </div>
+
+        <!-- Telemetry KPIs -->
+        <div class="drawer-section">
+          <h4 class="drawer-section-title">Telemetry &amp; Metrics</h4>
+          <dl class="drawer-metrics-list" id="drawer-metrics-list">
+            <!-- Dynamically populated -->
+          </dl>
+        </div>
+
+        <!-- Hierarchy & Dependencies -->
+        <div class="drawer-section">
+          <h4 class="drawer-section-title">Hierarchy &amp; Relations</h4>
+          <div class="drawer-relations" id="drawer-relations">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Active Alerts -->
+        <div class="drawer-section" id="drawer-alerts-section">
+          <h4 class="drawer-section-title">Active Alerts</h4>
+          <div id="drawer-alerts-list" class="drawer-alerts-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-footer">
+        <button type="button" id="drawer-view-overview-btn" class="btn btn-primary btn-small">
+          Inspect in Overview &rarr;
+        </button>
+      </div>
+    </aside>
+    </div>
+  </section>
+</div>

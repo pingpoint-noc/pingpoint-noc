@@ -1,0 +1,804 @@
+<!-- ============================================================== -->
+    <div id="tab-settings" class="tab-pane" role="tabpanel">
+      <section class="panel panel-wide" id="settings-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>NOC Configuration &amp; Operational Settings</h2>
+            <span class="panel-subtitle">Manage alert rules, thresholds, notification channels, monitored target inventory, and operator preferences.</span>
+          </div>
+          <div class="panel-actions">
+            <button type="button" id="settings-top-save-btn" class="btn btn-primary btn-small">Save All Settings</button>
+            <span id="settings-state" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+
+        <!-- Section Navigation Bar -->
+        <div id="settings-nav-bar" class="settings-nav-bar" role="tablist" aria-label="Settings categories">
+          <button type="button" class="settings-sec-btn" data-settings-section="all">All Sections</button>
+          <button type="button" class="settings-sec-btn" data-settings-section="rules">Alert Rules &amp; Thresholds</button>
+          <button type="button" class="settings-sec-btn" data-settings-section="inventory">Monitored Targets &amp; Inventory</button>
+          <button type="button" class="settings-sec-btn" data-settings-section="maintenance">Maintenance</button>
+          <button type="button" class="settings-sec-btn" data-settings-section="channels">Notification Channels</button>
+          <button type="button" class="settings-sec-btn" data-settings-section="account">Account &amp; UI Preferences</button>
+        </div>
+
+        <p id="settings-readonly" class="settings-note hidden">
+          Read-only: the server has no admin user and no admin token. Use <strong>Quick Admin Setup</strong> below to create the initial admin user directly from this page, or run
+          <code>python -m tools.manage_users add NAME</code> (or set <code>MININOC_ADMIN_TOKEN</code> in
+          <code>mini-noc.env</code>).
+          <button type="button" class="btn btn-secondary btn-small" data-settings-section="account">Go to Account</button>
+        </p>
+
+        <!-- Shown while nobody is signed in and the view is not the account one (K117): the page opens on the alert rules now -->
+        <p id="settings-signin-hint" class="settings-note hidden">
+          You are not signed in: changes are refused until you sign in.
+          <button type="button" class="btn btn-secondary btn-small" data-settings-section="account">Sign in</button>
+        </p>
+
+        <!-- LOGIN / AUDIT / BOOTSTRAP BLOCK (K27) -->
+        <section class="auth-box settings-section-block" id="auth-box" data-section-group="account" aria-labelledby="auth-title">
+          <div class="dest-head">
+            <h3 id="auth-title">Account &amp; Access Control</h3>
+          </div>
+
+          <!-- First-Time Admin Quick Setup (visible only when no admin user exists in DB) -->
+          <div id="bootstrap-admin-box" class="bootstrap-admin-box hidden">
+            <div class="bootstrap-admin-header">
+              <strong>First-Time Admin Setup:</strong> No administrator account exists yet in this database. Create one now to unlock all settings and device management:
+            </div>
+            <div class="auth-form">
+              <div class="settings-field">
+                <label for="bootstrap-username">New Admin Username</label>
+                <input id="bootstrap-username" class="form-input" type="text" value="admin" spellcheck="false" autocapitalize="none">
+              </div>
+              <div class="settings-field">
+                <label for="bootstrap-password">New Admin Password (min 8 chars)</label>
+                <input id="bootstrap-password" class="form-input" type="password" placeholder="Choose a password" autocomplete="new-password" spellcheck="false">
+              </div>
+              <button type="button" id="btn-bootstrap-admin" class="btn btn-primary">Create Admin &amp; Unlock Settings</button>
+            </div>
+          </div>
+
+          <form id="login-form" class="auth-form" autocomplete="on">
+            <div class="settings-field">
+              <label for="login-username">Username</label>
+              <input id="login-username" class="form-input" type="text" autocomplete="username" spellcheck="false" autocapitalize="none">
+            </div>
+            <div class="settings-field">
+              <label for="login-password">Password</label>
+              <input id="login-password" class="form-input" type="password" autocomplete="current-password" spellcheck="false">
+            </div>
+            <button type="submit" id="login-submit" class="btn btn-primary">Sign in</button>
+          </form>
+          <div id="session-info" class="auth-session hidden">
+            <span id="session-label"></span>
+            <button type="button" id="logout-btn" class="btn btn-secondary">Sign out</button>
+          </div>
+          <p id="login-msg" class="settings-msg" role="status" aria-live="polite"></p>
+          <div id="audit-box" class="auth-audit hidden">
+            <h4 id="audit-title">Change log</h4>
+            <div tabindex="0" role="region" aria-labelledby="audit-title" class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>When ({{ tz }})</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>What</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-tbody"></tbody>
+              </table>
+            </div>
+            <p id="audit-empty" class="dest-blurb hidden">No changes recorded yet.</p>
+          </div>
+        </section>
+
+        <!-- DASHBOARD OPERATOR PREFERENCES (Always editable in browser) -->
+        <section class="dest settings-section-block" id="settings-prefs-section" data-section-group="account" aria-labelledby="prefs-title">
+          <div class="dest-head">
+            <h3 id="prefs-title">Dashboard UI Preferences</h3>
+            <span class="freshness-badge status-ok">Always Editable</span>
+          </div>
+          <p class="dest-blurb">Customize your local NOC console refresh cadence, default time window, and layout density.</p>
+          <div class="dest-fields thresholds-grid">
+            <div class="settings-field">
+              <label for="pref-refresh-interval">Auto-Refresh Cadence</label>
+              <select id="pref-refresh-interval" class="form-select">
+                <option value="5">5 seconds (High-frequency)</option>
+                <option value="15" selected>15 seconds (Standard NOC)</option>
+                <option value="30">30 seconds (Relaxed)</option>
+                <option value="60">60 seconds (Low bandwidth)</option>
+              </select>
+              <small>How often active charts, KPIs, and alert banners poll for fresh data.</small>
+            </div>
+            <div class="settings-field">
+              <label for="pref-default-range">Default Time Window</label>
+              <select id="pref-default-range" class="form-select">
+                <option value="15m">Last 15 minutes (15m)</option>
+                <option value="1h">Last 1 hour (1h)</option>
+                <option value="24h">Last 24 hours (24h)</option>
+              </select>
+              <small>Applied immediately and remembered across browser sessions.</small>
+            </div>
+            <div class="settings-field settings-check">
+              <input id="pref-compact-welcome" type="checkbox">
+              <label for="pref-compact-welcome">Start with Welcome tips collapsed for maximum chart vertical space</label>
+            </div>
+            <div class="settings-field settings-check">
+              <input id="pref-shortcuts" type="checkbox" checked>
+              <label for="pref-shortcuts">Single-key shortcuts (1-7, R, P, T, V, H, M, /, ?). Ctrl+K and Esc always work.</label>
+            </div>
+          </div>
+        </section>
+
+        <!-- MONITORED TARGETS & INVENTORY EDITOR -->
+        <section class="dest settings-section-block" id="settings-inventory-section" data-section-group="inventory" aria-labelledby="inventory-editor-title">
+          <div class="dest-head">
+            <h3 id="inventory-editor-title">Monitored Targets &amp; Device Roles</h3>
+            <span class="dest-actions">
+              <button type="button" class="btn btn-secondary btn-small" id="btn-refresh-settings-devices">Refresh Inventory</button>
+            </span>
+          </div>
+          <p class="dest-blurb">Edit friendly display names, hostnames, and telemetry roles (<code>router</code>, <code>dns</code>, <code>linux</code>) for any discovered or registered target. Changing a target's role immediately adapts its dashboard charts and KPIs.
+            <strong>Behind</strong> says which device this one sits behind (for example a host behind the router): while the parent is down or sends no telemetry, the &ldquo;down&rdquo; alerts of its children stay on screen but are not sent as notifications.</p>
+
+          <div tabindex="0" role="region" aria-labelledby="inventory-editor-title" class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Device ID</th>
+                  <th>Display Name</th>
+                  <th>Target Role / Type</th>
+                  <th>SNMP Community</th>
+                  <th>Status</th>
+                  <th>Behind (parent device)</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="settings-devices-tbody">
+                <tr><td colspan="7" class="muted">Loading monitored targets...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="settings-add-node-bar">
+            <h4 class="settings-subheading">Register New Monitored Target</h4>
+            <div class="auth-form">
+              <div class="settings-field">
+                <label for="settings-add-node-ip">IP Address</label>
+                <input id="settings-add-node-ip" class="form-input" type="text" placeholder="e.g. 192.168.88.50" spellcheck="false">
+              </div>
+              <div class="settings-field">
+                <label for="settings-add-node-host">Display Name / Hostname</label>
+                <input id="settings-add-node-host" class="form-input" type="text" placeholder="e.g. pihole-dns" spellcheck="false">
+              </div>
+              <div class="settings-field">
+                <label for="settings-add-node-type">Target Role</label>
+                <select id="settings-add-node-type" class="form-select">
+                  <option value="linux">Linux / Container Host (IPFIX + Syslog)</option>
+                  <option value="dns">DNS / Pi-hole Server (DNS Probe + IPFIX)</option>
+                  <option value="router">Router / Switch (SNMP + IPFIX + Syslog)</option>
+                </select>
+              </div>
+              <button type="button" id="btn-settings-add-node" class="btn btn-secondary">Add / Update Target</button>
+            </div>
+            <p id="settings-inventory-msg" class="settings-msg" role="status" aria-live="polite"></p>
+          </div>
+        </section>
+
+        <!-- MAINTENANCE WINDOWS (K64) -->
+        <section class="dest settings-section-block" id="settings-maintenance-section" data-section-group="maintenance" aria-labelledby="maintenance-title">
+          <div class="dest-head">
+            <h3 id="maintenance-title">Maintenance</h3>
+            <span class="dest-actions">
+              <button type="button" class="btn btn-secondary btn-small" id="btn-refresh-maintenance">Refresh</button>
+            </span>
+          </div>
+          <p class="dest-blurb">During a window the matching alerts are still evaluated, recorded and shown (marked <strong>In maintenance</strong>), but no notification is sent. If an alert is still firing when the window ends, it is announced then. Times are in {{ tz }}; when the clocks go back, a time that happens twice means its first occurrence.</p>
+
+          <div tabindex="0" role="region" aria-labelledby="maintenance-title" class="table-container">
+            <table class="data-table table-stack" id="maintenance-table">
+              <thead>
+                <tr>
+                  <th>State</th>
+                  <th>Scope</th>
+                  <th>From</th>
+                  <th>Until</th>
+                  <th>Reason</th>
+                  <th>By</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="maintenance-tbody">
+                <tr><td colspan="7" class="muted">Loading maintenance windows...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="settings-add-node-bar">
+            <h4 class="settings-subheading">Schedule a Window</h4>
+            <div class="maintenance-form">
+              <div class="settings-field">
+                <label for="maint-device">Device</label>
+                <select id="maint-device" class="form-select"><option value="">All devices</option></select>
+              </div>
+              <div class="settings-field">
+                <label for="maint-rule">Rule</label>
+                <select id="maint-rule" class="form-select"><option value="">All rules</option></select>
+              </div>
+              <div class="settings-field">
+                <label for="maint-start">Start ({{ tz }})</label>
+                <input id="maint-start" class="form-input" type="datetime-local">
+              </div>
+              <div class="settings-field">
+                <label for="maint-duration">Duration</label>
+                <select id="maint-duration" class="form-select">
+                  <option value="30">30 minutes</option>
+                  <option value="60" selected>1 hour</option>
+                  <option value="240">4 hours</option>
+                  <option value="1440">24 hours</option>
+                  <option value="custom">Until a set time&hellip;</option>
+                </select>
+              </div>
+              <div class="settings-field hidden" id="maint-end-field">
+                <label for="maint-end">End ({{ tz }})</label>
+                <input id="maint-end" class="form-input" type="datetime-local">
+              </div>
+              <div class="settings-field maintenance-reason">
+                <label for="maint-reason">Reason</label>
+                <input id="maint-reason" class="form-input" type="text" maxlength="200" placeholder="e.g. router firmware upgrade" autocomplete="off">
+              </div>
+              <div class="settings-field settings-check maintenance-reason">
+                <input id="maintenance-let-critical" type="checkbox">
+                <label for="maintenance-let-critical">Still notify critical alerts <small>(off: this window holds every notice that matches, critical ones too)</small></label>
+              </div>
+              <button type="button" id="btn-maint-create" class="btn btn-secondary">Start Maintenance</button>
+            </div>
+            <p id="maintenance-msg" class="settings-msg" role="status" aria-live="polite"></p>
+          </div>
+        </section>
+
+        <form id="settings-form" class="settings-form" autocomplete="off">
+          <!-- Section: Alert Rules & Operational Thresholds (K22) -->
+          <section class="dest settings-section-block" id="dest-rules-operational" data-section-group="rules" aria-labelledby="rules-operational-title">
+            <div class="dest-head">
+              <h3 id="rules-operational-title">Alert Rules &amp; Operational Thresholds</h3>
+              <span class="dest-actions">
+                <button type="button" class="btn btn-secondary btn-small" id="btn-reset-rules">Restore Defaults</button>
+              </span>
+            </div>
+            <p class="dest-blurb">Fine-tune detection thresholds and pause/enable rules live. Changes apply on the next engine cycle (within 30 s) with no restart.</p>
+
+            <h4 class="settings-subheading">Rule Activation &amp; Toggles</h4>
+            <div class="dest-fields toggles-grid">
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-high-bandwidth" type="checkbox" checked>
+                <label for="toggle-rule-high-bandwidth">High Bandwidth (<code>high_bandwidth</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-interface-down" type="checkbox" checked>
+                <label for="toggle-rule-interface-down">Interface Down (<code>interface_down</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-failed-logins" type="checkbox" checked>
+                <label for="toggle-rule-failed-logins">Failed SSH Logins (<code>failed_logins</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-stale-source" type="checkbox" checked>
+                <label for="toggle-rule-stale-source">Stale Collector Source (<code>stale_source</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-flow-port-scan" type="checkbox" checked>
+                <label for="toggle-rule-flow-port-scan">IPFIX Port Scan (<code>flow_port_scan</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-interface-flapping" type="checkbox" checked>
+                <label for="toggle-rule-interface-flapping">Interface Flapping (<code>interface_flapping</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-interface-errors" type="checkbox" checked>
+                <label for="toggle-rule-interface-errors">Errors &amp; Discards (<code>interface_errors</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-flow-new-destination" type="checkbox" checked>
+                <label for="toggle-rule-flow-new-destination">New External Destination (<code>flow_new_destination</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-dns-service-down" type="checkbox" checked>
+                <label for="toggle-rule-dns-service-down">DNS Resolution Service (<code>dns_service_down</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-dns-blocklist-dropped" type="checkbox" checked>
+                <label for="toggle-rule-dns-blocklist-dropped">DNS Blocklist Status (<code>dns_blocklist_dropped</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-host-cpu-high" type="checkbox" checked>
+                <label for="toggle-rule-host-cpu-high">Device CPU (<code>host_cpu_high</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-host-memory-high" type="checkbox" checked>
+                <label for="toggle-rule-host-memory-high">Device Memory (<code>host_memory_high</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-host-disk-high" type="checkbox" checked>
+                <label for="toggle-rule-host-disk-high">Device Disk (<code>host_disk_high</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-icmp-loss-high" type="checkbox" checked>
+                <label for="toggle-rule-icmp-loss-high">ICMP Packet Loss (<code>icmp_loss_high</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-icmp-latency-high" type="checkbox" checked>
+                <label for="toggle-rule-icmp-latency-high">ICMP Latency (<code>icmp_latency_high</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-host-service-down" type="checkbox" checked>
+                <label for="toggle-rule-host-service-down">Host Service Down (<code>host_service_down</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-syslog-burst" type="checkbox" checked>
+                <label for="toggle-rule-syslog-burst">Syslog Burst (<code>syslog_burst</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-pve-storage-high" type="checkbox" checked>
+                <label for="toggle-rule-pve-storage-high">Proxmox Storage (<code>pve_storage_high</code>)</label>
+              </div>
+            </div>
+
+            <h4 class="settings-subheading">Detection Thresholds</h4>
+            <div class="dest-fields thresholds-grid">
+              <div class="settings-field">
+                <label for="set-thresh-bw-bps">Bandwidth Threshold (bit/s)</label>
+                <input id="set-thresh-bw-bps" class="form-input" type="number" min="100000" max="10000000000" step="100000">
+                <small>Default: 10,000,000 (10 Mbps). Continuous traffic needed to alert.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-bw-hold">Bandwidth Hold Window (seconds)</label>
+                <input id="set-thresh-bw-hold" class="form-input" type="number" min="15" max="3600" step="15">
+                <small>Default: 120 s. Rate must exceed threshold across this duration.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-failed-logins">Failed Logins Threshold (count)</label>
+                <input id="set-thresh-failed-logins" class="form-input" type="number" min="1" max="100" step="1">
+                <small>Default: 5 failed attempts in 60 s window.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-stale-seconds">Telemetry Timeout (seconds)</label>
+                <input id="set-thresh-stale-seconds" class="form-input" type="number" min="30" max="86400" step="30">
+                <small>Default: 300 s (5 min). Silence before marking collector stale.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-port-scan-ports">Port Scan Destination Ports</label>
+                <input id="set-thresh-port-scan-ports" class="form-input" type="number" min="5" max="500" step="1">
+                <small>Default: 15 distinct ports. Outbound connections in window.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-port-scan-window">Port Scan Window (seconds)</label>
+                <input id="set-thresh-port-scan-window" class="form-input" type="number" min="30" max="3600" step="15">
+                <small>Default: 180 s. Window accommodating IPFIX batching and rotation.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-flap-changes">Flapping Transitions Count</label>
+                <input id="set-thresh-flap-changes" class="form-input" type="number" min="2" max="50" step="1">
+                <small>Default: 3 changes. State transitions in window to alert flapping.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-flap-window">Flapping Window (seconds)</label>
+                <input id="set-thresh-flap-window" class="form-input" type="number" min="30" max="3600" step="15">
+                <small>Default: 300 s (5 min).</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-err-increase">Errors Min Increase</label>
+                <input id="set-thresh-err-increase" class="form-input" type="number" min="1" max="1000" step="1">
+                <small>Default: 10 errors/discards growth inside window.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-err-window">Errors Window (seconds)</label>
+                <input id="set-thresh-err-window" class="form-input" type="number" min="30" max="3600" step="15">
+                <small>Default: 300 s (5 min).</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-dns-latency">DNS Max Latency (ms)</label>
+                <input id="set-thresh-dns-latency" class="form-input" type="number" min="50" max="5000" step="10">
+                <small>Default: 500 ms. Latency threshold over UDP 53 before alerting dns_service_down.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-dns-min-queries">DNS Blocklist Min Queries</label>
+                <input id="set-thresh-dns-min-queries" class="form-input" type="number" min="10" max="10000" step="10">
+                <small>Default: 100 queries. Minimum traffic before blocklist_dropped can trigger. It only fires if the server was seen filtering before.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-host-cpu">Device CPU (%)</label>
+                <input id="set-thresh-host-cpu" class="form-input" type="number" min="10" max="100" step="1">
+                <small>Default: 90 %. Average CPU load over SNMP before alerting host_cpu_high.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-host-cpu-hold">Device CPU Hold (seconds)</label>
+                <input id="set-thresh-host-cpu-hold" class="form-input" type="number" min="30" max="3600" step="30">
+                <small>Default: 300 s. The CPU must stay above the threshold this long; a short peak is normal.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-host-memory">Device Memory (%)</label>
+                <input id="set-thresh-host-memory" class="form-input" type="number" min="10" max="100" step="1">
+                <small>Default: 90 %. Used RAM before alerting host_memory_high.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-host-disk">Device Disk (%)</label>
+                <input id="set-thresh-host-disk" class="form-input" type="number" min="10" max="100" step="1">
+                <small>Default: 90 %. Used space of each disk before alerting host_disk_high.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-icmp-loss">ICMP Packet Loss (%)</label>
+                <input id="set-thresh-icmp-loss" class="form-input" type="number" min="1" max="100" step="1">
+                <small>Default: 40 %. Loss in the last sample of five pings (two lost pings reach 40 %).</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-icmp-latency">ICMP Latency (ms)</label>
+                <input id="set-thresh-icmp-latency" class="form-input" type="number" min="10" max="10000" step="10">
+                <small>Default: 150 ms. Mean round-trip time of the last sample before alerting icmp_latency_high.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-syslog-burst">Syslog Burst (messages)</label>
+                <input id="set-thresh-syslog-burst" class="form-input" type="number" min="5" max="10000" step="5">
+                <small>Default: 50. Messages inside the window before alerting syslog_burst.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-syslog-burst-window">Syslog Burst Window (seconds)</label>
+                <input id="set-thresh-syslog-burst-window" class="form-input" type="number" min="10" max="3600" step="10">
+                <small>Default: 60 s. Window in which the messages are counted.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-pve-storage">Proxmox Storage (%)</label>
+                <input id="set-thresh-pve-storage" class="form-input" type="number" min="10" max="100" step="1">
+                <small>Default: 85 %. Usage of a Proxmox VE storage at or above which pve_storage_high fires.</small>
+              </div>
+            </div>
+          </section>
+
+          <section class="dest settings-section-block" data-section-group="channels" aria-labelledby="rules-title">
+            <div class="dest-head"><h3 id="rules-title">Rules for every destination</h3></div>
+            <div class="dest-fields">
+              <div class="settings-field">
+                <label for="set-min-severity">Notify from severity</label>
+                <select id="set-min-severity" class="form-select">
+                  <option value="warning">warning and critical</option>
+                  <option value="critical">critical only</option>
+                </select>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="set-send-resolved" type="checkbox">
+                <label for="set-send-resolved">Also notify when an alert is resolved</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="set-notify-pending" type="checkbox">
+                <label for="set-notify-pending">Also send a low-priority notice when an alert becomes pending (before it fires)</label>
+              </div>
+              <div class="settings-field">
+                <label for="set-public-url">Web address for links</label>
+                <input id="set-public-url" class="form-input" type="url" spellcheck="false" autocomplete="off">
+                <small>Optional. Firing notifications add a link to the timeline at the moment the alert fired. Leave empty for no link. Discord, Slack and Telegram would receive this address too.</small>
+              </div>
+            </div>
+          </section>
+
+          <section class="dest settings-section-block" id="dest-digest" data-section-group="channels" aria-labelledby="digest-title">
+            <div class="dest-head">
+              <h3 id="digest-title">Daily summary</h3>
+              <span id="digest-status" class="freshness-badge">Off</span>
+              <span class="dest-actions">
+                <button type="button" id="digest-test" class="btn btn-secondary btn-small">Send a test summary now</button>
+              </span>
+            </div>
+            <p class="dest-blurb">One short message a day: availability per device, alerts, the noisiest rules and the state of the platform for the last 24 hours.</p>
+            <div class="dest-fields">
+              <div class="settings-field settings-check">
+                <input id="set-digest-enabled" type="checkbox">
+                <label for="set-digest-enabled">Send the daily summary</label>
+              </div>
+              <div class="settings-field">
+                <label for="set-digest-time">Send at ({{ tz }})</label>
+                <input id="set-digest-time" class="form-input" type="time" step="60" value="08:00">
+                <small>Server time is UTC; this follows summer time. If the service was stopped at that hour, the summary goes out when it comes back within 6 hours, otherwise it waits for the next day.</small>
+              </div>
+              <fieldset class="settings-field rule-picker">
+                <legend>Send it to</legend>
+                <div class="rule-chip-list" role="group" aria-label="Destinations that receive the daily summary">
+                  <label class="rule-chip"><input type="checkbox" id="set-digest-ntfy" data-digest-dest="ntfy"><span>ntfy</span></label>
+                  <label class="rule-chip"><input type="checkbox" id="set-digest-discord" data-digest-dest="discord"><span>Discord</span></label>
+                  <label class="rule-chip"><input type="checkbox" id="set-digest-slack" data-digest-dest="slack"><span>Slack</span></label>
+                  <label class="rule-chip"><input type="checkbox" id="set-digest-telegram" data-digest-dest="telegram"><span>Telegram</span></label>
+                  <label class="rule-chip"><input type="checkbox" id="set-digest-webhook" data-digest-dest="webhook"><span>Generic webhook</span></label>
+                  <label class="rule-chip"><input type="checkbox" id="set-digest-email" data-digest-dest="email"><span>E-mail</span></label>
+                </div>
+                <small>Only destinations that are configured below can receive it. ntfy is on unless you switch it off; the others start off.</small>
+              </fieldset>
+              <p id="digest-last" class="dest-blurb"></p>
+              <p id="digest-msg" class="settings-msg" role="status" aria-live="polite"></p>
+            </div>
+          </section>
+
+          <div class="destinations-grid settings-section-block" data-section-group="channels">
+            <section class="dest" id="dest-ntfy" aria-labelledby="dest-ntfy-title">
+              <div class="dest-head">
+                <h3 id="dest-ntfy-title">ntfy</h3>
+                <span id="dest-status-ntfy" class="freshness-badge">Not configured</span>
+                <span class="dest-actions">
+                  <button type="button" class="btn btn-secondary btn-small" data-test="ntfy">Test</button>
+                  <button type="button" class="btn btn-secondary btn-small" data-clear="ntfy">Remove</button>
+                </span>
+              </div>
+              <p class="dest-blurb">Push to your phone or desktop.</p>
+              <div class="dest-fields">
+                <div class="settings-field">
+                  <label for="set-ntfy-url">Topic URL</label>
+                  <input id="set-ntfy-url" class="form-input" type="url" spellcheck="false" autocomplete="off">
+                  <small>Prefer your own ntfy server: a public topic can be read by anyone who guesses its name.</small>
+                </div>
+                <div class="settings-field">
+                  <label for="set-ntfy-token">Access token</label>
+                  <input id="set-ntfy-token" class="form-input" type="password" spellcheck="false" autocomplete="off">
+                  <small>Only if your ntfy requires login.</small>
+                </div>
+                <details class="dest-filters" id="dest-filters-ntfy">
+                  <summary>Filters <span class="dest-filters-state" id="dest-filters-state-ntfy">every alert</span></summary>
+                  <div class="dest-filters-body">
+                    <div class="settings-field">
+                      <label for="set-ntfy-min-severity">Severity for this destination</label>
+                      <select id="set-ntfy-min-severity" class="form-select">
+                        <option value="">same as above</option>
+                        <option value="warning">warning and critical</option>
+                        <option value="critical">critical only</option>
+                      </select>
+                    </div>
+                    <fieldset class="settings-field rule-picker">
+                      <legend>Only these rules <span class="rule-count" id="set-ntfy-rules-count">every rule</span></legend>
+                      <div id="set-ntfy-rules" class="rule-chip-list" role="group" aria-label="Rules sent to ntfy"></div>
+                      <small>Tick none to send every rule.</small>
+                    </fieldset>
+                  </div>
+                </details>
+              </div>
+            </section>
+
+            <section class="dest" id="dest-discord" aria-labelledby="dest-discord-title">
+              <div class="dest-head">
+                <h3 id="dest-discord-title">Discord</h3>
+                <span id="dest-status-discord" class="freshness-badge">Not configured</span>
+                <span class="dest-actions">
+                  <button type="button" class="btn btn-secondary btn-small" data-test="discord">Test</button>
+                  <button type="button" class="btn btn-secondary btn-small" data-clear="discord">Remove</button>
+                </span>
+              </div>
+              <p class="dest-blurb">A message with a colored embed in a channel.</p>
+              <div class="dest-fields">
+                <div class="settings-field">
+                  <label for="set-discord-url">Webhook URL</label>
+                  <input id="set-discord-url" class="form-input" type="password" spellcheck="false" autocomplete="off">
+                  <small>Channel settings, Integrations, Webhooks. The URL is a secret: anyone with it can post.</small>
+                </div>
+                <details class="dest-filters" id="dest-filters-discord">
+                  <summary>Filters <span class="dest-filters-state" id="dest-filters-state-discord">every alert</span></summary>
+                  <div class="dest-filters-body">
+                    <div class="settings-field">
+                      <label for="set-discord-min-severity">Severity for this destination</label>
+                      <select id="set-discord-min-severity" class="form-select">
+                        <option value="">same as above</option>
+                        <option value="warning">warning and critical</option>
+                        <option value="critical">critical only</option>
+                      </select>
+                    </div>
+                    <fieldset class="settings-field rule-picker">
+                      <legend>Only these rules <span class="rule-count" id="set-discord-rules-count">every rule</span></legend>
+                      <div id="set-discord-rules" class="rule-chip-list" role="group" aria-label="Rules sent to discord"></div>
+                      <small>Tick none to send every rule.</small>
+                    </fieldset>
+                  </div>
+                </details>
+              </div>
+            </section>
+
+            <section class="dest" id="dest-slack" aria-labelledby="dest-slack-title">
+              <div class="dest-head">
+                <h3 id="dest-slack-title">Slack</h3>
+                <span id="dest-status-slack" class="freshness-badge">Not configured</span>
+                <span class="dest-actions">
+                  <button type="button" class="btn btn-secondary btn-small" data-test="slack">Test</button>
+                  <button type="button" class="btn btn-secondary btn-small" data-clear="slack">Remove</button>
+                </span>
+              </div>
+              <p class="dest-blurb">A message in a channel.</p>
+              <div class="dest-fields">
+                <div class="settings-field">
+                  <label for="set-slack-url">Webhook URL</label>
+                  <input id="set-slack-url" class="form-input" type="password" spellcheck="false" autocomplete="off">
+                  <small>An incoming webhook from your Slack app. The URL is a secret.</small>
+                </div>
+                <details class="dest-filters" id="dest-filters-slack">
+                  <summary>Filters <span class="dest-filters-state" id="dest-filters-state-slack">every alert</span></summary>
+                  <div class="dest-filters-body">
+                    <div class="settings-field">
+                      <label for="set-slack-min-severity">Severity for this destination</label>
+                      <select id="set-slack-min-severity" class="form-select">
+                        <option value="">same as above</option>
+                        <option value="warning">warning and critical</option>
+                        <option value="critical">critical only</option>
+                      </select>
+                    </div>
+                    <fieldset class="settings-field rule-picker">
+                      <legend>Only these rules <span class="rule-count" id="set-slack-rules-count">every rule</span></legend>
+                      <div id="set-slack-rules" class="rule-chip-list" role="group" aria-label="Rules sent to slack"></div>
+                      <small>Tick none to send every rule.</small>
+                    </fieldset>
+                  </div>
+                </details>
+              </div>
+            </section>
+
+            <section class="dest" id="dest-telegram" aria-labelledby="dest-telegram-title">
+              <div class="dest-head">
+                <h3 id="dest-telegram-title">Telegram</h3>
+                <span id="dest-status-telegram" class="freshness-badge">Not configured</span>
+                <span class="dest-actions">
+                  <button type="button" class="btn btn-secondary btn-small" data-test="telegram">Test</button>
+                  <button type="button" class="btn btn-secondary btn-small" data-clear="telegram">Remove</button>
+                </span>
+              </div>
+              <p class="dest-blurb">A message from your bot to a chat.</p>
+              <div class="dest-fields">
+                <div class="settings-field">
+                  <label for="set-telegram-token">Bot token</label>
+                  <input id="set-telegram-token" class="form-input" type="password" spellcheck="false" autocomplete="off">
+                  <small>From BotFather. Secret.</small>
+                </div>
+                <div class="settings-field">
+                  <label for="set-telegram-chat">Chat id</label>
+                  <input id="set-telegram-chat" class="form-input" type="text" spellcheck="false" autocomplete="off">
+                  <small>A number (a group has a negative one) or the name of a public channel, such as the at-sign followed by the name.</small>
+                </div>
+                <details class="dest-filters" id="dest-filters-telegram">
+                  <summary>Filters <span class="dest-filters-state" id="dest-filters-state-telegram">every alert</span></summary>
+                  <div class="dest-filters-body">
+                    <div class="settings-field">
+                      <label for="set-telegram-min-severity">Severity for this destination</label>
+                      <select id="set-telegram-min-severity" class="form-select">
+                        <option value="">same as above</option>
+                        <option value="warning">warning and critical</option>
+                        <option value="critical">critical only</option>
+                      </select>
+                    </div>
+                    <fieldset class="settings-field rule-picker">
+                      <legend>Only these rules <span class="rule-count" id="set-telegram-rules-count">every rule</span></legend>
+                      <div id="set-telegram-rules" class="rule-chip-list" role="group" aria-label="Rules sent to telegram"></div>
+                      <small>Tick none to send every rule.</small>
+                    </fieldset>
+                  </div>
+                </details>
+              </div>
+            </section>
+
+            <section class="dest" id="dest-webhook" aria-labelledby="dest-webhook-title">
+              <div class="dest-head">
+                <h3 id="dest-webhook-title">Generic webhook</h3>
+                <span id="dest-status-webhook" class="freshness-badge">Not configured</span>
+                <span class="dest-actions">
+                  <button type="button" class="btn btn-secondary btn-small" data-test="webhook">Test</button>
+                  <button type="button" class="btn btn-secondary btn-small" data-clear="webhook">Remove</button>
+                </span>
+              </div>
+              <p class="dest-blurb">For anything else: a JSON document with rule, target, severity and time.</p>
+              <div class="dest-fields">
+                <div class="settings-field">
+                  <label for="set-webhook-url">URL</label>
+                  <input id="set-webhook-url" class="form-input" type="password" spellcheck="false" autocomplete="off">
+                  <small>Receives a JSON document per alert. Treated as a secret.</small>
+                </div>
+                <div class="settings-field">
+                  <label for="set-webhook-token">Bearer token</label>
+                  <input id="set-webhook-token" class="form-input" type="password" spellcheck="false" autocomplete="off">
+                  <small>Optional. Sent as the Authorization header.</small>
+                </div>
+                <details class="dest-filters" id="dest-filters-webhook">
+                  <summary>Filters <span class="dest-filters-state" id="dest-filters-state-webhook">every alert</span></summary>
+                  <div class="dest-filters-body">
+                    <div class="settings-field">
+                      <label for="set-webhook-min-severity">Severity for this destination</label>
+                      <select id="set-webhook-min-severity" class="form-select">
+                        <option value="">same as above</option>
+                        <option value="warning">warning and critical</option>
+                        <option value="critical">critical only</option>
+                      </select>
+                    </div>
+                    <fieldset class="settings-field rule-picker">
+                      <legend>Only these rules <span class="rule-count" id="set-webhook-rules-count">every rule</span></legend>
+                      <div id="set-webhook-rules" class="rule-chip-list" role="group" aria-label="Rules sent to webhook"></div>
+                      <small>Tick none to send every rule.</small>
+                    </fieldset>
+                  </div>
+                </details>
+              </div>
+            </section>
+
+            <section class="dest" id="dest-email" aria-labelledby="dest-email-title">
+              <div class="dest-head">
+                <h3 id="dest-email-title">E-mail</h3>
+                <span id="dest-status-email" class="freshness-badge">Not configured</span>
+                <span class="dest-actions">
+                  <button type="button" class="btn btn-secondary btn-small" data-test="email">Test</button>
+                  <button type="button" class="btn btn-secondary btn-small" data-clear="email">Remove</button>
+                </span>
+              </div>
+              <p class="dest-blurb">One message per alert through an SMTP server.</p>
+              <div class="dest-fields">
+                <div class="settings-field">
+                  <label for="set-smtp-host">SMTP server</label>
+                  <input id="set-smtp-host" class="form-input" type="text" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="settings-field">
+                  <label for="set-smtp-port">Port</label>
+                  <input id="set-smtp-port" class="form-input" type="number" spellcheck="false" autocomplete="off" min="1" max="65535">
+                  <small>587 uses STARTTLS, 465 implicit TLS.</small>
+                </div>
+                <div class="settings-field">
+                  <label for="set-smtp-user">User</label>
+                  <input id="set-smtp-user" class="form-input" type="text" spellcheck="false" autocomplete="off">
+                  <small>Leave empty if the server needs no login.</small>
+                </div>
+                <div class="settings-field">
+                  <label for="set-smtp-password">Password</label>
+                  <input id="set-smtp-password" class="form-input" type="password" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="settings-field">
+                  <label for="set-smtp-from">From address</label>
+                  <input id="set-smtp-from" class="form-input" type="text" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="settings-field">
+                  <label for="set-smtp-to">To</label>
+                  <input id="set-smtp-to" class="form-input" type="text" spellcheck="false" autocomplete="off">
+                  <small>One or more addresses, separated by commas.</small>
+                </div>
+                <div class="settings-field settings-check">
+                  <input id="set-smtp-starttls" type="checkbox" checked>
+                  <label for="set-smtp-starttls">Use STARTTLS (turn off only for a local relay)</label>
+                </div>
+                <details class="dest-filters" id="dest-filters-email">
+                  <summary>Filters <span class="dest-filters-state" id="dest-filters-state-email">every alert</span></summary>
+                  <div class="dest-filters-body">
+                    <div class="settings-field">
+                      <label for="set-email-min-severity">Severity for this destination</label>
+                      <select id="set-email-min-severity" class="form-select">
+                        <option value="">same as above</option>
+                        <option value="warning">warning and critical</option>
+                        <option value="critical">critical only</option>
+                      </select>
+                    </div>
+                    <fieldset class="settings-field rule-picker">
+                      <legend>Only these rules <span class="rule-count" id="set-email-rules-count">every rule</span></legend>
+                      <div id="set-email-rules" class="rule-chip-list" role="group" aria-label="Rules sent to email"></div>
+                      <small>Tick none to send every rule.</small>
+                    </fieldset>
+                  </div>
+                </details>
+              </div>
+            </section>
+          </div>
+
+          <section class="dest settings-admin settings-section-block" data-section-group="always" aria-labelledby="admin-title">
+            <div class="dest-head"><h3 id="admin-title">Save &amp; Emergency Token</h3></div>
+            <div class="dest-fields">
+              <div class="settings-field">
+                <label for="set-admin-token">Admin token (alternative to signing in)</label>
+                <input id="set-admin-token" class="form-input" type="password" placeholder="only if you are not signed in above" spellcheck="false" autocomplete="new-password">
+                <small>Kept in this browser tab only (session storage). Passwords and webhook URLs are never shown again after saving; leave a field empty to keep the saved value.</small>
+              </div>
+            </div>
+            <div class="settings-actions">
+              <button type="submit" id="settings-save" class="btn btn-primary">Save</button>
+              <button type="button" id="settings-test" class="btn btn-secondary">Send test to all</button>
+            </div>
+            <p class="dest-blurb">Test and Remove use what is already saved, so save first.</p>
+            <p id="settings-msg" class="settings-msg" role="status" aria-live="polite"></p>
+          </section>
+        </form>
+      </section>
+    </div>

@@ -1,0 +1,29 @@
+        <!-- Ranked lists from the resolver API (filled by renderDnsInsights; the same block is used in two tabs) -->
+        <div class="dns-insights" data-dns-insights>
+          <div class="overview-top-if-header">
+            <strong>DNS Insights</strong>
+            <span class="overview-top-if-subtitle" data-dns-insights-asof>Waiting for the resolver API</span>
+          </div>
+          <div class="dns-insights-grid">
+            <section class="dns-rank">
+              <h4>Top domains</h4>
+              <ol data-rank="top_domains" data-empty="No queries ranked yet"></ol>
+            </section>
+            <section class="dns-rank">
+              <h4>Top blocked domains</h4>
+              <ol data-rank="top_blocked" data-empty="Nothing blocked in this period"></ol>
+            </section>
+            <section class="dns-rank">
+              <h4>Top clients</h4>
+              <ol data-rank="top_clients" data-empty="No clients ranked yet"></ol>
+            </section>
+            <section class="dns-rank">
+              <h4>Answered by</h4>
+              <ol data-rank="upstreams" data-empty="No upstream data"></ol>
+            </section>
+            <section class="dns-rank">
+              <h4>Query types</h4>
+              <ol data-rank="query_types" data-empty="No query types reported"></ol>
+            </section>
+          </div>
+        </div>

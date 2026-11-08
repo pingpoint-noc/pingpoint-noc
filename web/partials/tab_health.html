@@ -1,0 +1,266 @@
+<!-- ============================================================== -->
+    <div id="tab-health" class="tab-pane" role="tabpanel">
+      <!-- Three groups (K113): "Now" is always open; the other two start folded so the tab does not open with everything at once -->
+      <section class="health-group" id="health-group-now" aria-labelledby="health-group-now-title">
+      <div class="health-group-head">
+        <h2 class="health-group-title" id="health-group-now-title">Now</h2>
+        <span class="health-group-sub">Collectors, device health and reachability</span>
+      </div>
+      <!-- Platform Health Section -->
+      <section class="panel panel-wide" id="health-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>NOC Platform &amp; Collector Health</h2>
+            <span class="panel-subtitle">Diagnostics &middot; SQLite WAL Performance &middot; Retention Status (15-Day Auto-Vacuum)</span>
+          </div>
+          <div class="panel-actions">
+            <span id="health-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+
+        <div id="health-db-cards" class="summary-cards"></div>
+
+        <div tabindex="0" role="region" aria-labelledby="collectors-table-caption" class="table-container">
+          <table class="data-table table-stack table-stack-dense table-collectors">
+            <caption id="collectors-table-caption">Per-collector status, last success pulse, lag, and consecutive errors</caption>
+            <thead>
+              <tr>
+                <th>Collector Daemon</th>
+                <th>Target Device</th>
+                <th>Operational Status</th>
+                <th>Last Success Pulse ({{ tz }})</th>
+                <th>Collector Lag</th>
+                <th>Consecutive Errors</th>
+                <th>Last Error Message</th>
+              </tr>
+            </thead>
+            <tbody id="collectors-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Device health: CPU, memory and disks of each SNMP device -->
+      <section class="panel panel-wide" id="host-health-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Device Health</h2>
+            <span class="panel-subtitle">CPU, memory and disks over SNMP (HOST-RESOURCES-MIB) &middot; the amber level is the alert threshold</span>
+          </div>
+          <div class="panel-actions">
+            <span id="host-health-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+        <p id="host-health-empty" class="empty-reason-card" hidden></p>
+        <div tabindex="0" role="region" aria-labelledby="host-health-caption" class="table-container">
+          <table class="data-table table-stack table-host-health">
+            <caption id="host-health-caption" class="visually-hidden">CPU, memory, disks and services of each device, one row per device</caption>
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Source</th>
+                <th>CPU</th>
+                <th>Memory</th>
+                <th>Disks</th>
+                <th>Services</th>
+                <th>Sample</th>
+              </tr>
+            </thead>
+            <tbody id="host-health-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ICMP: packet loss, latency and jitter of every device, also those without SNMP -->
+      <section class="panel panel-wide" id="icmp-health-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Reachability &amp; Latency</h2>
+            <span class="panel-subtitle">Packet loss, round-trip time and jitter by ICMP ping (five pings a minute) &middot; the amber level is the alert threshold</span>
+          </div>
+          <div class="panel-actions">
+            <span id="icmp-health-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+        <p id="icmp-health-empty" class="empty-reason-card" hidden></p>
+        <div tabindex="0" role="region" aria-labelledby="icmp-health-caption" class="table-container">
+          <table class="data-table table-stack table-icmp-health">
+            <caption id="icmp-health-caption" class="visually-hidden">Packet loss, round-trip time and jitter of each device, one row per device</caption>
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Packet loss</th>
+                <th>Round-trip time</th>
+                <th>Jitter</th>
+                <th>Slowest ping</th>
+                <th>Sample</th>
+              </tr>
+            </thead>
+            <tbody id="icmp-health-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+      </section>
+
+      <details class="health-group" id="health-group-trends">
+      <summary><h2 class="health-group-title">Capacity &amp; Trends</h2><span class="health-group-sub">Database growth, alert noise and availability over the retained days</span></summary>
+      <!-- Capacity: will the database and the disk last? -->
+      <section class="panel panel-wide" id="capacity-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Capacity</h2>
+            <span class="panel-subtitle">Database and disk growth &middot; straight line through the last 7 days of hourly samples</span>
+          </div>
+          <div class="panel-actions">
+            <span id="capacity-status" class="badge badge-ok">NO FORECAST</span>
+            <span id="capacity-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+        <p id="capacity-empty" class="empty-reason-card" hidden></p>
+        <div id="capacity-cards" class="host-overview-stats"></div>
+        <div id="capacity-sources" class="capacity-sources" hidden>
+          <h3 class="capacity-sources-title">Space by source</h3>
+          <p id="capacity-sources-note" class="panel-subtitle"></p>
+          <div class="table-container compact">
+            <table class="data-table" aria-label="Database space used by each data source">
+              <thead>
+                <tr><th>Source</th><th>Rows</th><th>Size now</th><th>Growth / day</th><th>In 7 days</th><th id="capacity-steady-head">At retention</th></tr>
+              </thead>
+              <tbody id="capacity-sources-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Alert noise: which rule fires most -->
+      <section class="panel panel-wide" id="alert-noise-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Alert Noise</h2>
+            <span class="panel-subtitle">Alerts fired per rule in the last 7 days &middot; the noisiest rule is the first to tune or silence</span>
+          </div>
+          <div class="panel-actions">
+            <span id="alert-noise-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+        <p id="alert-noise-empty" class="empty-reason-card" hidden></p>
+        <div tabindex="0" role="region" aria-labelledby="alert-noise-caption" class="table-container">
+          <table class="data-table table-stack table-alert-noise">
+            <caption id="alert-noise-caption">Alerts fired per rule, how many targets and devices, and the target that repeats most</caption>
+            <thead>
+              <tr>
+                <th>Rule</th>
+                <th>Alerts</th>
+                <th>Per day</th>
+                <th>Targets</th>
+                <th>Devices</th>
+                <th>Repeats most</th>
+              </tr>
+            </thead>
+            <tbody id="alert-noise-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Availability report: uptime, MTTR and MTBF per device over the retained window -->
+      <section class="panel panel-wide" id="availability-report-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Availability Report</h2>
+            <span id="availability-report-subtitle" class="panel-subtitle">Uptime, mean time to repair and mean time between failures per device</span>
+          </div>
+          <div class="panel-actions">
+            <div class="export-button-group">
+              <a class="btn btn-secondary btn-small" id="availability-report-csv" href="/api/availability-report?days=30&amp;format=csv" download>Export CSV</a>
+            </div>
+            <span id="availability-report-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+        <p id="availability-report-empty" class="empty-reason-card" hidden></p>
+        <div tabindex="0" role="region" aria-labelledby="availability-report-caption" class="table-container">
+          <table class="data-table table-stack">
+            <caption id="availability-report-caption">Availability, outages, MTTR and MTBF of each device over the window shown above</caption>
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Availability</th>
+                <th>Outages</th>
+                <th>Down time</th>
+                <th>MTTR</th>
+                <th>MTBF</th>
+              </tr>
+            </thead>
+            <tbody id="availability-report-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      </details>
+
+      <details class="health-group" id="health-group-inventory">
+      <summary><h2 class="health-group-title">Inventory &amp; Onboarding</h2><span class="health-group-sub">Discovered nodes and how to add a device</span></summary>
+      <!-- Onboarding & Passive Autodiscovery Inventory -->
+      <section class="panel panel-wide" id="onboarding-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>1-Command Onboarding &amp; Autodiscovery Inventory</h2>
+            <span class="panel-subtitle">Zero-config agentless onboarding with dynamic SNMP qualification</span>
+          </div>
+          <div class="panel-actions">
+            <div class="export-button-group">
+              <a id="export-nodes-csv" class="btn btn-secondary btn-small" href="/api/devices/all/export?dataset=inventory&amp;format=csv&amp;range=24h" download>Export Inventory CSV</a>
+              <a id="export-nodes-json" class="btn btn-secondary btn-small" href="/api/devices/all/export?dataset=inventory&amp;format=json&amp;range=24h&amp;download=1" download>Export Inventory JSON</a>
+              <a id="download-router-rsc" class="btn btn-secondary btn-small" href="/api/router-config.rsc">Download setup_router.rsc</a>
+              <a id="download-bootstrap-sh" class="btn btn-secondary btn-small" href="/api/bootstrap.sh" target="_blank">View bootstrap.sh</a>
+            </div>
+            <span id="nodes-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+
+        <div class="two-col-grid onboarding-instruction-grid">
+          <div class="instruction-card">
+            <div class="instruction-header">
+              <span class="instruction-badge">LINUX SERVERS / CONTAINERS</span>
+              <h4>1-Command Host Onboarding (Debian / Ubuntu)</h4>
+            </div>
+            <p class="instruction-desc">Registers node via API, configures rsyslog to co-locate syslog, and tests reachability.</p>
+            <div class="code-copy-box">
+              <code id="onboarding-curl-cmd" class="code-snippet">curl -s /api/bootstrap.sh | sudo bash</code>
+              <button type="button" class="btn btn-primary btn-small copy-btn" data-target="onboarding-curl-cmd">Copy</button>
+            </div>
+          </div>
+
+          <div class="instruction-card">
+            <div class="instruction-header">
+              <span class="instruction-badge">MIKROTIK ROUTEROS</span>
+              <h4>1-Command Router Provisioning (Human-Applied)</h4>
+            </div>
+            <p class="instruction-desc">Applies idempotent SNMPv2c community, remote syslog action and IPFIX traffic-flow exporter.</p>
+            <div class="code-copy-box">
+              <code id="router-import-cmd" class="code-snippet">/import file-name=setup_router.rsc</code>
+              <button type="button" class="btn btn-primary btn-small copy-btn" data-target="router-import-cmd">Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <div tabindex="0" role="region" aria-labelledby="nodes-table-caption" class="table-container">
+          <table class="data-table table-stack table-stack-dense table-nodes">
+            <caption id="nodes-table-caption">Passively discovered and self-registered network nodes (SNMP probe qualified)</caption>
+            <thead>
+              <tr>
+                <th>Node / Hostname</th>
+                <th>IP Address</th>
+                <th>Device Type</th>
+                <th>Capabilities (SNMP / Syslog / IPFIX)</th>
+                <th>Probe Status</th>
+                <th>Last Seen ({{ tz }})</th>
+                <th>Quick Actions</th>
+              </tr>
+            </thead>
+            <tbody id="nodes-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+      </details>
+    </div>
+    <!-- ============================================================== -->
+    <!-- TAB 7: SETTINGS (alert destinations)                           -->
