@@ -277,9 +277,15 @@ def correlate_guest_device(repo, hypervisor_id, ips, macs, guest_name):
 
     # 1. Match by IP
     for ip in ips:
-        dev = repo.get_device_by_ip(ip)
-        if dev and dev["id"] != hypervisor_id and dev.get("device_type") != "platform":
-            matched_device = dev
+        # Several devices may share one address (a DNS or web service running on a host): the guest is the host
+        # itself, so a service device ("dns") only matches when nothing else has that address.
+        same_ip = [d for d in repo.list_monitored_devices() if d.get("ip") == ip and d["id"] != hypervisor_id]
+        same_ip.sort(key=lambda d: (d.get("device_type") == "dns", d["id"]))
+        if not same_ip:
+            dev = repo.get_device_by_ip(ip)
+            same_ip = [dev] if dev and dev["id"] != hypervisor_id else []
+        if same_ip and same_ip[0].get("device_type") != "platform":
+            matched_device = same_ip[0]
             break
 
     # 2. Match by exact name/hostname if no IP matched

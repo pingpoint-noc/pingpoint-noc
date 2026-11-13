@@ -45,7 +45,7 @@ def build_parser():
     parser.add_argument("--dns-type", dest="dns_type", choices=("pihole", "adguard", "probe"),
                         help="for a DNS device: pihole, adguard (AdGuard Home) or probe (only the UDP 53 probe)")
     parser.add_argument("--api-url", dest="api_url",
-                        help="for a DNS device: web address of its API, e.g. http://192.168.1.70:3000 for AdGuard Home; "
+                        help="for a DNS device: web address of its API, e.g. http://192.0.2.53:3000 for AdGuard Home; "
                              "the login goes in MININOC_ADGUARD_USER / MININOC_ADGUARD_PASSWORD (or MININOC_PIHOLE_PASSWORD) of mini-noc.env")
     parser.add_argument("--list", action="store_true", help="list the inventory")
     parser.add_argument("--remove", metavar="ID", help="remove a device and its data")

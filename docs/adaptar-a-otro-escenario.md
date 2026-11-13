@@ -91,7 +91,7 @@ IPFIX ya se atribuyen por IP de origen (K36). Para dar a cada equipo sus propias
    python -m tools.add_device --id router-3 --name "Router 3" --ip 192.168.155.1 --cred lab-v2 --type router --depends-on router-2
    python -m tools.add_device --id host-1 --name "Host 1" --ip 192.168.89.9 --type linux --no-snmp
    # DNS con AdGuard Home (o Pi-hole): tipo dns, su API y, en mini-noc.env, MININOC_ADGUARD_USER / MININOC_ADGUARD_PASSWORD
-   python -m tools.add_device --id adguard --name "AdGuard Home" --ip 192.168.1.70 --type dns --no-snmp --dns-type adguard --api-url http://192.168.1.70:3000
+   python -m tools.add_device --id adguard --name "AdGuard Home" --ip 192.0.2.53 --type dns --no-snmp --dns-type adguard --api-url http://192.0.2.53:3000
    python -m tools.add_device --list
    python -m tools.add_device --remove router-3
    ```

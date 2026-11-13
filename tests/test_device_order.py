@@ -13,10 +13,10 @@ class DeviceOrderTest(unittest.TestCase):
 
     def test_router_then_hypervisor_with_its_guests_then_the_rest(self):
         devices = [
-            dev("wazuh", parent="pve1"), dev("apps", parent="pve1"), dev("pve1", "proxmox"),
-            dev("zeta-host"), dev("movistar", "router"), dev("nas", "server"), dev("alpha-host"),
+            dev("wazuh", parent="hv1"), dev("apps", parent="hv1"), dev("hv1", "proxmox"),
+            dev("zeta-host"), dev("gateway", "router"), dev("nas", "server"), dev("alpha-host"),
         ]
-        self.assertEqual(self.ids(devices), ["movistar", "pve1", "apps", "wazuh", "nas", "alpha-host", "zeta-host"])
+        self.assertEqual(self.ids(devices), ["gateway", "hv1", "apps", "wazuh", "nas", "alpha-host", "zeta-host"])
 
     def test_depends_on_is_used_when_there_is_no_hypervisor(self):
         devices = [dev("host"), dev("gw", "router")]
