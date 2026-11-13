@@ -1,0 +1,63 @@
+# Mini-NOC en Docker: web + API, motor de alertas y ntfy propio, con datos de demo.
+# Pensado para probar en cualquier PC. El despliegue de referencia sigue siendo systemd (deploy/install.sh).
+#
+#   docker compose up --build        # web en http://localhost:8080 , ntfy en http://localhost:8081
+#   docker compose down -v           # parar y borrar los datos
+#
+# Para datos reales, quita el servicio `seed` y alimenta el volumen con los recolectores (docs/docker.md).
+
+services:
+  seed:
+    build: .
+    command: ["python", "-m", "tools.seed_demo", "--db-path", "/data/mini_noc.db"]
+    volumes:
+      - noc-data:/data
+    restart: "no"
+
+  api:
+    build: .
+    command: ["python", "-m", "api"]
+    environment:
+      # Vacio = el panel de Ajustes es de solo lectura. Para editarlo: MININOC_ADMIN_TOKEN=... docker compose up
+      MININOC_ADMIN_TOKEN: "${MININOC_ADMIN_TOKEN:-}"
+    ports:
+      - "127.0.0.1:${MININOC_API_PORT:-8080}:8080"
+    volumes:
+      - noc-data:/data
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  alerts:
+    build: .
+    command: ["python", "-m", "alerts.engine"]
+    environment:
+      MININOC_ALERT_INTERVAL: "30"
+      # Notificaciones push: vacio = desactivadas. Por defecto, al ntfy de este compose.
+      MININOC_NTFY_URL: "${MININOC_NTFY_URL-http://ntfy:80/mini-noc}"
+      MININOC_NTFY_TOKEN: "${MININOC_NTFY_TOKEN:-}"
+    volumes:
+      - noc-data:/data
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      ntfy:
+        condition: service_started
+    restart: unless-stopped
+
+  ntfy:
+    image: binwiederhier/ntfy:v2.11.0
+    command: ["serve"]
+    environment:
+      NTFY_BASE_URL: "http://localhost:${NTFY_PORT:-8081}"
+      NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+    ports:
+      - "127.0.0.1:${NTFY_PORT:-8081}:80"
+    volumes:
+      - ntfy-cache:/var/cache/ntfy
+    restart: unless-stopped
+
+volumes:
+  noc-data:
+  ntfy-cache:

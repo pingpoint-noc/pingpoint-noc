@@ -1,0 +1,14 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+.env
+mini-noc.env
+PROXMOX-LAB
+docs
+tests
+.playwright-mcp
