@@ -20,3 +20,10 @@ mini-noc.env
 
 # RouterOS script with the SNMPv3 keys (python -m tools.generate_router_config --snmp-v3): never published
 data/setup_router_snmpv3.rsc
+
+# coverage
+.coverage
+.coverage.*
+coverage.xml
+.pytest_cache/
+.ruff_cache/

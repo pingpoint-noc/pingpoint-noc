@@ -1,8 +1,12 @@
-# Para ejecutar los tests (TestClient de FastAPI usa httpx).
+# Test and quality tooling (FastAPI's TestClient uses httpx).
 -r requirements.txt
 httpx>=0.28
+pytest>=8
+pytest-xdist>=3.6
+pytest-cov>=5
+ruff>=0.8
+pip-audit>=2.7
 
-# Opcional: tests de navegador (tests/browser). Sin esto se saltan solos.
+# Browser tests (tests/browser) are skipped on their own when Playwright is missing:
 #   pip install playwright
 #   python -m playwright install chromium
-# playwright>=1.50
