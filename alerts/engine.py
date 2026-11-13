@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 import ipaddress
 import logging
 import os
+import re
 import time
 
 from alerts import digest
@@ -42,6 +43,18 @@ PUBLIC_URL = ""
 # problem that comes and goes does not produce a firing/resolved pair (and two messages) every time.
 # The library default is 1 (resolve at once, the original behaviour); the service asks for 2 (see main()).
 RESOLVE_CYCLES = 1
+# Interfaces that exist for plumbing, not as links somebody depends on: loopback, Docker and Kubernetes bridges and
+# veth pairs, libvirt and Proxmox firewall bridges, tap devices. They go down and up with their containers and
+# VMs, so "down" there is normal. The same idea as LibreNMS's bad_if_regexp; matched against ifDescr/ifName.
+DEFAULT_IGNORED_INTERFACES = (
+    r"^(lo\d*|docker\d*|br-[0-9a-f]{6,}|veth\w+|virbr\d+|fw(br|pr|ln)\w+|tap\d+i\d+|"
+    r"cali\w+|flannel\.\d+|cni\d+|cilium_\w+|lxcbr\d+|lxdbr\d+)$"
+)
+IGNORED_INTERFACES_RE = re.compile(DEFAULT_IGNORED_INTERFACES, re.IGNORECASE)
+INTERFACE_RULE_IDS = ("interface_down", "interface_flapping", "interface_errors", "high_bandwidth")
+# Discards are mostly deliberate drops (broadcast filtering on a bridge, a full queue), not a damaged link, so a
+# discards-only interface needs this many times the errors threshold before it is reported.
+DISCARD_THRESHOLD_FACTOR = 10
 DEFAULT_BW_UTILIZATION_PCT = 80  # share of the link speed; the absolute threshold is only the fallback
 DEFAULT_SERVICE_RESOLVE_CYCLES = 2
 # interface_flapping (K14): starting values from general guides, to be tuned with the lab's own data.
@@ -648,6 +661,14 @@ def evaluate_interface_rules(
             and (int(now_ts) - int(updated_utc)) <= 60
         )
         target = "if:%d" % if_index
+        if IGNORED_INTERFACES_RE.match(str(if_descr or "")):
+            # Not a link to watch: close anything an older version opened and move on.
+            for ignored_rule in INTERFACE_RULE_IDS:
+                reconcile_alert(
+                    repo=repo, device_id=device_id, rule_id=ignored_rule, target=target, severity="warning",
+                    is_triggered=False, now_ts=now_ts, hold_seconds=0, message="",
+                )
+            continue
         link_speed = int(row.get("speed_bps") or 0)
         if bw_utilization_pct > 0 and link_speed > 0:
             bw_limit_bps = link_speed * bw_utilization_pct / 100.0
@@ -695,7 +716,11 @@ def evaluate_interface_rules(
             device_id, if_index, now_ts - err_window_seconds, now_ts
         )
         err_count, discard_count, growing = error_growth(error_samples)
-        has_errors = is_seen and (err_count + discard_count) >= err_min_increase and growing >= err_min_intervals
+        has_errors = (
+            is_seen
+            and (err_count >= err_min_increase or discard_count >= DISCARD_THRESHOLD_FACTOR * err_min_increase)
+            and growing >= err_min_intervals
+        )
         err_msg = ""
         if has_errors:
             err_msg = "Interface %s (ifIndex %d): %d errors and %d discards in the last %d s" % (

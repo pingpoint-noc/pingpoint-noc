@@ -143,10 +143,23 @@ class TestErrorsRule(ErrorsBase):
         self.evaluate()
         self.assertIsNone(self.alert())
 
-    def test_discards_count_like_errors(self):
+    def test_discards_alone_need_ten_times_the_errors_threshold(self):
+        # discards are mostly deliberate drops (broadcast filtering on a bridge): 30 in the window is not a bad link
         self.grow(6, 5, field="out_discards")
         self.evaluate()
+        self.assertIsNone(self.alert())
+
+    def test_a_large_number_of_discards_still_fires(self):
+        self.grow(6, 20, field="out_discards")  # 120 >= 10 x the minimum of 10
+        self.evaluate()
         self.assertIsNotNone(self.alert())
+
+    def test_plumbing_interfaces_are_not_watched(self):
+        # a Docker bridge that is down, or a veth pair, is normal: nothing is opened for it
+        for name in ("docker0", "br-0123456789ab", "veth1a2b3c", "fwbr100i0", "lo"):
+            self.assertTrue(engine.IGNORED_INTERFACES_RE.match(name), name)
+        for name in ("vmbr0", "eth0", "ens18", "bond0", "br0", "GigabitEthernet0/1"):
+            self.assertFalse(engine.IGNORED_INTERFACES_RE.match(name), name)
 
     def test_a_32_bit_wrap_is_not_a_spike_nor_lost(self):
         value = WRAP - 15
