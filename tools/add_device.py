@@ -15,6 +15,7 @@ profiles when they start: restart mini-noc-snmp after changing mini-noc.env.
 
 import argparse
 import ipaddress
+import json
 import os
 from pathlib import Path
 import re
@@ -40,6 +41,11 @@ def build_parser():
     parser.add_argument("--community", help="SNMPv2c community for this device (instead of a profile)")
     parser.add_argument("--no-snmp", action="store_true", help="the device is not polled by SNMP")
     parser.add_argument("--depends-on", dest="depends_on", help="id of the device this one sits behind")
+    parser.add_argument("--dns-type", dest="dns_type", choices=("pihole", "adguard", "probe"),
+                        help="for a DNS device: pihole, adguard (AdGuard Home) or probe (only the UDP 53 probe)")
+    parser.add_argument("--api-url", dest="api_url",
+                        help="for a DNS device: web address of its API, e.g. http://192.168.1.70:3000 for AdGuard Home; "
+                             "the login goes in MININOC_ADGUARD_USER / MININOC_ADGUARD_PASSWORD (or MININOC_PIHOLE_PASSWORD) of mini-noc.env")
     parser.add_argument("--list", action="store_true", help="list the inventory")
     parser.add_argument("--remove", metavar="ID", help="remove a device and its data")
     return parser
@@ -128,6 +134,28 @@ def save_device(args, repo, env):
     if other is not None and other["id"] != device_id:
         print("warning: %s already belongs to the device %s" % (ip, other["id"]), file=sys.stderr)
 
+    # ensure_device replaces poll_config_json: carry the stored one over, then apply what was asked for
+    poll_config = {}
+    if existing is not None and existing.get("poll_config_json"):
+        try:
+            loaded = json.loads(existing["poll_config_json"])
+            if isinstance(loaded, dict):
+                poll_config = loaded
+        except ValueError:
+            pass
+    if args.dns_type:
+        poll_config["dns_type"] = args.dns_type
+    if args.api_url is not None:
+        api_url = args.api_url.strip()
+        if api_url == "":
+            poll_config.pop("api_url", None)
+        elif not re.match(r"^https?://[^\s/]+", api_url):
+            raise ValueError("--api-url must start with http:// or https://")
+        else:
+            poll_config["api_url"] = api_url
+    if (args.dns_type or args.api_url) and device_type != "dns":
+        raise ValueError("--dns-type and --api-url are for devices of type dns (add --type dns)")
+
     repo.ensure_device(
         device_id=device_id,
         name=name,
@@ -135,6 +163,7 @@ def save_device(args, repo, env):
         device_type=device_type,
         has_snmp=0 if args.no_snmp else 1,
         snmp_cred=cred or "",
+        poll_config_json=json.dumps(poll_config) if poll_config else None,
     )
     repo.set_device_credentials(
         device_id,

@@ -59,6 +59,24 @@ class TestAdd(AddDeviceTestCase):
         self.assertEqual(self.device("h1")["device_type"], "server")
         self.assertIn("no --type given", out)
 
+    def test_a_dns_device_keeps_its_adguard_settings_and_they_survive_an_update(self):
+        code, out, err = self.run_tool("--id", "adg", "--name", "AdGuard", "--ip", "192.168.89.53", "--type", "dns",
+                                       "--no-snmp", "--dns-type", "adguard", "--api-url", "http://192.168.89.53:3000")
+        self.assertEqual(code, 0, err)
+        import json
+        config = json.loads(self.device("adg")["poll_config_json"])
+        self.assertEqual(config, {"dns_type": "adguard", "api_url": "http://192.168.89.53:3000"})
+        code, out, err = self.run_tool("--id", "adg", "--name", "AdGuard Home")  # a later edit must not wipe them
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads(self.device("adg")["poll_config_json"]), config)
+
+    def test_dns_options_need_a_dns_device_and_a_real_url(self):
+        code, _, err = self.run_tool("--id", "h2", "--name", "H", "--ip", "192.168.89.7", "--type", "linux", "--no-snmp", "--dns-type", "adguard")
+        self.assertNotEqual(code, 0)
+        code, _, err = self.run_tool("--id", "d2", "--name", "D", "--ip", "192.168.89.8", "--type", "dns", "--no-snmp", "--api-url", "ftp://x")
+        self.assertNotEqual(code, 0)
+        self.assertIn("http", err)
+
     def test_the_output_never_shows_a_key(self):
         code, out, err = self.run_tool("--id", "r2", "--name", "R2", "--ip", "192.168.89.1", "--cred", "core-v3")
         _, listing, _ = self.run_tool("--list")
