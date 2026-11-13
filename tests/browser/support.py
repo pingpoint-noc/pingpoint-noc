@@ -195,3 +195,6 @@ class BrowserTestCase(unittest.TestCase):
         page.fill("#login-username", USERNAME)
         page.fill("#login-password", password)
         page.click("#login-submit")
+        if password == PASSWORD:
+            # Wait for the session: on a slow runner the next click would otherwise be sent before the login answered (401)
+            page.wait_for_function("typeof authSession !== 'undefined' && authSession !== null", timeout=30000)
