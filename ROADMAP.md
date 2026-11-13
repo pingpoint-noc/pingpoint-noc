@@ -54,7 +54,8 @@ inglés) en `_notas/PINGPOINT-NOC-PROMPT-SIGUIENTE-CHAT.md` del autor.
 
 *Texto en inglés a propósito: es lo nuevo; el resto se traducirá en la fase 8.*
 
-1. **Schema migrations** (`PRAGMA user_version`, numbered steps). Needed before any new table reaches users; blocks 2 and 3.
+1. ~~**Schema migrations**~~ done: `storage/migrations.py` (`PRAGMA user_version`, numbered steps, one transaction each, safe when services start together,
+   refuses a database from a newer release). Version 1 is the current schema; add new steps there. Checked on a copy of the home server's database.
 2. **Per-device settings** (new table, API, UI): ICMP latency threshold per device (a LAN switch and an overseas host cannot share one number),
    interface-ignore pattern (today the constant `DEFAULT_IGNORED_INTERFACES`), new-destination cooldown (constant `NEW_DEST_COOLDOWN_SECONDS`),
    a role per device (workstation vs server, which would remove the rest of the `flow_new_destination` noise).

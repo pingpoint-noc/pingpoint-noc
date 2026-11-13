@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 import sqlite3
 
+from storage.migrations import check_not_newer as check_schema_not_newer, run_migrations
 from storage.repository import StorageRepository
 
 
@@ -390,6 +391,7 @@ class SQLiteRepository(StorageRepository):
 
         conn = self.open_write()
         try:
+            check_schema_not_newer(conn)
             # Ensure backward compatibility if opening an existing database created before onboarding columns.
             existing_tables = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'devices';"
@@ -477,6 +479,7 @@ class SQLiteRepository(StorageRepository):
             conn.executescript(SCHEMA_SQL)
             conn.execute("PRAGMA journal_mode = WAL;")
             conn.execute("PRAGMA synchronous = NORMAL;")
+            run_migrations(conn)
         finally:
             conn.close()
 
