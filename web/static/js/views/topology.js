@@ -41,6 +41,61 @@ function saveTopologyOffsets() {
 }
 TOPOLOGY_STATE.nodeOffsets = loadTopologyOffsets();
 
+// Undo / redo of the card layout: every drag, keyboard nudge and reset first saves the map of offsets as it was.
+var TOPOLOGY_UNDO_LIMIT = 50;
+var topologyUndoStack = [];
+var topologyRedoStack = [];
+
+function topologySnapshot() {
+  return JSON.stringify(TOPOLOGY_STATE.nodeOffsets || {});
+}
+
+function pushTopologyUndo(snapshot) {
+  topologyUndoStack.push(snapshot || topologySnapshot());
+  if (topologyUndoStack.length > TOPOLOGY_UNDO_LIMIT) {
+    topologyUndoStack.shift();
+  }
+  topologyRedoStack = [];
+  updateTopologyUndoButtons();
+}
+
+function applyTopologyLayout(snapshot) {
+  TOPOLOGY_STATE.nodeOffsets = JSON.parse(snapshot);
+  saveTopologyOffsets();
+  renderTopologyGraph();
+}
+
+function undoTopologyLayout() {
+  if (topologyUndoStack.length === 0) {
+    return false;
+  }
+  topologyRedoStack.push(topologySnapshot());
+  applyTopologyLayout(topologyUndoStack.pop());
+  updateTopologyUndoButtons();
+  return true;
+}
+
+function redoTopologyLayout() {
+  if (topologyRedoStack.length === 0) {
+    return false;
+  }
+  topologyUndoStack.push(topologySnapshot());
+  applyTopologyLayout(topologyRedoStack.pop());
+  updateTopologyUndoButtons();
+  return true;
+}
+
+function updateTopologyUndoButtons() {
+  var undoBtn = document.getElementById("topo-undo");
+  var redoBtn = document.getElementById("topo-redo");
+  if (undoBtn) {
+    undoBtn.disabled = topologyUndoStack.length === 0;
+  }
+  if (redoBtn) {
+    redoBtn.disabled = topologyRedoStack.length === 0;
+  }
+}
+
 var TOPOLOGY_MIN_SCALE = 0.15;
 var TOPOLOGY_MAX_SCALE = 2.5;
 
@@ -530,6 +585,7 @@ function renderTopologyGraph() {
           if (step && ev.shiftKey) {
             ev.preventDefault();
             ev.stopPropagation();
+            pushTopologyUndo();
             nudgeTopologyNode(nid, step[0], step[1]);
             saveTopologyOffsets();
             window.setTimeout(function () {
@@ -919,7 +975,7 @@ function initTopologyControls() {
       if (nodeEl) {
         var nid = nodeEl.getAttribute("data-node-id");
         var base = TOPOLOGY_STATE.nodeOffsets[nid] || { x: 0, y: 0 };
-        gesture = { type: "node", id: nid, startX: e.clientX, startY: e.clientY, baseX: base.x, baseY: base.y, moved: false };
+        gesture = { type: "node", id: nid, startX: e.clientX, startY: e.clientY, baseX: base.x, baseY: base.y, moved: false, before: topologySnapshot() };
       } else {
         gesture = { type: "pan", startX: e.clientX - TOPOLOGY_STATE.panX, startY: e.clientY - TOPOLOGY_STATE.panY, moved: false };
         TOPOLOGY_STATE.isDragging = true;
@@ -946,6 +1002,7 @@ function initTopologyControls() {
         var dx = e.clientX - gesture.startX;
         var dy = e.clientY - gesture.startY;
         if (!gesture.moved && Math.hypot(dx, dy) < 5) return;
+        if (!gesture.moved) pushTopologyUndo(gesture.before);
         gesture.moved = true;
         TOPOLOGY_STATE.nodeOffsets[gesture.id] = { x: gesture.baseX + dx / TOPOLOGY_STATE.scale, y: gesture.baseY + dy / TOPOLOGY_STATE.scale };
         queueTopologyRender();
@@ -1005,9 +1062,29 @@ function initTopologyControls() {
   if (zoomInBtn) zoomInBtn.addEventListener("click", function () { topologyZoomCentered(1.2); });
   if (zoomOutBtn) zoomOutBtn.addEventListener("click", function () { topologyZoomCentered(1 / 1.2); });
   if (zoomFitBtn) zoomFitBtn.addEventListener("click", function () { fitTopologyView(); });
+  var undoBtn = document.getElementById("topo-undo");
+  var redoBtn = document.getElementById("topo-redo");
+  if (undoBtn) undoBtn.addEventListener("click", undoTopologyLayout);
+  if (redoBtn) redoBtn.addEventListener("click", redoTopologyLayout);
+  updateTopologyUndoButtons();
+  // Ctrl+Z / Cmd+Z undoes a move of the cards, Ctrl+Shift+Z or Ctrl+Y redoes it (only on the Topology view, and never
+  // while typing in a field: there the browser's own undo of the text must win).
+  document.addEventListener("keydown", function (e) {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || STATE.activeTab !== "tab-topology") return;
+    var tag = e.target && e.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target && e.target.isContentEditable)) return;
+    var key = String(e.key).toLowerCase();
+    var done = false;
+    if (key === "z" && !e.shiftKey) done = undoTopologyLayout();
+    else if ((key === "z" && e.shiftKey) || key === "y") done = redoTopologyLayout();
+    else return;
+    e.preventDefault();
+    if (done) showToast(key === "z" && !e.shiftKey ? "Undid the last move" : "Redid the move");
+  });
   // Reset: back to the automatic layout (forgets dragged cards) and fitted to the panel
   if (zoomResetBtn) {
     zoomResetBtn.addEventListener("click", function () {
+      pushTopologyUndo();
       TOPOLOGY_STATE.nodeOffsets = {};
       saveTopologyOffsets();
       renderTopologyGraph();

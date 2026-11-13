@@ -50,7 +50,7 @@ function silenceControlsHtml(al) {
     options += "<option value='" + SILENCE_CHOICES[i].minutes + "'>" + SILENCE_CHOICES[i].label + "</option>";
   }
   return "<select class='form-input alert-silence-minutes' aria-label='Silence notifications for'>" + options + "</select>" +
-    "<button type='button' class='btn btn-secondary btn-small alert-silence-btn'>Silence</button>";
+    "<button type='button' class='btn btn-secondary btn-small alert-silence-btn' title='Stop the notifications of this alert for the time chosen. The alert stays visible and keeps counting'>Silence</button>";
 }
 
 // The person's own action changes the card they are typing in: let go of the focus so the repaint (which keeps a card that
@@ -110,11 +110,11 @@ function ackLineHtml(al) {
 
 function ackControlsHtml(al) {
   if (al.ack_by) {
-    return "<button type='button' class='btn btn-secondary btn-small alert-unack-btn'>Remove acknowledgement</button>";
+    return "<button type='button' class='btn btn-secondary btn-small alert-unack-btn' title='Put it back as needing attention'>Remove acknowledgement</button>";
   }
   return "<input type='text' class='form-input alert-ack-note' maxlength='" + ACK_NOTE_MAX +
     "' placeholder='Note (optional)' aria-label='Acknowledgement note'>" +
-    "<button type='button' class='btn btn-secondary btn-small alert-ack-btn'>Acknowledge</button>";
+    "<button type='button' class='btn btn-secondary btn-small alert-ack-btn' title='Say \"I have seen this\". The alert keeps firing and counting; it just moves to the Acknowledged group'>Acknowledge</button>";
 }
 
 // The card fades and folds away (about 0.2 s) before the list is redrawn without it. With "reduce motion" on
@@ -387,7 +387,7 @@ async function loadAlerts() {
           "<div class='alert-item-actions'>" +
           "<span class='alert-item-time'>Fired: " + escapeHtml(formatLocal(al.fired_utc)) + "</span>" +
           "<button type='button' class='btn btn-secondary btn-small alert-timeline-btn' data-ts='" + escapeHtml(al.fired_utc) +
-          "' data-device='" + escapeHtml(al.device_id) + "'>Open timeline &rarr;</button>" +
+          "' data-device='" + escapeHtml(al.device_id) + "'title='Show what happened around this alert on the Incident Timeline'>Open timeline &rarr;</button>" +
           silenceControlsHtml(al) + ackControlsHtml(al) +
           "</div>";
         wireSilenceControls(card, al);
@@ -442,7 +442,8 @@ async function loadAlerts() {
         if (globalStatusText) globalStatusText.textContent = "Alert engine stalled";
       }
     } else {
-      if (section) section.className = "alerts-banner ok";
+      // Nothing firing and the engine is evaluating: the banner is optional (Settings > Preferences).
+      if (section) section.className = "alerts-banner ok" + (STATE.showOkBanner === false ? " hidden" : "");
       if (title) title.textContent = "Active Alerts (0 firing — all monitored rules healthy)";
       if (kpiAlerts) {
         kpiAlerts.textContent = "0 Firing";

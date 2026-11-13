@@ -244,7 +244,12 @@ function initNavMenu() {
 }
 
 function initDashboard() {
+  // The panels start hidden and fade in once the first data has arrived, so a reload does not flash empty placeholders.
+  document.body.classList.add("booting");
+  window.setTimeout(function () { document.body.classList.remove("booting"); }, 1500);
   initTheme();
+  applyHints();
+  initContextMenu();
   initControls();
   initSettings();
   initAuthBox();
@@ -587,7 +592,10 @@ function initDashboard() {
   }
 
   // Initial load; then the hash (a deep link, or an old "#timeline/<device>/<epoch>" link from a notification) is restored.
-  refreshAll().then(initRoute);
+  refreshAll().then(function () {
+    document.body.classList.remove("booting");
+    return initRoute();
+  });
 }
 
 // Selected range -> state, the pills and the hidden select (shared by the pills, the select and the link restore).

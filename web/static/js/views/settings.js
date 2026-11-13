@@ -1439,6 +1439,13 @@ function initOperatorPreferences() {
     if (prefShortcuts) {
       prefShortcuts.checked = STATE.shortcutsOn;
     }
+    if (localStorage.getItem("mini-noc-pref-ok-banner") === "false") {
+      STATE.showOkBanner = false;
+    }
+    var prefOkBanner = document.getElementById("pref-ok-banner");
+    if (prefOkBanner) {
+      prefOkBanner.checked = STATE.showOkBanner !== false;
+    }
     var savedWelcome = localStorage.getItem("mini-noc-pref-compact-welcome");
     if (savedWelcome !== null && prefWelcome) {
       var isCompact = savedWelcome === "true";
@@ -1489,6 +1496,17 @@ function initOperatorPreferences() {
         localStorage.setItem("mini-noc-pref-shortcuts", String(STATE.shortcutsOn));
       } catch (e) {}
       showToast(STATE.shortcutsOn ? "Single-key shortcuts on" : "Single-key shortcuts off");
+    });
+  }
+
+  var okBannerPref = document.getElementById("pref-ok-banner");
+  if (okBannerPref) {
+    okBannerPref.addEventListener("change", function (ev) {
+      STATE.showOkBanner = Boolean(ev.target.checked);
+      try {
+        localStorage.setItem("mini-noc-pref-ok-banner", String(STATE.showOkBanner));
+      } catch (e) {}
+      loadAlerts();
     });
   }
 

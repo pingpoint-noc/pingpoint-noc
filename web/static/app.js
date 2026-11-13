@@ -71,6 +71,7 @@ var STATE = {
   paused: false,
   soundOn: false,
   shortcutsOn: true,
+  showOkBanner: true,
   lastFiringCount: null,
   cacheAlertHistory: [],
   cacheActiveAlerts: [],
@@ -1199,7 +1200,7 @@ function silenceControlsHtml(al) {
     options += "<option value='" + SILENCE_CHOICES[i].minutes + "'>" + SILENCE_CHOICES[i].label + "</option>";
   }
   return "<select class='form-input alert-silence-minutes' aria-label='Silence notifications for'>" + options + "</select>" +
-    "<button type='button' class='btn btn-secondary btn-small alert-silence-btn'>Silence</button>";
+    "<button type='button' class='btn btn-secondary btn-small alert-silence-btn' title='Stop the notifications of this alert for the time chosen. The alert stays visible and keeps counting'>Silence</button>";
 }
 
 // The person's own action changes the card they are typing in: let go of the focus so the repaint (which keeps a card that
@@ -1259,11 +1260,11 @@ function ackLineHtml(al) {
 
 function ackControlsHtml(al) {
   if (al.ack_by) {
-    return "<button type='button' class='btn btn-secondary btn-small alert-unack-btn'>Remove acknowledgement</button>";
+    return "<button type='button' class='btn btn-secondary btn-small alert-unack-btn' title='Put it back as needing attention'>Remove acknowledgement</button>";
   }
   return "<input type='text' class='form-input alert-ack-note' maxlength='" + ACK_NOTE_MAX +
     "' placeholder='Note (optional)' aria-label='Acknowledgement note'>" +
-    "<button type='button' class='btn btn-secondary btn-small alert-ack-btn'>Acknowledge</button>";
+    "<button type='button' class='btn btn-secondary btn-small alert-ack-btn' title='Say \"I have seen this\". The alert keeps firing and counting; it just moves to the Acknowledged group'>Acknowledge</button>";
 }
 
 // The card fades and folds away (about 0.2 s) before the list is redrawn without it. With "reduce motion" on
@@ -1536,7 +1537,7 @@ async function loadAlerts() {
           "<div class='alert-item-actions'>" +
           "<span class='alert-item-time'>Fired: " + escapeHtml(formatLocal(al.fired_utc)) + "</span>" +
           "<button type='button' class='btn btn-secondary btn-small alert-timeline-btn' data-ts='" + escapeHtml(al.fired_utc) +
-          "' data-device='" + escapeHtml(al.device_id) + "'>Open timeline &rarr;</button>" +
+          "' data-device='" + escapeHtml(al.device_id) + "'title='Show what happened around this alert on the Incident Timeline'>Open timeline &rarr;</button>" +
           silenceControlsHtml(al) + ackControlsHtml(al) +
           "</div>";
         wireSilenceControls(card, al);
@@ -1591,7 +1592,8 @@ async function loadAlerts() {
         if (globalStatusText) globalStatusText.textContent = "Alert engine stalled";
       }
     } else {
-      if (section) section.className = "alerts-banner ok";
+      // Nothing firing and the engine is evaluating: the banner is optional (Settings > Preferences).
+      if (section) section.className = "alerts-banner ok" + (STATE.showOkBanner === false ? " hidden" : "");
       if (title) title.textContent = "Active Alerts (0 firing — all monitored rules healthy)";
       if (kpiAlerts) {
         kpiAlerts.textContent = "0 Firing";
@@ -2767,6 +2769,61 @@ function saveTopologyOffsets() {
 }
 TOPOLOGY_STATE.nodeOffsets = loadTopologyOffsets();
 
+// Undo / redo of the card layout: every drag, keyboard nudge and reset first saves the map of offsets as it was.
+var TOPOLOGY_UNDO_LIMIT = 50;
+var topologyUndoStack = [];
+var topologyRedoStack = [];
+
+function topologySnapshot() {
+  return JSON.stringify(TOPOLOGY_STATE.nodeOffsets || {});
+}
+
+function pushTopologyUndo(snapshot) {
+  topologyUndoStack.push(snapshot || topologySnapshot());
+  if (topologyUndoStack.length > TOPOLOGY_UNDO_LIMIT) {
+    topologyUndoStack.shift();
+  }
+  topologyRedoStack = [];
+  updateTopologyUndoButtons();
+}
+
+function applyTopologyLayout(snapshot) {
+  TOPOLOGY_STATE.nodeOffsets = JSON.parse(snapshot);
+  saveTopologyOffsets();
+  renderTopologyGraph();
+}
+
+function undoTopologyLayout() {
+  if (topologyUndoStack.length === 0) {
+    return false;
+  }
+  topologyRedoStack.push(topologySnapshot());
+  applyTopologyLayout(topologyUndoStack.pop());
+  updateTopologyUndoButtons();
+  return true;
+}
+
+function redoTopologyLayout() {
+  if (topologyRedoStack.length === 0) {
+    return false;
+  }
+  topologyUndoStack.push(topologySnapshot());
+  applyTopologyLayout(topologyRedoStack.pop());
+  updateTopologyUndoButtons();
+  return true;
+}
+
+function updateTopologyUndoButtons() {
+  var undoBtn = document.getElementById("topo-undo");
+  var redoBtn = document.getElementById("topo-redo");
+  if (undoBtn) {
+    undoBtn.disabled = topologyUndoStack.length === 0;
+  }
+  if (redoBtn) {
+    redoBtn.disabled = topologyRedoStack.length === 0;
+  }
+}
+
 var TOPOLOGY_MIN_SCALE = 0.15;
 var TOPOLOGY_MAX_SCALE = 2.5;
 
@@ -3256,6 +3313,7 @@ function renderTopologyGraph() {
           if (step && ev.shiftKey) {
             ev.preventDefault();
             ev.stopPropagation();
+            pushTopologyUndo();
             nudgeTopologyNode(nid, step[0], step[1]);
             saveTopologyOffsets();
             window.setTimeout(function () {
@@ -3645,7 +3703,7 @@ function initTopologyControls() {
       if (nodeEl) {
         var nid = nodeEl.getAttribute("data-node-id");
         var base = TOPOLOGY_STATE.nodeOffsets[nid] || { x: 0, y: 0 };
-        gesture = { type: "node", id: nid, startX: e.clientX, startY: e.clientY, baseX: base.x, baseY: base.y, moved: false };
+        gesture = { type: "node", id: nid, startX: e.clientX, startY: e.clientY, baseX: base.x, baseY: base.y, moved: false, before: topologySnapshot() };
       } else {
         gesture = { type: "pan", startX: e.clientX - TOPOLOGY_STATE.panX, startY: e.clientY - TOPOLOGY_STATE.panY, moved: false };
         TOPOLOGY_STATE.isDragging = true;
@@ -3672,6 +3730,7 @@ function initTopologyControls() {
         var dx = e.clientX - gesture.startX;
         var dy = e.clientY - gesture.startY;
         if (!gesture.moved && Math.hypot(dx, dy) < 5) return;
+        if (!gesture.moved) pushTopologyUndo(gesture.before);
         gesture.moved = true;
         TOPOLOGY_STATE.nodeOffsets[gesture.id] = { x: gesture.baseX + dx / TOPOLOGY_STATE.scale, y: gesture.baseY + dy / TOPOLOGY_STATE.scale };
         queueTopologyRender();
@@ -3731,9 +3790,29 @@ function initTopologyControls() {
   if (zoomInBtn) zoomInBtn.addEventListener("click", function () { topologyZoomCentered(1.2); });
   if (zoomOutBtn) zoomOutBtn.addEventListener("click", function () { topologyZoomCentered(1 / 1.2); });
   if (zoomFitBtn) zoomFitBtn.addEventListener("click", function () { fitTopologyView(); });
+  var undoBtn = document.getElementById("topo-undo");
+  var redoBtn = document.getElementById("topo-redo");
+  if (undoBtn) undoBtn.addEventListener("click", undoTopologyLayout);
+  if (redoBtn) redoBtn.addEventListener("click", redoTopologyLayout);
+  updateTopologyUndoButtons();
+  // Ctrl+Z / Cmd+Z undoes a move of the cards, Ctrl+Shift+Z or Ctrl+Y redoes it (only on the Topology view, and never
+  // while typing in a field: there the browser's own undo of the text must win).
+  document.addEventListener("keydown", function (e) {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || STATE.activeTab !== "tab-topology") return;
+    var tag = e.target && e.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target && e.target.isContentEditable)) return;
+    var key = String(e.key).toLowerCase();
+    var done = false;
+    if (key === "z" && !e.shiftKey) done = undoTopologyLayout();
+    else if ((key === "z" && e.shiftKey) || key === "y") done = redoTopologyLayout();
+    else return;
+    e.preventDefault();
+    if (done) showToast(key === "z" && !e.shiftKey ? "Undid the last move" : "Redid the move");
+  });
   // Reset: back to the automatic layout (forgets dragged cards) and fitted to the panel
   if (zoomResetBtn) {
     zoomResetBtn.addEventListener("click", function () {
+      pushTopologyUndo();
       TOPOLOGY_STATE.nodeOffsets = {};
       saveTopologyOffsets();
       renderTopologyGraph();
@@ -8978,6 +9057,13 @@ function initOperatorPreferences() {
     if (prefShortcuts) {
       prefShortcuts.checked = STATE.shortcutsOn;
     }
+    if (localStorage.getItem("mini-noc-pref-ok-banner") === "false") {
+      STATE.showOkBanner = false;
+    }
+    var prefOkBanner = document.getElementById("pref-ok-banner");
+    if (prefOkBanner) {
+      prefOkBanner.checked = STATE.showOkBanner !== false;
+    }
     var savedWelcome = localStorage.getItem("mini-noc-pref-compact-welcome");
     if (savedWelcome !== null && prefWelcome) {
       var isCompact = savedWelcome === "true";
@@ -9028,6 +9114,17 @@ function initOperatorPreferences() {
         localStorage.setItem("mini-noc-pref-shortcuts", String(STATE.shortcutsOn));
       } catch (e) {}
       showToast(STATE.shortcutsOn ? "Single-key shortcuts on" : "Single-key shortcuts off");
+    });
+  }
+
+  var okBannerPref = document.getElementById("pref-ok-banner");
+  if (okBannerPref) {
+    okBannerPref.addEventListener("change", function (ev) {
+      STATE.showOkBanner = Boolean(ev.target.checked);
+      try {
+        localStorage.setItem("mini-noc-pref-ok-banner", String(STATE.showOkBanner));
+      } catch (e) {}
+      loadAlerts();
     });
   }
 
@@ -9542,6 +9639,251 @@ function sessionEnded() {
 }
 // --- END: components/access.js ---
 
+// --- BEGIN: components/hints.js ---
+// ==========================================================================
+// Hover descriptions. One table, applied once at start: a selector -> the text shown when the pointer rests on it.
+// An element that already has its own title keeps it. Texts say what the thing means or does in one sentence.
+// ==========================================================================
+
+var HINTS = [
+  // Navigation
+  ['.nav-tab-btn[data-tab="tab-overview"]', "Health of the whole network at a glance: indicators, alerts, traffic and the selected device"],
+  ['.nav-tab-btn[data-tab="tab-topology"]', "Map of the devices and how they depend on each other; drag the cards to arrange them"],
+  ['.nav-tab-btn[data-tab="tab-bandwidth"]', "Traffic per interface over time, with 95th percentile and capacity forecast"],
+  ['.nav-tab-btn[data-tab="tab-flows"]', "Who talks to whom: IPFIX flows, top talkers and NAT"],
+  ['.nav-tab-btn[data-tab="tab-syslog"]', "Messages the devices send to the NOC, newest first"],
+  ['.nav-tab-btn[data-tab="tab-timeline"]', "Everything that happened around a moment: alerts, state changes and logs"],
+  ['.nav-tab-btn[data-tab="tab-health"]', "Device inventory, collectors status and disk use of the NOC itself"],
+  ['.nav-tab-btn[data-tab="tab-settings"]', "Notifications, alert rules and thresholds, users, maintenance windows and preferences"],
+  // Header controls
+  ["#device-select", "The device every device-specific panel shows"],
+  ['.range-pill-btn[data-range="15m"]', "Show the last 15 minutes"],
+  ['.range-pill-btn[data-range="1h"]', "Show the last hour"],
+  ['.range-pill-btn[data-range="24h"]', "Show the last 24 hours"],
+  ["#refresh-countdown", "Seconds until the next automatic refresh"],
+  // Indicator cards
+  ["#kpi-global-nodes .kpi-label", "Devices the NOC monitors. UP means the last poll answered"],
+  ["#kpi-alerts-card .kpi-label", "Alerts firing right now. The line shows the last hour"],
+  ["#kpi-flows-card .kpi-label", "Flow records (IPFIX) received in the selected window and the busiest internal host"],
+  ["#kpi-health-card .kpi-label", "State of the NOC's own database and collectors"],
+  ["#kpi-reachability .kpi-label", "Whether the selected device answers SNMP / ping, and for how long it has been up"],
+  ["#kpi-traffic .kpi-label", "Current traffic of the selected device, received (RX) and sent (TX)"],
+  ["#kpi-interfaces .kpi-label", "Interfaces of the selected device that are operationally up"],
+  // Alert banner
+  ["#alerts-fold-btn", "Show or hide the list of active alerts"],
+  ["#alert-strip", "Alerts firing: tap to jump to the list"],
+  ["#welcome-devices-summary", "Devices that are up out of all monitored ones"],
+  // Topology
+  ["#topo-zoom-in", "Zoom in (+)"],
+  ["#topo-zoom-out", "Zoom out (-)"],
+  ["#topo-zoom-fit", "Zoom so that every card fits (0)"],
+  ["#topo-zoom-reset", "Forget the cards you moved and fit the map. Can be undone with Ctrl+Z"]
+];
+
+function applyHints() {
+  var i = 0;
+  for (i = 0; i < HINTS.length; i += 1) {
+    var found = document.querySelectorAll(HINTS[i][0]);
+    var f = 0;
+    for (f = 0; f < found.length; f += 1) {
+      if (!found[f].hasAttribute("title")) {
+        found[f].setAttribute("title", HINTS[i][1]);
+      }
+    }
+  }
+}
+// --- END: components/hints.js ---
+
+// --- BEGIN: components/context_menu.js ---
+// ==========================================================================
+// Right-click menu. One small menu for the things you act on: an alert card, a device pill, a topology card.
+// It also opens with the keyboard (the Menu key or Shift+F10) and closes with Esc, a click elsewhere or a scroll.
+// The browser's own menu stays for everything else (text, links, fields).
+// ==========================================================================
+
+var contextMenuEl = null;
+var contextMenuReturnFocus = null;
+
+function closeContextMenu() {
+  if (contextMenuEl && contextMenuEl.parentNode) {
+    contextMenuEl.parentNode.removeChild(contextMenuEl);
+  }
+  contextMenuEl = null;
+  if (contextMenuReturnFocus && contextMenuReturnFocus.focus) {
+    contextMenuReturnFocus.focus();
+  }
+  contextMenuReturnFocus = null;
+}
+
+function copyToClipboard(text, what) {
+  var done = function () {
+    showToast("Copied " + what);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, function () {
+      showToast("Could not copy: the browser refused");
+    });
+  } else {
+    showToast("Could not copy: not available here");
+  }
+}
+
+// The items for what was clicked: [{ label, run }]. Empty when there is nothing useful to offer.
+function contextMenuItemsFor(target) {
+  var items = [];
+  var alertCard = target.closest ? target.closest(".alert-item-card") : null;
+  if (alertCard) {
+    var ackBtn = alertCard.querySelector(".alert-ack-btn");
+    var unackBtn = alertCard.querySelector(".alert-unack-btn");
+    var silenceBtn = alertCard.querySelector(".alert-silence-btn");
+    var timelineBtn = alertCard.querySelector(".alert-timeline-btn");
+    var message = alertCard.querySelector(".alert-item-message");
+    if (ackBtn) {
+      items.push({ label: "Acknowledge", run: function () { ackBtn.click(); } });
+    }
+    if (unackBtn) {
+      items.push({ label: "Remove acknowledgement", run: function () { unackBtn.click(); } });
+    }
+    if (silenceBtn) {
+      items.push({ label: "Silence (with the time chosen on the card)", run: function () { silenceBtn.click(); } });
+    }
+    if (timelineBtn) {
+      items.push({ label: "Open timeline", run: function () { timelineBtn.click(); } });
+    }
+    if (message) {
+      items.push({ label: "Copy the message", run: function () { copyToClipboard(message.textContent, "the alert message"); } });
+    }
+    return items;
+  }
+  var pill = target.closest ? target.closest(".avail-pill") : null;
+  var topoNode = target.closest ? target.closest(".topo-node") : null;
+  var deviceId = null;
+  if (pill) {
+    deviceId = pill.getAttribute("data-device");
+  } else if (topoNode) {
+    deviceId = topoNode.getAttribute("data-node-id");
+  }
+  if (deviceId) {
+    var device = null;
+    var known = STATE.cacheDevices || [];
+    var d = 0;
+    for (d = 0; d < known.length; d += 1) {
+      if (known[d].id === deviceId) {
+        device = known[d];
+      }
+    }
+    items.push({
+      label: "Show this device",
+      run: function () {
+        var select = document.getElementById("device-select");
+        if (select) {
+          select.value = deviceId;
+          select.dispatchEvent(new Event("change"));
+        }
+      }
+    });
+    if (device && device.ip) {
+      items.push({ label: "Copy IP " + device.ip, run: function () { copyToClipboard(device.ip, "the IP address"); } });
+    }
+    items.push({ label: "Copy the device id", run: function () { copyToClipboard(deviceId, "the device id"); } });
+  }
+  return items;
+}
+
+function openContextMenu(x, y, items, returnFocus) {
+  closeContextMenu();
+  contextMenuReturnFocus = returnFocus || null;
+  var menu = document.createElement("div");
+  menu.className = "context-menu";
+  menu.setAttribute("role", "menu");
+  var i = 0;
+  for (i = 0; i < items.length; i += 1) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "context-menu-item";
+    btn.setAttribute("role", "menuitem");
+    btn.textContent = items[i].label;
+    (function (item) {
+      btn.addEventListener("click", function () {
+        contextMenuReturnFocus = null;
+        closeContextMenu();
+        item.run();
+      });
+    })(items[i]);
+    menu.appendChild(btn);
+  }
+  document.body.appendChild(menu);
+  // Keep it inside the window.
+  var rect = menu.getBoundingClientRect();
+  menu.style.left = Math.max(4, Math.min(x, window.innerWidth - rect.width - 4)) + "px";
+  menu.style.top = Math.max(4, Math.min(y, window.innerHeight - rect.height - 4)) + "px";
+  contextMenuEl = menu;
+  menu.querySelector(".context-menu-item").focus();
+}
+
+function initContextMenu() {
+  document.addEventListener("contextmenu", function (e) {
+    var tag = e.target && e.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "A") {
+      return;
+    }
+    var items = contextMenuItemsFor(e.target);
+    if (items.length === 0) {
+      closeContextMenu();
+      return;
+    }
+    e.preventDefault();
+    openContextMenu(e.clientX, e.clientY, items, document.activeElement);
+  });
+  // Keyboard: the Menu key or Shift+F10 on a focused card or pill opens the same menu.
+  document.addEventListener("keydown", function (e) {
+    if (contextMenuEl) {
+      var buttons = contextMenuEl.querySelectorAll(".context-menu-item");
+      var at = Array.prototype.indexOf.call(buttons, document.activeElement);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeContextMenu();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        buttons[(at + 1) % buttons.length].focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        buttons[(at - 1 + buttons.length) % buttons.length].focus();
+      }
+      return;
+    }
+    if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+      var focused = document.activeElement;
+      if (!focused || focused === document.body) {
+        return;
+      }
+      var items = contextMenuItemsFor(focused);
+      if (items.length === 0) {
+        return;
+      }
+      e.preventDefault();
+      var box = focused.getBoundingClientRect();
+      openContextMenu(box.left + 8, box.bottom, items, focused);
+    }
+  });
+  document.addEventListener("click", function (e) {
+    if (contextMenuEl && !contextMenuEl.contains(e.target)) {
+      closeContextMenu();
+    }
+  });
+  window.addEventListener("scroll", function () {
+    if (contextMenuEl) {
+      closeContextMenu();
+    }
+  }, true);
+  window.addEventListener("blur", function () {
+    if (contextMenuEl) {
+      closeContextMenu();
+    }
+  });
+}
+// --- END: components/context_menu.js ---
+
 // --- BEGIN: main.js ---
 // ==========================================================================
 // Master Refresh & Lifecycle Controller
@@ -9789,7 +10131,12 @@ function initNavMenu() {
 }
 
 function initDashboard() {
+  // The panels start hidden and fade in once the first data has arrived, so a reload does not flash empty placeholders.
+  document.body.classList.add("booting");
+  window.setTimeout(function () { document.body.classList.remove("booting"); }, 1500);
   initTheme();
+  applyHints();
+  initContextMenu();
   initControls();
   initSettings();
   initAuthBox();
@@ -10132,7 +10479,10 @@ function initDashboard() {
   }
 
   // Initial load; then the hash (a deep link, or an old "#timeline/<device>/<epoch>" link from a notification) is restored.
-  refreshAll().then(initRoute);
+  refreshAll().then(function () {
+    document.body.classList.remove("booting");
+    return initRoute();
+  });
 }
 
 // Selected range -> state, the pills and the hidden select (shared by the pills, the select and the link restore).

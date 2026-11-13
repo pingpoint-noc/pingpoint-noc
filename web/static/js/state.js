@@ -67,6 +67,7 @@ var STATE = {
   paused: false,
   soundOn: false,
   shortcutsOn: true,
+  showOkBanner: true,
   lastFiringCount: null,
   cacheAlertHistory: [],
   cacheActiveAlerts: [],

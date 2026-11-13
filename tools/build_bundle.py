@@ -27,6 +27,8 @@ MODULES = [
     "views/settings.js",
     "views/welcome.js",
     "components/access.js",
+    "components/hints.js",
+    "components/context_menu.js",
     "main.js",
 ]
 
