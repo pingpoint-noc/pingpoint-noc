@@ -168,8 +168,8 @@ class DependencyEngineTest(DependencyBase):
 
     def test_a_parent_and_its_children_failing_in_the_same_cycle_notify_only_the_parent(self):
         # ids chosen so the child sorts before the parent: the engine must still look at the parent first
-        self.repo.ensure_device("zz-parent", "Parent", "10.1.0.1", device_type="switch", has_snmp=0)
-        self.repo.ensure_device("aa-child", "Child", "10.1.0.2", device_type="linux", has_snmp=0)
+        self.repo.ensure_device("zz-parent", "Parent", "10.1.0.1", device_type="switch", has_snmp=1)
+        self.repo.ensure_device("aa-child", "Child", "10.1.0.2", device_type="linux", has_snmp=1)
         self.behind("aa-child", "zz-parent")
         for device in ("zz-parent", "aa-child"):
             self.repo.record_collector_success("snmp", device, NOW - 3600)

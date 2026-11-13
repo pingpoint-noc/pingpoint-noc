@@ -947,6 +947,7 @@ def evaluate_syslog_burst_rule(
 
 def evaluate_stale_sources_rule(repo, device_id, now_ts, stale_seconds, rule_toggles=None):
     """Evaluate stale_source for each collector of a device using collector_status.last_success_utc (decision S5)."""
+    device = repo.get_device_status(device_id) or {}
     for row in repo.get_collector_statuses(device_id):
         cname = row["collector_name"]
         target = "collector:" + cname
@@ -954,7 +955,10 @@ def evaluate_stale_sources_rule(repo, device_id, now_ts, stale_seconds, rule_tog
 
         is_stale = False
         msg = ""
-        if last_ok is None:
+        if cname == "snmp" and not device.get("has_snmp", 1):
+            # SNMP was switched off for this device: its old status row must not keep a "stale" alert open for ever
+            pass
+        elif last_ok is None:
             is_stale = True
             msg = "Collector %s for %s has no recorded successful run" % (cname, device_id)
         else:

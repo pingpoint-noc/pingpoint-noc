@@ -383,7 +383,7 @@ console.log(JSON.stringify([
         self.assertIn('id="alert-strip"', page)
         js = self.client.get("/static/app.js").text
         self.assertIn("initAlertStrip", js)
-        self.assertIn("alerts firing", js)
+        self.assertIn("severityLabel", js)
         css = self.client.get("/static/styles.css").text
         self.assertRegex(css, r"\.alert-strip \{\s*display: block;\s*position: sticky;\s*top: 0;")
 

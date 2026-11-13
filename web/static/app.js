@@ -1389,6 +1389,26 @@ function createAckedGroup() {
 
 // "3 FIRING: 1 CRITICAL, 2 WARNING, 1 ACKNOWLEDGED". The total always counts every firing alert (an acknowledged
 // one is still a problem); the parts say how many are critical and how many somebody already has.
+// "1 critical", "2 warnings" or "1 critical · 2 warnings": every kind that is firing is named, none is hidden in a total
+function severityLabel(active) {
+  var critical = 0;
+  var i = 0;
+  for (i = 0; i < active.length; i += 1) {
+    if (String(active[i].severity).toLowerCase() === "critical") {
+      critical += 1;
+    }
+  }
+  var warnings = active.length - critical;
+  var parts = [];
+  if (critical) {
+    parts.push(critical + " critical");
+  }
+  if (warnings) {
+    parts.push(warnings + (warnings === 1 ? " warning" : " warnings"));
+  }
+  return parts.join(" · ");
+}
+
 function firingBreakdown(active) {
   var critical = 0;
   var acked = 0;
@@ -1467,11 +1487,13 @@ async function loadAlerts() {
       document.title = "PingPoint NOC";
     }
 
+    var worstCritical = (data.active || []).some(function (x) { return String(x.severity).toLowerCase() === "critical"; });
     var strip = document.getElementById("alert-strip");
     if (strip) {
       if (data.active_count > 0) {
-        strip.textContent = data.active_count + (data.active_count === 1 ? " alert firing" : " alerts firing") + " · tap to see";
-        strip.className = "alert-strip firing";
+        strip.textContent = severityLabel(data.active) + " · tap to see";
+        // Red when anything is critical, amber when there are only warnings
+        strip.className = "alert-strip " + (worstCritical ? "firing" : "warn");
       } else if (data.engine && data.engine.status !== "ok") {
         strip.textContent = "Alert engine not evaluating · tap to see";
         strip.className = "alert-strip stale";
@@ -1489,11 +1511,11 @@ async function loadAlerts() {
       if (title) title.textContent = "ACTIVE ALERTS (" + firingBreakdown(data.active) + ")";
       if (kpiAlerts) {
         kpiAlerts.textContent = data.active_count + " Firing";
-        kpiAlerts.className = "kpi-value text-rose";
+        kpiAlerts.className = "kpi-value " + (worstCritical ? "text-rose" : "text-amber");
       }
       if (globalStatusBadge) {
-        globalStatusBadge.className = "global-status firing";
-        if (globalStatusText) globalStatusText.textContent = data.active_count + " Alert(s) Firing";
+        globalStatusBadge.className = "global-status " + (worstCritical ? "firing" : "warn");
+        if (globalStatusText) globalStatusText.textContent = severityLabel(data.active);
       }
 
       var i = 0;

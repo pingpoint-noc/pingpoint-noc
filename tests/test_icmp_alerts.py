@@ -177,6 +177,12 @@ class IcmpAlertsTestCase(unittest.TestCase):
         engine.evaluate_once(self.repo, NOW)
         self.assertIn((DEVICE, "icmp_loss_high"), [(item[1], item[2]) for item in self.notifier.sent])
 
+    def test_a_stale_snmp_status_of_a_device_without_snmp_does_not_alert(self):
+        # The device never answered SNMP (a collector error left a status row), then SNMP was switched off for it
+        self.repo.record_collector_error("snmp", DEVICE, NOW - 60, "no answer")
+        engine.evaluate_once(self.repo, NOW)
+        self.assertEqual(self.firing("stale_source"), [])
+
     def test_the_rule_ids_are_known_to_the_rest_of_the_system(self):
         from alerts.notify import KNOWN_RULE_IDS
         from api.services import ALERT_GUIDANCE

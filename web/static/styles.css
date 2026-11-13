@@ -315,6 +315,13 @@ body.noc-body {
   animation: pulse-border 2s var(--ease-out) infinite;
 }
 
+/* Only warnings firing: amber and calm (no pulsing border); red stays for anything critical */
+.global-status.warn {
+  background: var(--color-warn-bg);
+  border: 1px solid var(--color-warn-border);
+  color: var(--color-warn);
+}
+
 .pulse-beacon {
   width: 8px;
   height: 8px;
@@ -3085,7 +3092,7 @@ select option { background: var(--bg-surface); color: var(--text-main); }
   }
   .alert-strip.hidden { display: none; }
   .alert-strip.firing { background: linear-gradient(var(--color-danger-bg), var(--color-danger-bg)), var(--bg-surface); color: var(--color-danger); border-bottom-color: var(--color-danger-border); }
-  .alert-strip.stale { background: linear-gradient(var(--color-warn-bg), var(--color-warn-bg)), var(--bg-surface); color: var(--color-warn); border-bottom-color: var(--color-warn-border); }
+  .alert-strip.warn, .alert-strip.stale { background: linear-gradient(var(--color-warn-bg), var(--color-warn-bg)), var(--bg-surface); color: var(--color-warn); border-bottom-color: var(--color-warn-border); }
 }
 @media (max-width: 700px) { #alerts-section { scroll-margin-top: 44px; } }
 /* While the strip above is showing the alert state, the header badge would say it a second time (K112). */
@@ -4271,6 +4278,9 @@ button.btn.alerts-fold-btn, button.btn.phone-fold-btn { display: none; }
   header.noc-navbar .clock-display { order: 5; flex: 0 0 auto; margin: 0; padding: 0; border: 0; }
   header.noc-navbar .noc-navbar-controls .control-group:first-child { order: 6; flex: 1 1 calc(50% - 0.25rem); min-width: 0; }
   header.noc-navbar .nav-menu-btn { order: 7; flex: 1 1 calc(50% - 0.25rem); min-width: 0; min-height: 2.5rem; }
+  /* A long device name must not push the select over the view menu next to it: the select shrinks and ellipsises */
+  header.noc-navbar .noc-navbar-controls .control-group:first-child .select-wrapper { min-width: 0; width: 100%; }
+  header.noc-navbar #device-select { min-width: 0; width: 100%; max-width: 100%; text-overflow: ellipsis; }
   header.noc-navbar .noc-nav-tabs { order: 8; }
   /* Refresh keeps its word for screen readers and shows only the icon */
   .refresh-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -4290,6 +4300,9 @@ button.btn.alerts-fold-btn, button.btn.phone-fold-btn { display: none; }
   button.btn.phone-fold-btn { display: inline-flex; }
   .overview-top-if-header { flex-wrap: wrap; gap: 0.2rem 0.6rem; }
   .phone-folded { display: none !important; }
+  /* Topology controls: six buttons in an even 3 x 2 grid instead of a row that leaves Redo alone */
+  .topo-zoom-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; width: 100%; }
+  .topo-zoom-controls .btn { width: 100%; justify-content: center; }
 }
 
 /* Topology: every node filtered out (K119) */
