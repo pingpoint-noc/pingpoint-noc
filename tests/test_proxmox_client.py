@@ -1,11 +1,9 @@
-import json
 from unittest.mock import MagicMock, patch
 import urllib.error
 import unittest
 
 from collectors.proxmox.client import (
     ProxmoxApiClient,
-    ProxmoxApiError,
     ProxmoxAuthError,
     ProxmoxUnreachableError,
 )

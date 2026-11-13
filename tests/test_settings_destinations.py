@@ -1,7 +1,6 @@
 """Settings API for the extra destinations: validation, secrets never leave the server, per-destination test."""
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import json
 import os
 from pathlib import Path
 import tempfile

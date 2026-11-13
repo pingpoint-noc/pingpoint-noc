@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from collectors.proxmox.poller import poll_proxmox_device, poll_all_proxmox_devices
+from collectors.proxmox.poller import poll_proxmox_device
 from storage import create_repository
 
 SAMPLES_DIR = Path(__file__).resolve().parent.parent / "samples" / "proxmox"

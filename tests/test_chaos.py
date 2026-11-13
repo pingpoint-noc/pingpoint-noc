@@ -1,7 +1,6 @@
 """Unit tests for tools/chaos.py incident generator."""
 
 import unittest
-from unittest import mock
 
 from tools import chaos
 

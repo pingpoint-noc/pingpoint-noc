@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 
 from storage.sqlite_backend import SQLiteRepository
-from alerts.engine import evaluate_syslog_burst_rule, evaluate_all_devices
+from alerts.engine import evaluate_syslog_burst_rule
 from alerts.notify import KNOWN_RULE_IDS
 
 

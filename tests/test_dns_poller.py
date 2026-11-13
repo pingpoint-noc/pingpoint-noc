@@ -1,11 +1,10 @@
 """Tests for DNS monitoring collector and device_metrics storage."""
 
 import json
-import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from storage import create_repository
 

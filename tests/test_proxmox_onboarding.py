@@ -7,7 +7,7 @@ import urllib.error
 from fastapi.testclient import TestClient
 
 from api.app import create_app
-from collectors.discovery import probe_proxmox_signature, qualify_device
+from collectors.discovery import probe_proxmox_signature
 from storage import create_repository
 
 

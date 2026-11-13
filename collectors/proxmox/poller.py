@@ -14,8 +14,6 @@ import time
 from collectors.proxmox.client import (
     ProxmoxApiClient,
     ProxmoxApiError,
-    ProxmoxAuthError,
-    ProxmoxUnreachableError,
 )
 from collectors.proxmox.parser import (
     parse_lxc_interfaces,

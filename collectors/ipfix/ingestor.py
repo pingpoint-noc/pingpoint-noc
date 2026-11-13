@@ -14,7 +14,7 @@ with TZ=UTC and every time here is UTC.
 
 import argparse
 import csv
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import ipaddress
 import json
 import logging

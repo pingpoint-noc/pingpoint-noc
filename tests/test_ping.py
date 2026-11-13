@@ -1,6 +1,5 @@
 """Tests for the ICMP ping reachability probe (collectors/ping.py)."""
 
-import platform
 import subprocess
 import unittest
 from unittest import mock

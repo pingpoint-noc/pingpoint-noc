@@ -1,10 +1,8 @@
 import json
-import os
 from pathlib import Path
 import unittest
 
 from collectors.proxmox.parser import (
-    parse_cluster_resources,
     parse_lxc_interfaces,
     parse_lxc_list,
     parse_node_status,

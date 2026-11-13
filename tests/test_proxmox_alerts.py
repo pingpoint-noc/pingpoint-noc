@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from alerts.engine import evaluate_all_devices, evaluate_proxmox_rules
+from alerts.engine import evaluate_proxmox_rules
 from storage import create_repository
 
 
