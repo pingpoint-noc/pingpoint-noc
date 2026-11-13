@@ -898,6 +898,11 @@ def _syslog_baseline_per_window(repo, device_id, window_start_ts, window_seconds
     return (row[0] if row else 0) / float(SYSLOG_BURST_BASELINE_WINDOWS)
 
 
+# A source that only just started sending has no "usual rate" yet: its first minutes (the whole startup flood of a host
+# whose forwarding was just switched on) are not a burst. The rule starts judging once an hour of its history exists.
+SYSLOG_BURST_LEARNING_SECONDS = 3600
+
+
 def evaluate_syslog_burst_rule(
     repo,
     device_id,
@@ -921,7 +926,9 @@ def evaluate_syslog_burst_rule(
     count = len(events)
     base = _syslog_baseline_per_window(repo, device_id, start_ts, burst_window_seconds)
     above_usual = count >= burst_factor * max(base, 1)
-    is_triggered = count >= burst_threshold and above_usual
+    first_event = repo.first_syslog_ts(device_id)
+    learning = first_event is None or (now_ts - first_event) < SYSLOG_BURST_LEARNING_SECONDS
+    is_triggered = count >= burst_threshold and above_usual and not learning
     if rule_toggles is not None and not rule_toggles.get("rule_syslog_burst_enabled", True):
         is_triggered = False
 

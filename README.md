@@ -66,6 +66,10 @@ docker compose up --build        # web on http://localhost:8080, ntfy on http://
 docker compose down -v           # stop and delete the data
 ```
 
+**First run.** At the end of `deploy/install.sh` it asks whether this machine should report to the NOC too (syslog forwarding and the
+health agent; non-interactive installs follow `MININOC_ONBOARD_SELF=yes|no`, default yes) and prints the one-line command for every other
+kind of machine: a Linux host or container, a Proxmox VE host, a MikroTik router.
+
 **Syslog.** `deploy/install.sh` starts a native receiver on UDP 514 (`mini-noc-syslog-udp`): point any device's syslog at the NOC's address
 (for example `*.* @<noc-address>:514` in rsyslog) and it appears in the inventory by itself. If rsyslog is already collecting on that machine,
 the installer keeps the file based ingestor (`mini-noc-syslog`) instead. The port is `MININOC_SYSLOG_PORT`.

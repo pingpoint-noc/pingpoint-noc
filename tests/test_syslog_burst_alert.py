@@ -23,6 +23,8 @@ class TestSyslogBurstAlert(unittest.TestCase):
             device_type="linux",
             has_syslog=1,
         )
+        # a source that has been around for a long time (a brand-new one is still learning its rate)
+        self.repo.insert_syslog_events([{"device_id": self.device_id, "ts_utc": 1, "facility": "daemon", "severity": "info", "program": "old", "msg": "old"}])
 
     def tearDown(self):
         self.tmp_dir.cleanup()
@@ -109,6 +111,8 @@ class TestSyslogBurstRelativeToBaseline(unittest.TestCase):
         self.repo.ensure_device(
             device_id=self.device_id, name="Worker", ip="192.168.88.100", device_type="linux", has_syslog=1
         )
+        # a source that has been around for a long time (a brand-new one is still learning its rate)
+        self.repo.insert_syslog_events([{"device_id": self.device_id, "ts_utc": 1, "facility": "daemon", "severity": "info", "program": "old", "msg": "old"}])
 
     def tearDown(self):
         self.tmp_dir.cleanup()
@@ -163,6 +167,17 @@ class TestSyslogBurstRelativeToBaseline(unittest.TestCase):
         alert = self._alert()
         self.assertEqual(alert["status"], "firing")
         self.assertEqual(alert["severity"], "warning")  # 156 < 4 * 50
+
+    def test_a_source_that_just_started_sending_is_still_learning_and_does_not_burst(self):
+        conn = self.repo.open_write()
+        try:
+            conn.execute("DELETE FROM syslog_events;")
+        finally:
+            conn.close()
+        self._insert(self.NOW - 59, self.NOW + 1, 156)
+        self._evaluate()
+        alert = self._alert()
+        self.assertTrue(alert is None or alert["status"] != "firing")
 
     def test_below_absolute_threshold_never_alerts(self):
         self._insert(self.NOW - 59, self.NOW + 1, 49)

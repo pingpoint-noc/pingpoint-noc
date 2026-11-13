@@ -2412,10 +2412,13 @@ tr.if-row.selected-row { background-color: var(--bg-active); }
   background: var(--bg-inset);
 }
 .welcome.compact .welcome-more { display: none; }
+html[data-welcome="compact"] .welcome-more { display: none; }
 
 /* One pill per monitored device: what is up, stale or down at a glance */
 .avail-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.avail-strip:empty { display: none; }
+/* Reserve the row before the pills arrive, so the cards below do not jump when they do */
+.avail-strip:empty { min-height: 2.1rem; }
+@media (max-width: 700px) { .avail-strip:empty { display: none; min-height: 0; } }
 .avail-pill {
   display: inline-flex;
   align-items: center;
@@ -4410,3 +4413,13 @@ body.gated { overflow: hidden; }
 .link-button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: 3px; }
 
 .field-human { display: block; margin-top: 0.2rem; color: var(--color-cyan); font-weight: 600; }
+
+/* A source this device never gives: the tab shows one explanation instead of empty panels */
+.source-absent-note { display: none; }
+.source-absent-body { color: var(--text-muted); font-size: var(--fs-md); line-height: 1.55; max-width: 70ch; }
+body[data-absent-traffic="1"] #tab-bandwidth > :not(.source-absent-note),
+body[data-absent-flows="1"] #tab-flows > :not(.source-absent-note),
+body[data-absent-syslog="1"] #tab-syslog > :not(.source-absent-note) { display: none; }
+body[data-absent-traffic="1"] #tab-bandwidth > .source-absent-note,
+body[data-absent-flows="1"] #tab-flows > .source-absent-note,
+body[data-absent-syslog="1"] #tab-syslog > .source-absent-note { display: block; }

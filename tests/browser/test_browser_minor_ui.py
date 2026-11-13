@@ -18,10 +18,10 @@ class NoSnmpBadgeTest(BrowserTestCase):
         page.wait_for_function("document.querySelectorAll('#device-select option').length > 1")
         page.select_option("#device-select", "demo-laptop")
         page.keyboard.press("3")
-        page.wait_for_function("document.getElementById('device-freshness').textContent.indexOf('n/a') >= 0")
+        page.wait_for_function("document.getElementById('device-freshness').textContent.indexOf('Not collected') >= 0")
         self.assertIn("no SNMP", page.inner_text("#device-freshness"))
         page.select_option("#device-select", "demo-switch")
-        page.wait_for_function("document.getElementById('device-freshness').textContent.indexOf('n/a') < 0")
+        page.wait_for_function("document.getElementById('device-freshness').textContent.indexOf('Not collected') < 0")
         # A device with SNMP keeps the real status of its interface data (the demo switch is seeded as down)
         self.assertIn("Source: ", page.inner_text("#device-freshness"))
 

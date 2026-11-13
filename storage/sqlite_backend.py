@@ -919,7 +919,7 @@ class SQLiteRepository(StorageRepository):
                     FROM devices
                     WHERE (ip = ? OR id IN (SELECT device_id FROM device_aliases WHERE ip = ?))
                       AND device_type != 'platform' AND status != 'merged'
-                    ORDER BY (ip = ?) DESC, id ASC
+                    ORDER BY (ip = ?) DESC, (device_type = 'dns') ASC, id ASC
                     LIMIT 1;
                     """,
                     (clean_ip, clean_ip, clean_ip),
@@ -1437,6 +1437,15 @@ class SQLiteRepository(StorageRepository):
                     """,
                     (collector_name, device_id, ts_utc, cursor_json),
                 )
+        finally:
+            conn.close()
+
+    def first_syslog_ts(self, device_id):
+        """Timestamp of the oldest stored syslog event of a device, or None when it has none."""
+        conn = self.open_read()
+        try:
+            row = conn.execute("SELECT MIN(ts_utc) FROM syslog_events WHERE device_id = ?;", (device_id,)).fetchone()
+            return row[0] if row is not None else None
         finally:
             conn.close()
 

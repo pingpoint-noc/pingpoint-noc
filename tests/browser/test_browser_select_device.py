@@ -25,3 +25,12 @@ class SelectDeviceTest(BrowserTestCase):
         page = self.open_page()
         page.wait_for_function("document.querySelectorAll('#device-select option').length > 1")
         return page
+
+    def test_picking_devices_does_not_add_history_entries(self):
+        page = self.ready()
+        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value)")
+        before = page.evaluate("history.length")
+        for device in ids[:3]:
+            page.select_option("#device-select", device)
+            page.wait_for_function("STATE.deviceId === %r" % device)
+        self.assertEqual(page.evaluate("history.length"), before)

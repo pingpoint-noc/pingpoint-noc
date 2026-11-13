@@ -31,6 +31,12 @@ class GuestMatchTest(unittest.TestCase):
         self.assertEqual(self.repo.get_device_status("host1")["depends_on"], "hv1")
         self.assertIsNone(self.repo.get_device_status("dns1").get("depends_on"))
 
+    def test_registering_a_host_by_ip_picks_the_host_not_the_service_that_shares_its_address(self):
+        self.repo.ensure_device("zz-host", "Host", "192.0.2.30", device_type="linux")
+        self.repo.ensure_device("aa-dns", "DNS", "192.0.2.30", device_type="dns")  # sorts first by id
+        record = self.repo.upsert_discovered_device(ip="192.0.2.30", source="telemetry", ts_utc=1_800_000_000)
+        self.assertEqual(record["device_id"], "zz-host")
+
 
 if __name__ == "__main__":
     unittest.main()

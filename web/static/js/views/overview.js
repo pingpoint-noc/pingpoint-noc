@@ -240,6 +240,7 @@ async function loadOverviewAndDevice() {
     STATE.isRouter = isRouter;
     STATE.isProxmox = isProxmox;
     STATE.cacheDeviceDetail = detail;
+    applySourceAbsence(detail);
     STATE.selectedDeviceName = detail.name || detail.id || STATE.deviceId;
 
     // Adapt navbar tab label and icon dynamically

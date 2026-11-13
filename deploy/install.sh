@@ -52,3 +52,48 @@ systemctl enable --now mini-noc-snmp.service "$SYSLOG_UNIT"     mini-noc-ipfix.s
 # enable --now does not restart a unit that is already running: without this, an update leaves the old code in memory.
 systemctl restart mini-noc-snmp.service "$SYSLOG_UNIT" mini-noc-ipfix.service     mini-noc-alerts.service mini-noc-api.service mini-noc-dns.service mini-noc-icmp.service mini-noc-proxmox.service
 systemctl --no-pager --lines=0 status mini-noc-snmp "$SYSLOG_UNIT" mini-noc-ipfix mini-noc-alerts mini-noc-api mini-noc-dns mini-noc-icmp mini-noc-proxmox mini-noc-retention.timer || true
+
+# ---- First run: let this machine report to the NOC too, and show how to add the others -----------------------------
+# Asked once (a re-run for an update does not ask again). Non-interactive installs follow MININOC_ONBOARD_SELF=yes|no
+# (default yes).
+API_PORT="$(grep -E '^MININOC_API_PORT=' "$INSTALL_DIR/mini-noc.env" 2> /dev/null | tail -1 | cut -d= -f2 | tr -d '"' || true)"
+API_PORT="${API_PORT:-8080}"
+MY_IP="$(hostname -I 2> /dev/null | awk '{print $1}')"
+MY_IP="${MY_IP:-127.0.0.1}"
+FIRST_RUN_MARK="$INSTALL_DIR/data/.first-run-done"
+
+if [ ! -e "$FIRST_RUN_MARK" ]; then
+    WANT="${MININOC_ONBOARD_SELF:-}"
+    if [ -z "$WANT" ]; then
+        if [ -t 0 ]; then
+            read -r -p "Monitor this machine too (forward its syslog and run the health agent)? [Y/n] " REPLY || REPLY=""
+            case "$REPLY" in [nN]*) WANT=no ;; *) WANT=yes ;; esac
+        else
+            WANT=yes
+        fi
+    fi
+    if [ "$WANT" = "yes" ]; then
+        echo "Waiting for the API on port $API_PORT..."
+        for _ in $(seq 1 30); do
+            curl -fsS "http://127.0.0.1:$API_PORT/api/overview" > /dev/null 2>&1 && break
+            sleep 1
+        done
+        if curl -fsS "http://127.0.0.1:$API_PORT/api/bootstrap.sh?noc_ip=$MY_IP&noc_port=$API_PORT" | bash; then
+            echo "This machine now reports to the NOC."
+        else
+            echo "Could not onboard this machine automatically; run the command below on it by hand." >&2
+        fi
+    fi
+    touch "$FIRST_RUN_MARK"
+    chown "$RUN_USER" "$FIRST_RUN_MARK" 2> /dev/null || true
+fi
+
+cat <<MSG
+
+PingPoint NOC is running: http://$MY_IP:$API_PORT
+Add other machines (run on each, as root):
+  Linux host or container:  curl -fsS "http://$MY_IP:$API_PORT/api/bootstrap.sh" | sudo bash
+  Proxmox VE host:          curl -fsS "http://$MY_IP:$API_PORT/api/bootstrap-pve.sh" | sudo bash
+  MikroTik router:          fetch http://$MY_IP:$API_PORT/api/router-config.rsc  (then /import it)
+Anything with SNMP, a DNS API or only ping: python -m tools.add_device --help
+MSG

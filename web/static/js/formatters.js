@@ -293,6 +293,30 @@ function showToast(message, kind) {
   }, 3200);
 }
 
+// Tabs that show data a device never gives (traffic, flows, syslog) say so once, with the step that enables it, instead of a
+// page of empty panels. The body attributes drive the CSS; the note text names the device and this NOC's address.
+function applySourceAbsence(detail) {
+  var name = detail.name || detail.id;
+  var noc = window.location.hostname || "this NOC";
+  var traffic = !(detail.has_snmp || detail.has_ipfix || detail.has_telemetry);
+  var flows = !(detail.has_ipfix || detail.has_snmp && detail.device_type === "router");
+  var syslog = !detail.has_syslog;
+  document.body.setAttribute("data-absent-traffic", traffic ? "1" : "0");
+  document.body.setAttribute("data-absent-flows", flows && traffic ? "1" : "0");
+  document.body.setAttribute("data-absent-syslog", syslog ? "1" : "0");
+  var texts = {
+    traffic: name + " is watched by ping only: no SNMP counters, flows or agent report its traffic. Its latency, loss and availability are on the Health & Inventory tab. To see bandwidth, give it an SNMP profile (python -m tools.add_device) or install the agent.",
+    flows: name + " sends no IPFIX/NetFlow to this NOC. Point the router's flow export at " + noc + " (UDP 2055) to see conversations and top talkers.",
+    syslog: "No syslog is received from " + name + ". Send its logs to " + noc + " on UDP 514 (in rsyslog: *.* @" + noc + ":514) and they appear here by themselves."
+  };
+  var boxes = document.querySelectorAll(".source-absent-body");
+  var b = 0;
+  for (b = 0; b < boxes.length; b += 1) {
+    var kind = boxes[b].getAttribute("data-absent");
+    boxes[b].textContent = texts[kind] || "";
+  }
+}
+
 function explainEmptyReason(reason, sourceName) {
   if (reason === "collector_down") {
     return "Collector down or stale (" + sourceName + "): no recent collector pulse received within the freshness threshold.";

@@ -200,6 +200,8 @@ Type=oneshot
 ExecStart=/usr/local/bin/mininoc-agent.sh
 StandardOutput=journal
 StandardError=journal
+# Runs every 15 s: without this, systemd's "Started/Finished" lines (forwarded to the NOC as syslog) are a burst on their own
+LogLevelMax=notice
 EOF
 
         cat <<'EOF' > /etc/systemd/system/mininoc-telemetry.timer

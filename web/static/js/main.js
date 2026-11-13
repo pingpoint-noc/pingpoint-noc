@@ -346,7 +346,8 @@ function initDashboard() {
       STATE.deviceId = e.target.value;
       STATE.selectedIfIndex = null;
       STATE.selectedIfName = "";
-      routeSync("push");
+      // Replace, not push: Back and Forward (Alt+arrows) walk through the views, not through every device that was picked
+      routeSync("replace");
       refreshAll();
       showToast("Selected device: " + STATE.deviceId);
     });

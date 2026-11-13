@@ -28,6 +28,10 @@ class StorageRepository(ABC):
         """Upsert overrides of one device; a value of None removes that key."""
 
     @abstractmethod
+    def first_syslog_ts(self, device_id):
+        """Timestamp of the oldest stored syslog event of a device, or None when it has none."""
+
+    @abstractmethod
     def delete_settings(self, keys):
         """Remove the given settings keys (unknown keys are ignored)."""
 

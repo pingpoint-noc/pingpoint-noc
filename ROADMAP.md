@@ -67,8 +67,7 @@ inglés) en `_notas/PINGPOINT-NOC-PROMPT-SIGUIENTE-CHAT.md` del autor.
    only covers roles today; `PUT/DELETE /api/devices/{id}` exist), and **user management** (add users, roles, revoke sessions on the server).
 5. **Neutral defaults in `scenario.py`** (router IP, internal networks, NOC address, time zone are the original lab's): empty by default and
    asked for at first run. Behaviour change: release note. Over 100 files and tests assume the lab values.
-6. **Native syslog and IPFIX receivers** (the home deployment runs without `rsyslog`/`nfcapd`, so those services are disabled), compose with one
-   service per collector, container healthcheck on `/healthz`, seed that does not repeat.
+6. **Native syslog and IPFIX receivers**: syslog is done (`collectors/syslog/receiver.py`, UDP 514, RFC 5424 and BSD, `deploy/install.sh` starts it unless rsyslog already collects). Still to do: a native IPFIX receiver (today it needs `nfcapd`), TCP/TLS syslog, a compose with one service per collector, container healthcheck on `/healthz`, a seed that does not repeat.
 7. **Security**: TLS example (Caddy), per-IP limits on enrolment/bootstrap/telemetry, CSP and HSTS, server-side logout (token version per user),
    persistent login limiter, `MININOC_AUTH_READ` on by default in code (it is on in the systemd unit and off in the code default only for
    compatibility), ~~global JSON error handler with `sqlite3.OperationalError` as 503~~ (done).
