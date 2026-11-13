@@ -286,6 +286,13 @@ def correlate_guest_device(repo, hypervisor_id, ips, macs, guest_name):
     if matched_device is None and guest_name:
         clean_name = guest_name.strip()
         status_dev = repo.get_device_status(clean_name)
+        if status_dev is None:
+            # Proxmox names keep their case ("TrueNAS"), device ids are usually lower case ("truenas")
+            lowered = clean_name.lower()
+            for dev in repo.list_monitored_devices():
+                if str(dev["id"]).lower() == lowered or str(dev.get("name") or "").lower() == lowered:
+                    status_dev = repo.get_device_status(dev["id"])
+                    break
         if status_dev and status_dev["id"] != hypervisor_id:
             matched_device = status_dev
 
