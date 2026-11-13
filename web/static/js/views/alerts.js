@@ -234,6 +234,33 @@ function createAckedGroup() {
   return group;
 }
 
+// "3 FIRING: 1 CRITICAL, 2 WARNING, 1 ACKNOWLEDGED". The total always counts every firing alert (an acknowledged
+// one is still a problem); the parts say how many are critical and how many somebody already has.
+function firingBreakdown(active) {
+  var critical = 0;
+  var acked = 0;
+  var i = 0;
+  for (i = 0; i < active.length; i += 1) {
+    if (String(active[i].severity).toLowerCase() === "critical") {
+      critical += 1;
+    }
+    if (active[i].ack_by) {
+      acked += 1;
+    }
+  }
+  var parts = [];
+  if (critical) {
+    parts.push(critical + " CRITICAL");
+  }
+  if (active.length - critical) {
+    parts.push((active.length - critical) + " WARNING");
+  }
+  if (acked) {
+    parts.push(acked + " ACKNOWLEDGED");
+  }
+  return active.length + " FIRING: " + parts.join(", ");
+}
+
 // 1. ALERTS
 function initAlertStrip() {
   var strip = document.getElementById("alert-strip");
@@ -306,7 +333,7 @@ async function loadAlerts() {
         var anyCritical = (data.active || []).some(function (x) { return String(x.severity).toLowerCase() === "critical"; });
         section.className = "alerts-banner firing" + (anyCritical ? "" : " warn-only");
       }
-      if (title) title.textContent = "ACTIVE ALERTS (" + data.active_count + " FIRING)";
+      if (title) title.textContent = "ACTIVE ALERTS (" + firingBreakdown(data.active) + ")";
       if (kpiAlerts) {
         kpiAlerts.textContent = data.active_count + " Firing";
         kpiAlerts.className = "kpi-value text-rose";

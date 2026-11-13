@@ -93,3 +93,11 @@ ráfaga 5 sigue siendo 2 y con 3 sube a 3: el umbral no es crítico con estos da
 
 **Lo que no demuestra:** la rama del equipo tranquilo («cualquier destino nuevo avisa») solo está probada con filas sintéticas, y el
 tráfico es de clientes de prueba. Hay que repetir el replay con los flujos del laboratorio antes de fiarse de las cifras.
+
+## Cambios del 13-11-2026 (criterio general, ver `alert-defaults-review.md`)
+
+Tras ver el aviso repetido en equipos del laboratorio con IPs rotativas de Google se corrigió el diseño para que valga en cualquier red:
+la unidad pasa a ser el **bloque** (/24, /48 en IPv6) en lugar de la dirección (esto revierte la decisión «agrupar por /24: descartada», que se
+tomó midiendo solo el ruido de un equipo que navega; junto con los demás cambios sí es útil), el equipo se juzga solo cuando **él mismo** lleva
+el periodo de aprendizaje observado, la línea base cuenta bloques y no direcciones, y hay un **enfriamiento de 6 h por equipo** tras resolverse.
+El mensaje de resolución aclara que el aviso caducó y no hay nada que arreglar.

@@ -1191,6 +1191,20 @@ def destination_prefix(address):
     return str(ipaddress.ip_network("%s/%d" % (ip, bits), strict=False))
 
 
+def new_dest_last_resolved(repo, device_id, target):
+    """resolved_utc of the latest resolved flow_new_destination alert of (device_id, target), or None."""
+    latest = None
+    for row in repo.list_alerts(device_id=device_id, status="resolved", limit=200):
+        if row["rule_id"] == "flow_new_destination" and row["target"] == target and row["resolved_utc"]:
+            if latest is None or row["resolved_utc"] > latest:
+                latest = row["resolved_utc"]
+    return latest
+
+
+# After a host's alert resolves, the same host stays quiet this long (new destinations are still learned).
+NEW_DEST_COOLDOWN_SECONDS = 6 * 3600
+
+
 def evaluate_new_destination_rule(
     repo,
     device_id,
@@ -1201,15 +1215,21 @@ def evaluate_new_destination_rule(
     window_seconds=600,
     lookback_seconds=180,
     rule_toggles=None,
+    cooldown_seconds=NEW_DEST_COOLDOWN_SECONDS,
 ):
     """flow_new_destination: an internal host talks to an external address it never talked to before.
 
     Design: docs/diseno-destino-externo-nuevo.md. Three guards keep it from being noise:
     - learning period: until the oldest remembered destination is `learning_seconds` old, it only learns;
     - a host with no earlier baseline is itself being learned (a new device must not alert on day one);
-    - a new address in a /24 (/48) the host already talked to counts as the same destination (CDN rotation);
-    - the threshold depends on the host's baseline: a quiet host (fewer than `baseline_size` known
-      destinations) alerts on any new destination, one that browses only on a burst of `burst_size`.
+    - the unit is the destination block (/24, or /48 for IPv6): a new address in a block the host already
+      talked to is the same destination (CDN and cloud providers rotate addresses inside their blocks);
+    - a host is judged only once it has itself been observed for `learning_seconds` (a laptop that appears
+      on the network is learned, not reported), not just the device that exports the flows;
+    - the threshold depends on the host's baseline in blocks: a quiet host (fewer than `baseline_size`
+      known blocks) alerts on any new block, one that browses only on a burst of `burst_size` blocks;
+    - after an alert resolves the same host stays quiet for `cooldown_seconds`, so a host cannot raise more
+      than a few notices a day however its traffic wanders.
     """
     flows = repo.get_flows_in_window(
         device_id=device_id,
@@ -1242,25 +1262,41 @@ def evaluate_new_destination_rule(
     if rule_toggles is not None and not rule_toggles.get("rule_flow_new_destination_enabled", True):
         dest_enabled = False
 
+    firing_targets = set()
+    for open_al in repo.list_alerts(status="firing"):
+        if open_al["rule_id"] == "flow_new_destination":
+            firing_targets.add((open_al["device_id"], open_al["target"]))
+
     if dest_enabled:
         for host, destinations in new_by_host.items():
-            known_before = repo.count_known_destinations(device_id, host, before_utc=since)
-            if known_before == 0:
+            known = repo.list_known_destinations(device_id, host, since)
+            if not known:
+                continue
+            # The host itself must have been observed for the learning period before it is judged.
+            if now_ts - min(first_seen for _, first_seen in known) < learning_seconds:
                 continue
             # A new address inside a block the host already knew is CDN rotation, not a new destination.
-            known_blocks = {destination_prefix(a) for a in repo.list_known_destinations(device_id, host, since)}
-            destinations = [d for d in destinations if destination_prefix(d) not in known_blocks]
-            if not destinations:
+            known_blocks = {destination_prefix(addr) for addr, _ in known}
+            blocks = {}
+            for dst in destinations:
+                blocks.setdefault(destination_prefix(dst), []).append(dst)
+            fresh_blocks = [b for b in blocks if b not in known_blocks]
+            if not fresh_blocks:
                 continue
+            destinations = [dst for b in fresh_blocks for dst in blocks[b]]
             threshold = burst_size
-            if known_before < baseline_size:
+            if len(known_blocks) < baseline_size:
                 threshold = 1
-            if len(destinations) < threshold:
+            if len(fresh_blocks) < threshold:
                 continue
             target = "newdst:" + host
             target_device_id = device_id
             if host in ip_to_dev:
                 target_device_id = ip_to_dev[host]
+            if (target_device_id, target) not in firing_targets and cooldown_seconds > 0:
+                last = new_dest_last_resolved(repo, target_device_id, target)
+                if last is not None and now_ts - last < cooldown_seconds:
+                    continue
             active_new_dest_alerts.add((target_device_id, target))
             shown = ", ".join(destinations[:5])
             if len(destinations) > 5:

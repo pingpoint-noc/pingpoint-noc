@@ -2352,15 +2352,15 @@ class SQLiteRepository(StorageRepository):
             conn.close()
 
     def list_known_destinations(self, device_id, internal_host, before_utc):
-        """Addresses a host talked to that were first seen before before_utc."""
+        """(dst_ip, first_seen_utc) of the addresses a host talked to that were first seen before before_utc."""
         conn = self.open_read()
         try:
             rows = conn.execute(
-                "SELECT dst_ip FROM known_destinations "
+                "SELECT dst_ip, first_seen_utc FROM known_destinations "
                 "WHERE device_id = ? AND internal_host = ? AND first_seen_utc < ?;",
                 (device_id, internal_host, int(before_utc)),
             ).fetchall()
-            return [row["dst_ip"] for row in rows]
+            return [(row["dst_ip"], row["first_seen_utc"]) for row in rows]
         finally:
             conn.close()
 

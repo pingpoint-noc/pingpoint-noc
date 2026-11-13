@@ -479,10 +479,10 @@ class TestNewExternalDestinationRule(AlertEngineTestCase):
     """flow_new_destination: an internal host talks to an external address it had never talked to (design: docs/diseno-destino-externo-nuevo.md)."""
 
     def know(self, host, count, age_seconds=2 * DAY):
-        """Pre-load a baseline: `count` destinations first seen `age_seconds` ago (so the learning period is over)."""
+        """Pre-load a baseline: `count` destination blocks first seen `age_seconds` ago (so the learning period is over)."""
         pairs = []
         for index in range(count):
-            pairs.append((host, "198.18.%d.%d" % (index // 200, index % 200 + 1)))
+            pairs.append((host, "198.18.%d.1" % index))  # one address per /24 block
         self.repo.learn_destinations(DEVICE, pairs, NOW - age_seconds)
 
     def talk(self, host, dst_ip, ts=NOW - 5):
@@ -538,6 +538,40 @@ class TestNewExternalDestinationRule(AlertEngineTestCase):
         engine.evaluate_once(self.repo, NOW + 30)
         self.assertEqual(len(self.firing()), 1)
 
+    def test_a_host_still_being_observed_is_learned_not_judged(self):
+        # the platform is past learning, but this host's oldest destination is only an hour old
+        self.know(QUIET, 3, age_seconds=2 * DAY)
+        self.know("192.168.88.151", 3, age_seconds=3600)
+        self.talk("192.168.88.151", "9.9.9.9")
+        engine.evaluate_once(self.repo, NOW)
+        self.assertEqual(self.firing(), [])
+
+    def test_baseline_counts_blocks_not_addresses(self):
+        # 30 addresses in one /24 is a quiet host: one new block alerts, it does not need a burst of ten
+        pairs = [(BUSY, "198.18.0.%d" % (i + 1)) for i in range(30)]
+        self.repo.learn_destinations(DEVICE, pairs, NOW - 2 * DAY)
+        self.talk(BUSY, "9.9.9.9")
+        engine.evaluate_once(self.repo, NOW)
+        self.assertEqual(len(self.firing()), 1)
+
+    def test_cooldown_keeps_a_host_from_alerting_again_right_after_resolving(self):
+        self.know(QUIET, 3)
+        self.talk(QUIET, "9.9.9.9")
+        engine.evaluate_once(self.repo, NOW)
+        self.assertEqual(len(self.firing()), 1)
+        engine.evaluate_once(self.repo, NOW + 700)  # resolves: nothing new in the window
+        self.assertEqual(self.firing(), [])
+        # a new block one hour later is learned but stays silent (cooldown 6 h)
+        self.talk(QUIET, "1.1.1.1", ts=NOW + 3600 - 5)
+        engine.evaluate_once(self.repo, NOW + 3600)
+        self.assertEqual(self.firing(), [])
+        self.assertEqual(self.repo.count_known_destinations(DEVICE, QUIET), 5)
+        # once the cooldown has passed it can alert again
+        later = NOW + 700 + engine.NEW_DEST_COOLDOWN_SECONDS + 60
+        self.talk(QUIET, "4.4.4.4", ts=later - 5)
+        engine.evaluate_once(self.repo, later)
+        self.assertEqual(len(self.firing()), 1)
+
     def test_destination_prefix_groups_v4_by_24_and_v6_by_48(self):
         self.assertEqual(engine.destination_prefix("173.194.76.136"), engine.destination_prefix("173.194.76.9"))
         self.assertNotEqual(engine.destination_prefix("173.194.76.136"), engine.destination_prefix("173.194.77.1"))
@@ -553,10 +587,10 @@ class TestNewExternalDestinationRule(AlertEngineTestCase):
     def test_a_host_that_browses_only_alerts_on_a_burst_of_ten(self):
         self.know(BUSY, 25)
         for index in range(9):
-            self.talk(BUSY, "93.184.216.%d" % (index + 1))
+            self.talk(BUSY, "93.%d.216.1" % (index + 1))
         engine.evaluate_once(self.repo, NOW)
         self.assertEqual(self.firing(), [])
-        self.talk(BUSY, "93.184.216.10", ts=NOW)
+        self.talk(BUSY, "93.10.216.1", ts=NOW)
         engine.evaluate_once(self.repo, NOW + 1)
         firing = self.firing()
         self.assertEqual(len(firing), 1)
@@ -609,13 +643,13 @@ class TestNewExternalDestinationRule(AlertEngineTestCase):
     def test_the_service_entry_point_passes_the_settings_down_to_the_rule(self):
         # with the default burst of 10, two new destinations of a browsing host are silent...
         self.know(BUSY, 25)
-        self.talk(BUSY, "93.184.216.1")
-        self.talk(BUSY, "93.184.216.2")
+        self.talk(BUSY, "93.1.216.1")
+        self.talk(BUSY, "93.2.216.1")
         self.assertTrue(engine.evaluate_once_guarded(self.repo, now_ts=NOW))
         self.assertEqual(self.firing(), [])
         # ...but they alert when the daemon was started with a burst of 2 (setting reaches the rule)
-        self.talk(BUSY, "93.184.216.3", ts=NOW + 20)
-        self.talk(BUSY, "93.184.216.4", ts=NOW + 20)
+        self.talk(BUSY, "93.3.216.1", ts=NOW + 20)
+        self.talk(BUSY, "93.4.216.1", ts=NOW + 20)
         self.assertTrue(engine.evaluate_once_guarded(self.repo, now_ts=NOW + 30, new_dest_burst=2))
         self.assertEqual(len(self.firing()), 1)
 
