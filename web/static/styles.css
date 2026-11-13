@@ -746,6 +746,29 @@ button.btn { font-family: "NOC Button", var(--font-sans); }
   gap: 0.5rem;
 }
 
+/* Acknowledged alerts: folded group after the unacknowledged ones */
+.alerts-acked { margin-top: 0.25rem; }
+.alerts-acked > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  padding: 0.3rem 0.1rem;
+}
+.alerts-acked[open] > summary { margin-bottom: 0.4rem; }
+.alerts-acked .alert-item-card { margin-bottom: 0.4rem; opacity: 0.85; outline-color: transparent; animation: fadeIn 0.2s ease-out; }
+
+/* An alert that was just acknowledged fades and folds away before the list is redrawn */
+.alert-item-card.alert-leaving {
+  opacity: 0;
+  transform: translateY(-4px);
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin: 0;
+  overflow: hidden;
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out, max-height 0.2s ease-out, padding 0.2s ease-out;
+}
+
 .alert-item-left {
   display: flex;
   align-items: center;

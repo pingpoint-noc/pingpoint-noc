@@ -114,7 +114,19 @@ function ackControlsHtml(al) {
     "<button type='button' class='btn btn-secondary btn-small alert-ack-btn'>Acknowledge</button>";
 }
 
-async function changeAck(method, alertId, body) {
+// The card fades and folds away (about 0.2 s) before the list is redrawn without it. With "reduce motion" on
+// there is no animation and no wait.
+function playLeaveAnimation(cardEl) {
+  if (!cardEl || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return Promise.resolve();
+  }
+  return new Promise(function (resolve) {
+    cardEl.classList.add("alert-leaving");
+    setTimeout(resolve, 220);
+  });
+}
+
+async function changeAck(method, alertId, body, cardEl) {
   if (!hasCredentials()) {
     showToast("Sign in (or enter the admin token) in Settings first.");
     return;
@@ -122,6 +134,9 @@ async function changeAck(method, alertId, body) {
   try {
     await sendSettingsRequest(method, "/api/alerts/" + alertId + "/ack", body);
     releaseFocusForRepaint();
+    if (method === "POST") {
+      await playLeaveAnimation(cardEl);
+    }
     await loadAlerts();
   } catch (err) {
     showToast("Could not change the acknowledgement: " + err.message);
@@ -132,7 +147,7 @@ function wireAckControls(card, al) {
   var ackBtn = card.querySelector(".alert-ack-btn");
   if (ackBtn) {
     var submit = function () {
-      changeAck("POST", al.id, { note: card.querySelector(".alert-ack-note").value });
+      changeAck("POST", al.id, { note: card.querySelector(".alert-ack-note").value }, card);
     };
     ackBtn.addEventListener("click", submit);
     card.querySelector(".alert-ack-note").addEventListener("keydown", function (e) {
@@ -206,6 +221,19 @@ function renderMaintenanceBanner(maintenance) {
   el.classList.remove("hidden");
 }
 
+// Acknowledged alerts live in a folded group under the ones that still need somebody. Whether it is open is kept
+// across refreshes (like the guidance folds), and the group sits after every unacknowledged card.
+function createAckedGroup() {
+  var group = document.createElement("details");
+  group.className = "alerts-acked";
+  group.open = !!STATE.ackedGroupOpen;
+  group.innerHTML = "<summary>Acknowledged (<span class='alerts-acked-count'>0</span>)</summary>";
+  group.addEventListener("toggle", function (e) {
+    STATE.ackedGroupOpen = e.currentTarget.open;
+  });
+  return group;
+}
+
 // 1. ALERTS
 function initAlertStrip() {
   var strip = document.getElementById("alert-strip");
@@ -242,6 +270,7 @@ async function loadAlerts() {
         : "The alert engine has never reported";
     }
     var listHolder = null;
+    var ackedGroup = null;
     if (listEl) {
       listHolder = beginRows(listEl);
     }
@@ -355,7 +384,20 @@ async function loadAlerts() {
         tlBtn.addEventListener("click", function (e) {
           openAlertTimelineFor(e.currentTarget.getAttribute("data-device"), Number(e.currentTarget.getAttribute("data-ts")));
         });
-        if (listHolder) listHolder.appendChild(card);
+        if (listHolder) {
+          if (al.ack_by) {
+            // Somebody already has this: it leaves the main list for a folded "Acknowledged" group. It is still
+            // firing (counts above do not change), it just stops asking for attention.
+            if (!ackedGroup) {
+              ackedGroup = createAckedGroup();
+              listHolder.appendChild(ackedGroup);
+            }
+            ackedGroup.appendChild(card);
+            ackedGroup.querySelector(".alerts-acked-count").textContent = String(ackedGroup.querySelectorAll(".alert-item-card").length);
+          } else {
+            listHolder.insertBefore(card, ackedGroup);
+          }
+        }
       }
     } else if (data.engine && data.engine.status !== "ok") {
       // Nothing firing is not good news when nobody is evaluating the rules.

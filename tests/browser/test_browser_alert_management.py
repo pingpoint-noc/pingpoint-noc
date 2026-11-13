@@ -71,6 +71,13 @@ class AcknowledgeTest(AlertManagementBase):
         self.assertEqual(card.locator(".alert-item-ack").count(), 0)
         card.locator(".alert-ack-note").fill("looking at it")
         card.locator(".alert-ack-btn").click()
+        # It leaves the main list for the folded "Acknowledged" group; the group is closed until opened.
+        group = page.locator(".alerts-acked")
+        group.wait_for()
+        self.assertEqual(page.locator("#active-alerts-list > .alert-item-card", has_text="if:77").count(), 0)
+        self.assertEqual(group.locator(".alerts-acked-count").inner_text(), "1")
+        self.assertFalse(group.evaluate("el => el.open"))
+        group.locator("> summary").click()
         acked = self.card(page).locator(".alert-item-ack")
         acked.wait_for()
         text = acked.inner_text()
@@ -81,7 +88,9 @@ class AcknowledgeTest(AlertManagementBase):
         self.assertEqual(self.card(page).locator(".alert-ack-note").count(), 0)
         self.card(page).locator(".alert-unack-btn").click()
         page.wait_for_function("document.querySelectorAll('.alert-item-ack').length === 0")
-        self.assertEqual(self.card(page).locator(".alert-ack-btn").count(), 1)
+        # Back in the main list, and the empty group is gone.
+        self.assertEqual(page.locator("#active-alerts-list > .alert-item-card", has_text="if:77").locator(".alert-ack-btn").count(), 1)
+        self.assertEqual(page.locator(".alerts-acked").count(), 0)
 
     def test_enter_in_the_note_field_acknowledges(self):
         self.add_alert()
@@ -91,6 +100,8 @@ class AcknowledgeTest(AlertManagementBase):
         field = self.card(page).locator(".alert-ack-note")
         field.fill("enter key")
         field.press("Enter")
+        page.locator(".alerts-acked").wait_for()
+        page.locator(".alerts-acked > summary").click()
         self.card(page).locator(".alert-item-ack").wait_for()
 
     def test_without_signing_in_it_asks_to_sign_in(self):
