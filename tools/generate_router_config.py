@@ -12,6 +12,7 @@ the keys, so it is written under data/ (not tracked by git) and only from the co
 
 import argparse
 import os
+import re
 from pathlib import Path
 
 import scenario
@@ -65,6 +66,10 @@ def load_v3_for_router(env):
     return config
 
 
+_COMMUNITY_RE = re.compile(r"^[A-Za-z0-9_.-]{1,32}$")
+_HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.\-]{0,251}[A-Za-z0-9])?$|^[0-9a-fA-F:.]{2,45}$")
+
+
 def build_rsc_content(
     noc_ip=DEFAULT_NOC_IP,
     community=DEFAULT_COMMUNITY,
@@ -80,10 +85,14 @@ def build_rsc_content(
     clean_ip = str(noc_ip).strip()
     if clean_ip == "":
         raise ValueError("noc_ip must not be empty")
+    if not _HOST_RE.match(clean_ip):
+        raise ValueError("noc_ip must be an IP address or a host name")
 
     clean_community = str(community).strip()
     if clean_community == "":
         raise ValueError("community must not be empty")
+    if not _COMMUNITY_RE.match(clean_community):
+        raise ValueError("community may only contain letters, digits, dot, dash and underscore (max 32)")
 
     lines = [
         "# =====================================================================",
