@@ -8,6 +8,7 @@ var TOPOLOGY_STATE = {
   panX: 40,
   panY: 30,
   scale: 1.0,
+  userView: false, // true once the operator zoomed or panned by hand: a resize then leaves the view alone
   isDragging: false,
   dragStartX: 0,
   dragStartY: 0,
@@ -106,6 +107,7 @@ function topologyZoomAt(cx, cy, newScale) {
   TOPOLOGY_STATE.panX = cx - (cx - TOPOLOGY_STATE.panX) * k;
   TOPOLOGY_STATE.panY = cy - (cy - TOPOLOGY_STATE.panY) * k;
   TOPOLOGY_STATE.scale = newScale;
+  TOPOLOGY_STATE.userView = true;
   applyTopologyTransform();
 }
 
@@ -943,6 +945,7 @@ function initTopologyControls() {
   var issuesBtn = document.getElementById("topo-filter-issues-btn");
   var refreshBtn = document.getElementById("topology-refresh-btn");
   var closeDrawerBtn = document.getElementById("drawer-close-btn");
+  watchTopologyResize(viewport);
 
   var zoomInBtn = document.getElementById("topo-zoom-in");
   var zoomOutBtn = document.getElementById("topo-zoom-out");
@@ -997,6 +1000,7 @@ function initTopologyControls() {
         if (Math.abs(nx - TOPOLOGY_STATE.panX) + Math.abs(ny - TOPOLOGY_STATE.panY) > 0) gesture.moved = true;
         TOPOLOGY_STATE.panX = nx;
         TOPOLOGY_STATE.panY = ny;
+        TOPOLOGY_STATE.userView = true;
         applyTopologyTransform();
       } else if (gesture.type === "node") {
         var dx = e.clientX - gesture.startX;
@@ -1045,6 +1049,7 @@ function initTopologyControls() {
     viewport.addEventListener("keydown", function (e) {
       if (e.target !== viewport) return;
       var step = 48;
+      if (e.key.indexOf("Arrow") === 0) TOPOLOGY_STATE.userView = true;
       if (e.key === "ArrowLeft") TOPOLOGY_STATE.panX += step;
       else if (e.key === "ArrowRight") TOPOLOGY_STATE.panX -= step;
       else if (e.key === "ArrowUp") TOPOLOGY_STATE.panY += step;
@@ -1154,6 +1159,30 @@ function initTopologyControls() {
   });
 }
 
+// The panel follows the window: when its size changes the map is laid out again if the number of cards per row changed,
+// and fitted to the new size unless the operator has zoomed or panned by hand (Fit / Reset give control back).
+// A hidden tab reports width 0: nothing to do until it is shown, which fires the observer again.
+function watchTopologyResize(viewport) {
+  if (!viewport || typeof ResizeObserver === "undefined") return;
+  var lastWidth = 0;
+  var lastPerRow = 0;
+  var timer = null;
+  new ResizeObserver(function () {
+    if (timer) window.clearTimeout(timer);
+    timer = window.setTimeout(function () {
+      timer = null;
+      var width = viewport.clientWidth;
+      if (!width || !TOPOLOGY_STATE.data) return;
+      var perRow = topologyHostsPerRow();
+      if (width === lastWidth) return;
+      lastWidth = width;
+      if (lastPerRow !== 0 && perRow !== lastPerRow) renderTopologyGraph();
+      lastPerRow = perRow;
+      if (!TOPOLOGY_STATE.userView) fitTopologyView();
+    }, 120);
+  }).observe(viewport);
+}
+
 function fitTopologyView() {
   var viewport = document.getElementById("topology-viewport");
   if (!viewport || !TOPOLOGY_STATE.data || !TOPOLOGY_STATE.data.nodes || TOPOLOGY_STATE.data.nodes.length === 0) return;
@@ -1169,6 +1198,7 @@ function fitTopologyView() {
   var fitScale = Math.min(1.2, Math.max(TOPOLOGY_MIN_SCALE, Math.min(scaleX, scaleY)));
 
   TOPOLOGY_STATE.scale = fitScale;
+  TOPOLOGY_STATE.userView = false;
   TOPOLOGY_STATE.panX = Math.max(20, (vw - bounds.width * fitScale) / 2);
   TOPOLOGY_STATE.panY = Math.max(20, (vh - bounds.height * fitScale) / 2);
   applyTopologyTransform();
