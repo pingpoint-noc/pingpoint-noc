@@ -95,7 +95,7 @@ class AlertHistoryWindowTest(BrowserTestCase):
     def test_screen_readers_still_get_the_real_header(self):
         page = self.open_history()
         self.assertEqual(page.get_attribute(HEAD, "aria-hidden"), "true")
-        names = page.evaluate("[...document.querySelectorAll('%s thead th')].map(t => t.textContent.replace(/\s+/g, ' ').trim())" % BODY)
+        names = page.evaluate(r"[...document.querySelectorAll('%s thead th')].map(t => t.textContent.replace(/\s+/g, ' ').trim())" % BODY)
         self.assertEqual(len(names), 6)
         self.assertTrue(names[0].startswith("Rule"))
 

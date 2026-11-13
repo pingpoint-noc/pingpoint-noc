@@ -177,9 +177,15 @@ class RefreshRacesTest(BrowserTestCase):
         page.wait_for_function("document.getElementById('settings-state').textContent === 'Editable'")
         page.click("[data-settings-section='rules']")
         page.fill("#set-thresh-bw-bps", "5")
+        # A toast lives 3.2 s: on a slow runner polling can miss it, so record every toast as it is added.
+        page.evaluate("""() => {
+            window.__toasts = [];
+            new MutationObserver(list => list.forEach(m => m.addedNodes.forEach(n => window.__toasts.push(n.textContent))))
+                .observe(document.getElementById('toast-container'), {childList: true});
+        }""")
         page.click("#settings-top-save-btn")
-        page.wait_for_selector("#toast-container .toast:has-text('not saved')")
-        self.assertEqual(page.get_attribute("#set-thresh-bw-bps", "aria-invalid"), "true")
+        page.wait_for_selector("#set-thresh-bw-bps[aria-invalid='true']", timeout=30000)
+        self.assertTrue(any("not saved" in t for t in page.evaluate("window.__toasts")), page.evaluate("window.__toasts"))
         self.assertEqual(page.evaluate("document.activeElement.id"), "set-thresh-bw-bps")
 
     def test_add_target_errors_use_the_inventory_message_and_a_toast(self):

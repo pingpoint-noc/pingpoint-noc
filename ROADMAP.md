@@ -74,8 +74,8 @@ inglés) en `_notas/PINGPOINT-NOC-PROMPT-SIGUIENTE-CHAT.md` del autor.
 8. **Alert tuning left open**: `interface_down` only for interfaces that were once up; ASN or organisation grouping for new destinations (needs
    external data); a "days until full" disk rule; the SNMP/ICMP checks of a device behind a failed parent.
 9. **Tests and CI**: the browser job in GitHub Actions ran for the first time on 2026-11-13 (225 of 227 passed, about 10 minutes). The topology search
-   placeholder was really cut off (fixed by shortening it); `test_save_with_an_invalid_value_toasts_and_focuses_the_field` timed out once there
-   and needs a look. Locally, several browser tests (capacity, time zone, digest, overview layout) fail now and then under heavy parallel load and
+   placeholder was really cut off (fixed by shortening it); `test_save_with_an_invalid_value_toasts_and_focuses_the_field` missed its 3.2 s toast on
+   the slow runner (now it records toasts with an observer and waits for the persistent `aria-invalid`). Locally, several browser tests (capacity, time zone, digest, overview layout) fail now and then under heavy parallel load and
    pass alone: run the browser suite with fewer workers or mark it.
 10. **Interface follow-ups**: check Firefox and Safari (`text-box-trim` falls back to line-box centring), a real screen reader, hover descriptions
     for dynamic elements, the right-click menu for more targets (settings rows, history rows), undo for other editors, the optional
