@@ -12,6 +12,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import sqlite3
 from urllib.parse import urlparse
 
 from fastapi import Body, FastAPI, Header, HTTPException, Request, Response
@@ -463,6 +464,14 @@ def create_app(db_path, clock=utc_now):
     """Build the app. `clock` returns the current UTC epoch seconds (replaced in tests)."""
     app = FastAPI(title="Mini-NOC API")
     repo = create_repository("sqlite", db_path)
+
+    @app.exception_handler(sqlite3.OperationalError)
+    async def database_unavailable(request: Request, exc: sqlite3.OperationalError):
+        """A locked, full or unreadable database is "try again", not an unexplained 500; the details stay in the log."""
+        LOGGER.error("Database error on %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=503, content={"detail": "the database is busy or unavailable, try again"}, headers={"Retry-After": "5"}
+        )
     # Idempotent. systemd starts every service at once and the API may be first on a clean install:
     # without this every endpoint answered 500 until some collector had created the tables.
     # ":memory:" cannot be shared between connections: only tests use it, to read the static page.

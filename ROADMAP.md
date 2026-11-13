@@ -71,7 +71,7 @@ inglés) en `_notas/PINGPOINT-NOC-PROMPT-SIGUIENTE-CHAT.md` del autor.
    service per collector, container healthcheck on `/healthz`, seed that does not repeat.
 7. **Security**: TLS example (Caddy), per-IP limits on enrolment/bootstrap/telemetry, CSP and HSTS, server-side logout (token version per user),
    persistent login limiter, `MININOC_AUTH_READ` on by default in code (it is on in the systemd unit and off in the code default only for
-   compatibility), global JSON error handler with `sqlite3.OperationalError` as 503.
+   compatibility), ~~global JSON error handler with `sqlite3.OperationalError` as 503~~ (done).
 8. **Alert tuning left open**: `interface_down` only for interfaces that were once up; ASN or organisation grouping for new destinations (needs
    external data); a "days until full" disk rule; the SNMP/ICMP checks of a device behind a failed parent.
 9. **Tests and CI**: the browser job in GitHub Actions ran for the first time on 2026-11-13 (225 of 227 passed, about 10 minutes). The topology search
