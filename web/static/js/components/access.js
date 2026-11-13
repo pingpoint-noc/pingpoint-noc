@@ -3,7 +3,8 @@
 // very first visit creates the administrator. The server decides (GET /api/auth-status); this file only asks.
 // ==========================================================================
 
-var ACCESS_MIN_PASSWORD = 8;
+// The server's own minimum (GET /api/auth-status says it); 10 is what it asks today.
+var ACCESS_MIN_PASSWORD = 10;
 
 function gateEl(id) {
   return document.getElementById(id);
@@ -60,6 +61,9 @@ async function runAccessGate() {
     return;
   }
   STATE.readAuth = true;
+  if (status.min_password_length) {
+    ACCESS_MIN_PASSWORD = status.min_password_length;
+  }
   authSession = readStoredSession();
   try {
     var me = await fetch("/api/me", { headers: authHeaders({}) });

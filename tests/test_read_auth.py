@@ -51,9 +51,18 @@ class TestReadGateOn(ReadAuthBase):
 
     def test_status_says_an_admin_must_be_created_first(self):
         status = self.client.get("/api/auth-status").json()
-        self.assertEqual(status, {"read_auth": True, "needs_admin": True, "setup_token_required": False})
+        self.assertEqual(
+            status,
+            {"read_auth": True, "needs_admin": True, "setup_token_required": False, "min_password_length": 10},
+        )
         self.assertEqual(self.create_admin().status_code, 200)
         self.assertFalse(self.client.get("/api/auth-status").json()["needs_admin"])
+
+    def test_a_short_password_is_refused_with_the_minimum_the_page_shows(self):
+        response = self.client.post("/api/bootstrap-admin", json={"username": "alice", "password": "123456789"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("10", response.json()["detail"])
+        self.assertTrue(self.client.get("/api/auth-status").json()["needs_admin"])
 
     def test_creating_the_admin_signs_in_with_a_cookie_that_opens_reads(self):
         response = self.create_admin()

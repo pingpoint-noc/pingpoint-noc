@@ -1306,8 +1306,8 @@ async function bootstrapFirstAdmin() {
   }
   var username = userField.value.trim() || "admin";
   var password = passField.value;
-  if (password.length < 8) {
-    setLoginMessage("Admin password must be at least 8 characters.", true);
+  if (password.length < ACCESS_MIN_PASSWORD) {
+    setLoginMessage("Admin password must be at least " + ACCESS_MIN_PASSWORD + " characters.", true);
     return;
   }
   setLoginMessage("Creating initial admin account...", false);

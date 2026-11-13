@@ -8924,8 +8924,8 @@ async function bootstrapFirstAdmin() {
   }
   var username = userField.value.trim() || "admin";
   var password = passField.value;
-  if (password.length < 8) {
-    setLoginMessage("Admin password must be at least 8 characters.", true);
+  if (password.length < ACCESS_MIN_PASSWORD) {
+    setLoginMessage("Admin password must be at least " + ACCESS_MIN_PASSWORD + " characters.", true);
     return;
   }
   setLoginMessage("Creating initial admin account...", false);
@@ -9513,7 +9513,8 @@ function initWelcome() {
 // very first visit creates the administrator. The server decides (GET /api/auth-status); this file only asks.
 // ==========================================================================
 
-var ACCESS_MIN_PASSWORD = 8;
+// The server's own minimum (GET /api/auth-status says it); 10 is what it asks today.
+var ACCESS_MIN_PASSWORD = 10;
 
 function gateEl(id) {
   return document.getElementById(id);
@@ -9570,6 +9571,9 @@ async function runAccessGate() {
     return;
   }
   STATE.readAuth = true;
+  if (status.min_password_length) {
+    ACCESS_MIN_PASSWORD = status.min_password_length;
+  }
   authSession = readStoredSession();
   try {
     var me = await fetch("/api/me", { headers: authHeaders({}) });

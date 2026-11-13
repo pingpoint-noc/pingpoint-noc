@@ -568,6 +568,7 @@ def create_app(db_path, clock=utc_now):
             "read_auth": read_auth_required(),
             "needs_admin": not repo.has_admin_user(),
             "setup_token_required": bool(os.environ.get("MININOC_ADMIN_TOKEN", "")),
+            "min_password_length": auth.MIN_PASSWORD_LENGTH,
         }
 
     @app.post("/api/login")

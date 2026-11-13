@@ -25,6 +25,10 @@ class FirstRunTest(BrowserTestCase):
         self.assertEqual([u for u in requested if "/api/overview" in u or "/api/alerts" in u], [])
 
         page.fill("#gate-username", "owner")
+        page.fill("#gate-password", "short-9ch")
+        page.fill("#gate-confirm", "short-9ch")
+        page.click("#gate-submit")
+        self.assertIn("at least 10", page.locator("#gate-msg").inner_text())
         page.fill("#gate-password", STRONG)
         page.fill("#gate-confirm", "something else entirely")
         page.click("#gate-submit")
