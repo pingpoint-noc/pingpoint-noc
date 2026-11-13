@@ -131,6 +131,13 @@ def describe_event(event, device_id, rule_id, target, severity, message, extra=N
         if extra and extra.get("title"):
             title = str(extra["title"])
         return title, message, "digest"
+    if event == "resolved" and rule_id == "flow_new_destination":
+        # Nothing was fixed: the notice just left the detection window.
+        return (
+            "Resolved: %s on %s" % (rule_id, target),
+            "%s on %s (%s): no further new destinations; this notice expired, no action needed." % (rule_id, target, device_id),
+            "resolved",
+        )
     if event == "resolved":
         return (
             "Resolved: %s on %s" % (rule_id, target),

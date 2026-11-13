@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from alerts import engine
+from alerts import engine, notify
 from api import services
 from storage import create_repository
 from tests.test_snmp import load_sample_snapshot
@@ -524,6 +524,31 @@ class TestNewExternalDestinationRule(AlertEngineTestCase):
         self.assertEqual(self.firing(), [])
         resolved = self.repo.list_alerts(device_id=DEVICE, status="resolved")
         self.assertEqual(resolved[0]["rule_id"], "flow_new_destination")
+
+    def test_new_address_in_a_block_the_host_already_knows_is_not_new(self):
+        # CDN rotation: 8.8.8.x is already known, so another address in that /24 stays silent
+        self.know(QUIET, 3)
+        self.repo.learn_destinations(DEVICE, [(QUIET, "8.8.8.8")], NOW - 2 * DAY)
+        self.talk(QUIET, "8.8.8.4")
+        engine.evaluate_once(self.repo, NOW)
+        self.assertEqual(self.firing(), [])
+        # ...but it is still remembered, and a different block does alert
+        self.assertEqual(self.repo.count_known_destinations(DEVICE, QUIET), 5)
+        self.talk(QUIET, "9.9.9.9", ts=NOW + 25)
+        engine.evaluate_once(self.repo, NOW + 30)
+        self.assertEqual(len(self.firing()), 1)
+
+    def test_destination_prefix_groups_v4_by_24_and_v6_by_48(self):
+        self.assertEqual(engine.destination_prefix("173.194.76.136"), engine.destination_prefix("173.194.76.9"))
+        self.assertNotEqual(engine.destination_prefix("173.194.76.136"), engine.destination_prefix("173.194.77.1"))
+        self.assertEqual(engine.destination_prefix("2001:db8:1:2::1"), engine.destination_prefix("2001:db8:1:ffff::9"))
+        self.assertEqual(engine.destination_prefix("not-an-ip"), "not-an-ip")
+
+    def test_resolved_message_says_nothing_needs_fixing(self):
+        title, body, level = notify.describe_event("resolved", DEVICE, "flow_new_destination", "newdst:h", "warning", "")
+        self.assertEqual(level, "resolved")
+        self.assertIn("no action needed", body)
+        self.assertNotIn("back to normal", body)
 
     def test_a_host_that_browses_only_alerts_on_a_burst_of_ten(self):
         self.know(BUSY, 25)

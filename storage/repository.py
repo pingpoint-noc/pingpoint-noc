@@ -231,6 +231,10 @@ class StorageRepository(ABC):
         """Remembered destinations first seen at or after since_utc, as dicts, oldest first."""
 
     @abstractmethod
+    def list_known_destinations(self, device_id, internal_host, before_utc):
+        """Addresses a host talked to that were first seen before before_utc (list of dst_ip strings)."""
+
+    @abstractmethod
     def count_known_destinations(self, device_id, internal_host, before_utc=None):
         """Number of destinations a host has talked to (optionally only those first seen before before_utc)."""
 

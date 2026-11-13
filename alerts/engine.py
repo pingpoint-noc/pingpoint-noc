@@ -1177,6 +1177,20 @@ def outbound_pairs(flows):
     return sorted(pairs)
 
 
+def destination_prefix(address):
+    """The /24 (IPv4) or /48 (IPv6) an address belongs to, as a string; the address itself if unparsable.
+
+    CDNs such as Google, Cloudflare or Akamai rotate addresses inside the same block all day, so a new
+    address in a block the host already talks to is not a new destination.
+    """
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return address
+    bits = 24 if ip.version == 4 else 48
+    return str(ipaddress.ip_network("%s/%d" % (ip, bits), strict=False))
+
+
 def evaluate_new_destination_rule(
     repo,
     device_id,
@@ -1193,6 +1207,7 @@ def evaluate_new_destination_rule(
     Design: docs/diseno-destino-externo-nuevo.md. Three guards keep it from being noise:
     - learning period: until the oldest remembered destination is `learning_seconds` old, it only learns;
     - a host with no earlier baseline is itself being learned (a new device must not alert on day one);
+    - a new address in a /24 (/48) the host already talked to counts as the same destination (CDN rotation);
     - the threshold depends on the host's baseline: a quiet host (fewer than `baseline_size` known
       destinations) alerts on any new destination, one that browses only on a burst of `burst_size`.
     """
@@ -1231,6 +1246,11 @@ def evaluate_new_destination_rule(
         for host, destinations in new_by_host.items():
             known_before = repo.count_known_destinations(device_id, host, before_utc=since)
             if known_before == 0:
+                continue
+            # A new address inside a block the host already knew is CDN rotation, not a new destination.
+            known_blocks = {destination_prefix(a) for a in repo.list_known_destinations(device_id, host, since)}
+            destinations = [d for d in destinations if destination_prefix(d) not in known_blocks]
+            if not destinations:
                 continue
             threshold = burst_size
             if known_before < baseline_size:
