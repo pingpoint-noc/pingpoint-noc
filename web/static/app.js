@@ -8141,6 +8141,32 @@ function parentOptionsHtml(nodes, node) {
   return html;
 }
 
+// The roles a device can have (the same list the API accepts); the current one is always offered, even a legacy value.
+var DEVICE_ROLES = [
+  ["router", "router / gateway"],
+  ["switch", "switch / access point"],
+  ["server", "server / NAS"],
+  ["linux", "linux host"],
+  ["proxmox", "hypervisor (Proxmox)"],
+  ["dns", "DNS (Pi-hole / UDP 53)"],
+  ["unknown", "other"]
+];
+
+function roleOptionsHtml(current) {
+  var known = false;
+  var html = "";
+  var r = 0;
+  for (r = 0; r < DEVICE_ROLES.length; r += 1) {
+    var selected = DEVICE_ROLES[r][0] === current;
+    known = known || selected;
+    html += "<option value='" + DEVICE_ROLES[r][0] + "'" + (selected ? " selected" : "") + ">" + DEVICE_ROLES[r][1] + "</option>";
+  }
+  if (!known) {
+    html += "<option value='" + escapeHtml(current) + "' selected>" + escapeHtml(current) + "</option>";
+  }
+  return html;
+}
+
 async function loadSettingsInventory() {
   var tbody = document.getElementById("settings-devices-tbody");
   if (!tbody) {
@@ -8159,20 +8185,8 @@ async function loadSettingsInventory() {
       if (!editable) {
         disAttr = " disabled";
       }
-      var roleVal = node.device_type || "linux_host";
-      var selRouter = "";
-      var selDns = "";
-      var selHost = "";
-      var selSwitch = "";
-      if (roleVal === "router") {
-        selRouter = " selected";
-      } else if (roleVal === "dns") {
-        selDns = " selected";
-      } else if (roleVal === "switch") {
-        selSwitch = " selected";
-      } else {
-        selHost = " selected";
-      }
+      var roleVal = node.device_type || "unknown";
+      var roleOptions = roleOptionsHtml(roleVal);
 
       var parentOptions = parentOptionsHtml(data.nodes, node);
       var statusBadge = "badge-ok";
@@ -8192,11 +8206,8 @@ async function loadSettingsInventory() {
         "<th><code>" + escapeHtml(node.id) + "</code><div class='text-dim' style='font-size:var(--fs-xs);'>" + escapeHtml(node.ip) + "</div></th>" +
         "<td><input type='text' class='inv-name-input' aria-label='Display name for " + escapeHtml(node.id) + "' data-id='" + escapeHtml(node.id) + "' value='" + escapeHtml(node.name || node.id) + "'" + disAttr + "></td>" +
         "<td>" +
-        "<select class='inv-type-select' data-id='" + escapeHtml(node.id) + "' style='max-width:155px;'" + disAttr + ">" +
-        "<option value='router'" + selRouter + ">router (SNMP)</option>" +
-        "<option value='dns'" + selDns + ">dns (Pi-hole/UDP53)</option>" +
-        "<option value='linux_host'" + selHost + ">linux_host (IPFIX)</option>" +
-        "<option value='switch'" + selSwitch + ">switch</option>" +
+        "<select class='inv-type-select' data-id='" + escapeHtml(node.id) + "' aria-label='Role of " + escapeHtml(node.id) + "' style='max-width:155px;'" + disAttr + ">" +
+        roleOptions +
         "</select>" +
         "</td>" +
         "<td><input type='text' class='inv-comm-input' aria-label='SNMP community for " + escapeHtml(node.id) + "' data-id='" + escapeHtml(node.id) + "' value='' placeholder='unchanged' autocomplete='off'" + disAttr + "></td>" +

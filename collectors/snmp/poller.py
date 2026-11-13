@@ -424,7 +424,10 @@ class SnmpSession:
 
 
 def register_device_in_catalog(repo, device_id, device_name, router_ip, community="public"):
-    """Make sure the device row exists (needed by the foreign keys of every other table)."""
+    """Make sure the device row exists (needed by the foreign keys of every other table). An existing row is left
+    alone: its type, name and zone may have been set by the operator, and this default must not undo them."""
+    if repo.get_device_status(device_id) is not None:
+        return
     repo.ensure_device(
         device_id=device_id,
         name=device_name,

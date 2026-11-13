@@ -168,6 +168,7 @@
 
           <div class="settings-add-node-bar">
             <h4 class="settings-subheading">Register New Monitored Target</h4>
+            <p class="dest-blurb">Every registered target is watched by ping (ICMP) right away: latency, loss and up/down alerts need nothing else, which is also how to watch a router that offers no SNMP. For SNMP metrics, add the device with <code>python -m tools.add_device</code> and a credential profile. Pick the role that matches the device: only a <strong>router / gateway</strong> sits at the top of the topology map.</p>
             <div class="auth-form">
               <div class="settings-field">
                 <label for="settings-add-node-ip">IP Address</label>
@@ -181,8 +182,12 @@
                 <label for="settings-add-node-type">Target Role</label>
                 <select id="settings-add-node-type" class="form-select">
                   <option value="linux">Linux / Container Host (IPFIX + Syslog)</option>
+                  <option value="server">Server / NAS</option>
+                  <option value="proxmox">Hypervisor (Proxmox)</option>
                   <option value="dns">DNS / Pi-hole Server (DNS Probe + IPFIX)</option>
-                  <option value="router">Router / Switch (SNMP + IPFIX + Syslog)</option>
+                  <option value="router">Router / Gateway</option>
+                  <option value="switch">Switch / Access Point</option>
+                  <option value="unknown">Other</option>
                 </select>
               </div>
               <button type="button" id="btn-settings-add-node" class="btn btn-secondary">Add / Update Target</button>

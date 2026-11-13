@@ -408,13 +408,14 @@ def main():
 
     repo = create_repository("sqlite", args.db_path)
     repo.init_storage()
-    repo.ensure_device(
-        device_id=args.device_id,
-        name=args.device_name,
-        ip=args.router_ip,
-        device_type="router",
-        tz="Europe/Madrid",
-    )
+    if repo.get_device_status(args.device_id) is None:  # never overwrite what the operator already set
+        repo.ensure_device(
+            device_id=args.device_id,
+            name=args.device_name,
+            ip=args.router_ip,
+            device_type="router",
+            tz="Europe/Madrid",
+        )
     internal_nets = parse_networks(args.internal_nets)
     own_ips = parse_addresses(args.router_own_ips)
     discover_hosts = not args.no_discover_hosts
