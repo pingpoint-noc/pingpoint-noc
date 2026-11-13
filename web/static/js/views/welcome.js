@@ -83,6 +83,7 @@ function renderAvailability(devices) {
     dot.className = "avail-dot";
     dot.setAttribute("aria-hidden", "true");
     var label = document.createElement("span");
+    label.className = "avail-name";
     label.textContent = d.name;
     var hidden = document.createElement("span");
     hidden.className = "visually-hidden";

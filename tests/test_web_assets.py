@@ -397,7 +397,7 @@ console.log(JSON.stringify([
         self.assertRegex(css, r"\.alert-icon-wrap \{\s*flex: none;")
         self.assertRegex(css, r"\.avail-dot \{ flex: none;")
         self.assertIn(".alerts-headline { align-items: flex-start; }", css)
-        self.assertIn(".avail-dot { translate: 0 1px; }", css)
+        self.assertIn("margin-top: calc((1.5rem - 0.6rem) / 2)", css)
         self.assertIn(".alerts-headline .freshness-meta { display: block; margin-left: 0; }", css)
         self.assertRegex(css, r"\.avail-pill\.avail-ok \{ display: none; \}")
         self.assertIn('id="welcome-devices-summary"', self.client.get("/").text)
@@ -1059,9 +1059,12 @@ console.log(JSON.stringify([
 
     def test_the_dot_nudge_is_scoped_and_buttons_get_the_font_metric_fix(self):
         css = (Path(__file__).resolve().parent.parent / "web" / "static" / "styles.css").read_text(encoding="utf-8")
-        # A bare ".avail-dot { translate: 0 1px }" pushed every pill's dot 1 px below its text (measured +1.0 px on edge-router).
-        self.assertNotRegex(css, r"(?m)^\.avail-dot\s*\{\s*translate:\s*0 1px")
-        self.assertRegex(css, r"\.alerts-headline \.avail-dot\s*\{\s*translate:\s*0 1px")
+        # No pixel nudges on the dots: they were measured on one font and scaling and looked wrong on any other screen.
+        # The pill text is trimmed to the capitals (text-box), the headline dot is centred on its 1.5rem first line by arithmetic.
+        self.assertNotRegex(css, r"\.avail-dot\s*\{[^}]*translate")
+        self.assertNotRegex(css, r"\.avail-pill \.avail-dot\s*\{[^}]*translate")
+        self.assertRegex(css, r"\.avail-name\s*\{\s*text-box:\s*trim-both cap alphabetic")
+        self.assertRegex(css, r"\.alerts-headline \.avail-dot\s*\{\s*margin-top:\s*calc\(\(1\.5rem - 0\.6rem\) / 2\)")
         # Button text sat 0.7-1.5 px low with Segoe UI: same font with corrected ascent/descent, for <button> only
         # (a link's line box is already centred and would overshoot).
         self.assertRegex(css, r'@font-face\s*\{\s*font-family:\s*"NOC Button"[^}]*local\("Segoe UI"\)[^}]*ascent-override')

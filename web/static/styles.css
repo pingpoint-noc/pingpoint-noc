@@ -2272,20 +2272,49 @@ tr.if-row.selected-row { background-color: var(--bg-active); }
 .skip-link:focus { top: 0.6rem; }
 #main-content:focus { outline: none; }
 
-/* The NOC indicators and the selected device's indicators share one row from 1101 px up (K112); below that the two
+/* The NOC indicators and the selected device's indicators share one row from 1280 px up (K112: 1101 px at first; seven cards
+   need more room than that once their titles wrap); below that the two
    groups stack, each as the auto-fit grid defined on .kpi-ribbon. */
 .kpi-row { display: block; }
 .kpi-group { min-width: 0; }
-@media (min-width: 1101px) {
+@media (min-width: 1280px) {
   .kpi-row { display: flex; align-items: flex-start; gap: 0.9rem; margin-bottom: 1rem; }
-  .kpi-group { flex: 1 1 auto; }
+  /* Share the row by card count (4 NOC indicators, 3 for the device) and let both shrink: a group must never be wider
+     than its share, or its last card gets cut off. */
+  .kpi-group { flex: 1 1 0; }
+  .kpi-group-noc { flex-grow: 4; }
+  .kpi-group-target { flex-grow: 3; }
   .kpi-row .overview-section-header { margin: 0 0 0.35rem 0; gap: 0.75rem; }
   .kpi-row .overview-section-header .section-tag { white-space: nowrap; }
   .kpi-row .overview-section-header .section-desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .kpi-row .kpi-ribbon { display: flex; margin-bottom: 0; }
-  .kpi-row .kpi-card { flex: 1 1 8.5rem; }
+  /* Every card spans the same three rows (title, value, caption) of its ribbon through subgrid, so the values and the
+     captions line up across the cards even when a title wraps to two lines next to its sparkline. */
+  .kpi-row .kpi-ribbon {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    gap: 0 1px;
+    margin-bottom: 0;
+  }
+  .kpi-row .kpi-card {
+    display: grid;
+    grid-row: 1 / span 3;
+    grid-template-rows: subgrid;
+    row-gap: 0;
+    align-content: stretch;
+  }
+  .kpi-row .kpi-card > .kpi-label,
+  .kpi-row .kpi-card > .kpi-header-row { align-self: start; }
+  .kpi-row .kpi-card > .kpi-main { align-self: start; padding-top: 0.2rem; }
+  .kpi-row .kpi-card > .kpi-caption { align-self: end; }
   .kpi-row .kpi-sparkline-wrap { width: 44px; }
+  /* Titles start on the same line whether or not a sparkline sits next to them. */
+  .kpi-row .kpi-header-row { align-items: flex-start; }
+  .kpi-row .kpi-label { line-height: 1.3; }
+  /* The small label may drop under the value on a narrow card; the shared rows keep every other card aligned anyway. */
   .kpi-row .kpi-main { flex-wrap: wrap; column-gap: 0.5rem; }
+  .kpi-row .kpi-sub { flex: 1 1 auto; }
   .kpi-row .kpi-header-row .kpi-label { min-width: 0; }
 }
 
@@ -3036,10 +3065,12 @@ select option { background: var(--bg-surface); color: var(--text-main); }
    - the device dot sat 0.4 px above the capitals' centre and ~1.5 px above the lowercase mass, so it moves down 1 px. */
 .alerts-headline { align-items: flex-start; }
 .alerts-headline .alerts-title { display: inline-block; line-height: 1.5rem; }
-.alerts-headline .avail-dot { translate: 0 1px; }
-/* Dot and text in a pill: the text's ink centre is 0.4 to 0.6 px below the line middle for digits and level with it for
-   words, so a dot on the line middle reads right for names and a hair high for IPs; 0.3 px splits the difference. */
-.avail-pill .avail-dot { translate: 0 0.3px; }
+/* The first line of the title is 1.5rem tall and the dot is 0.6rem: centre it on that line with arithmetic, not with
+   pixel nudges measured on one screen (those only looked right on the font and scaling they were measured with). */
+.alerts-headline .avail-dot { margin-top: calc((1.5rem - 0.6rem) / 2); }
+/* Dot and text in a pill: trim the text box to the capital letters, so "centred" means centred on the letters whatever
+   the font's own ascent and descent are. Browsers without text-box-trim just centre on the line box (about 0.5 px off). */
+.avail-name { text-box: trim-both cap alphabetic; }
 @media (max-width: 700px) { .alerts-headline .freshness-meta { display: block; margin-left: 0; } }
 
 /* One shape vocabulary: small rounded rectangles for badges and chips (4 px), 6 px for pills that are button-sized.
