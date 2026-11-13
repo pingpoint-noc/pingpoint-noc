@@ -117,6 +117,24 @@ class LoginLimiter:
         self.failures.pop(key, None)
 
 
+SESSION_COOKIE = "mn_session"
+# GET paths that stay open when reads need a login: the login flow itself, and what booting hosts and routers fetch
+# (they carry no data and the enrolment endpoints have their own token).
+READ_GATE_OPEN_PATHS = (
+    "/api/auth-status",
+    "/api/me",
+    "/api/bootstrap.sh",
+    "/api/bootstrap-pve.sh",
+    "/api/mininoc-agent.sh",
+    "/api/router-config.rsc",
+)
+
+
+def read_auth_required():
+    """MININOC_AUTH_READ=1 asks for a sign-in on every read under /api (the shipped systemd unit sets it)."""
+    return os.environ.get("MININOC_AUTH_READ", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def bearer_token(authorization):
     """The token of an `Authorization: Bearer <token>` header, or None."""
     if not authorization:
@@ -500,6 +518,58 @@ def create_app(db_path, clock=utc_now):
         except Exception:
             LOGGER.exception("Could not write the settings audit entry (%s by %s)", action, username)
 
+    @app.middleware("http")
+    async def read_gate(request: Request, call_next):
+        """With MININOC_AUTH_READ=1 every read under /api needs a session (header or cookie) or the admin token.
+
+        The cookie only opens reads (GET/HEAD): downloads and links cannot send a header. Writes keep asking for the
+        Authorization header, so a forged cross-site request cannot change anything.
+        """
+        path = request.url.path
+        if (
+            read_auth_required()
+            and request.method in ("GET", "HEAD")
+            and path.startswith("/api/")
+            and path not in READ_GATE_OPEN_PATHS
+        ):
+            authorization = request.headers.get("authorization")
+            cookie = request.cookies.get(SESSION_COOKIE)
+            allowed = session_user(authorization) is not None
+            if not allowed and cookie:
+                allowed = session_user("Bearer " + cookie) is not None
+            expected = os.environ.get("MININOC_ADMIN_TOKEN", "")
+            sent = request.headers.get("x-admin-token", "")
+            if not allowed and expected and sent:
+                allowed = hmac.compare_digest(sent.encode("utf-8"), expected.encode("utf-8"))
+            if not allowed:
+                return JSONResponse(status_code=401, content={"detail": "sign in to read this"})
+        return await call_next(request)
+
+    def set_session_cookie(response, request, token):
+        response.set_cookie(
+            SESSION_COOKIE,
+            token,
+            max_age=auth.SESSION_SECONDS,
+            httponly=True,
+            samesite="strict",
+            secure=request.url.scheme == "https",
+            path="/",
+        )
+
+    @app.get("/healthz")
+    def healthz():
+        """Liveness for containers and proxies: no data, no login."""
+        return {"status": "ok"}
+
+    @app.get("/api/auth-status")
+    def auth_status():
+        """What the page needs before it can show anything: does reading need a login, and is there an admin yet."""
+        return {
+            "read_auth": read_auth_required(),
+            "needs_admin": not repo.has_admin_user(),
+            "setup_token_required": bool(os.environ.get("MININOC_ADMIN_TOKEN", "")),
+        }
+
     @app.post("/api/login")
     def login(request: Request, payload: dict = Body(default={})):
         now_ts = clock()
@@ -536,21 +606,37 @@ def create_app(db_path, clock=utc_now):
         repo.touch_login(username, now_ts)
         fingerprint = auth.password_fingerprint(user["password_hash"])
         token = auth.make_token(session_secret(), username, fingerprint, now_ts, auth.SESSION_SECONDS)
-        return {
-            "token": token,
-            "username": username,
-            "role": user["role"],
-            "expires_utc": now_ts + auth.SESSION_SECONDS,
-        }
+        response = JSONResponse(
+            {
+                "token": token,
+                "username": username,
+                "role": user["role"],
+                "expires_utc": now_ts + auth.SESSION_SECONDS,
+            }
+        )
+        set_session_cookie(response, request, token)
+        return response
 
     @app.post("/api/logout")
     def logout():
         # Tokens are stateless: the browser drops its copy. See K27 for the limit.
-        return {"ok": True}
+        response = JSONResponse({"ok": True})
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        return response
 
     @app.post("/api/bootstrap-admin")
-    def bootstrap_admin(request: Request, payload: dict = Body(default={})):
+    def bootstrap_admin(
+        request: Request,
+        payload: dict = Body(default={}),
+        x_admin_token: str | None = Header(default=None),
+    ):
         require_local_for_bootstrap(request)
+        # Behind a proxy every visitor looks local. When the server has an admin token, creating the first admin
+        # needs it too, so only whoever installed the server can claim the account.
+        setup_token = os.environ.get("MININOC_ADMIN_TOKEN", "")
+        if setup_token and not repo.has_admin_user():
+            if not x_admin_token or not hmac.compare_digest(x_admin_token.encode("utf-8"), setup_token.encode("utf-8")):
+                raise HTTPException(status_code=403, detail="the setup token (MININOC_ADMIN_TOKEN) is required to create the first admin")
         if repo.has_admin_user():
             raise HTTPException(
                 status_code=403,
@@ -578,19 +664,26 @@ def create_app(db_path, clock=utc_now):
         record_audit(username, "user.bootstrap", [username])
         fingerprint = auth.password_fingerprint(pw_hash)
         token = auth.make_token(session_secret(), username, fingerprint, now_ts, auth.SESSION_SECONDS)
-        return {
-            "token": token,
-            "username": username,
-            "role": "admin",
-            "expires_utc": now_ts + auth.SESSION_SECONDS,
-        }
+        response = JSONResponse(
+            {
+                "token": token,
+                "username": username,
+                "role": "admin",
+                "expires_utc": now_ts + auth.SESSION_SECONDS,
+            }
+        )
+        set_session_cookie(response, request, token)
+        return response
 
     @app.get("/api/me")
     def me(
+        request: Request,
         x_admin_token: str | None = Header(default=None),
         authorization: str | None = Header(default=None),
     ):
         user = session_user(authorization)
+        if user is None and request.cookies.get(SESSION_COOKIE):
+            user = session_user("Bearer " + request.cookies[SESSION_COOKIE])
         if user is not None:
             return {"username": user["username"], "role": user["role"]}
         expected = os.environ.get("MININOC_ADMIN_TOKEN", "")
@@ -618,7 +711,7 @@ def create_app(db_path, clock=utc_now):
         index_path = WEB_DIR / "index.html"
         if not index_path.exists():
             raise HTTPException(status_code=404, detail="dashboard not found")
-        return TEMPLATES.TemplateResponse(request=request, name="index.html", context={"asset_v": static_version(), "tz": scenario.tz_name()})
+        return TEMPLATES.TemplateResponse(request=request, name="index.html", context={"asset_v": static_version(), "tz": scenario.tz_name(), "read_auth": "1" if read_auth_required() else "0"})
 
     @app.get("/api/overview")
     def overview():

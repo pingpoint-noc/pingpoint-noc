@@ -69,8 +69,9 @@ def run_tool(args, extra_env=None):
 class ApiServer:
     """A throw-away `python -m api` process over a seeded temporary database."""
 
-    def __init__(self, with_user):
+    def __init__(self, with_user, extra_env=None):
         self.with_user = with_user
+        self.extra_env = extra_env or {}
         self.tmp = Path(tempfile.mkdtemp(prefix="mininoc-browser-"))
         self.db_path = self.tmp / "demo.db"
         self.port = free_port()
@@ -91,7 +92,7 @@ class ApiServer:
             [sys.executable, "-m", "api", "--db-path", str(self.db_path),
              "--host", "127.0.0.1", "--port", str(self.port)],
             cwd=str(REPO_ROOT),
-            env=clean_env(),
+            env=dict(clean_env(), **self.extra_env),
             stdout=self.log_file,
             stderr=subprocess.STDOUT,
         )
@@ -103,7 +104,7 @@ class ApiServer:
             if self.process.poll() is not None:
                 raise RuntimeError("API server exited early:\n" + self.read_log())
             try:
-                with urllib.request.urlopen(self.base_url + "/api/health", timeout=2) as response:
+                with urllib.request.urlopen(self.base_url + "/healthz", timeout=2) as response:
                     if response.status == 200:
                         return
             except (urllib.error.URLError, OSError):
@@ -134,6 +135,8 @@ class BrowserTestCase(unittest.TestCase):
     WITH_USER = True
     # True: a new server and database for every test (for tests that change the stored data).
     SERVER_PER_TEST = False
+    # Extra environment for the API process (for example MININOC_AUTH_READ=1).
+    SERVER_ENV = {}
 
     server = None
     playwright = None
@@ -151,7 +154,7 @@ class BrowserTestCase(unittest.TestCase):
             cls.playwright = None
             raise unittest.SkipTest("Chromium is not installed: " + str(err).splitlines()[0])
         if not cls.SERVER_PER_TEST:
-            cls.server = ApiServer(cls.WITH_USER)
+            cls.server = ApiServer(cls.WITH_USER, cls.SERVER_ENV)
             try:
                 cls.server.start()
             except Exception:
@@ -172,7 +175,7 @@ class BrowserTestCase(unittest.TestCase):
 
     def setUp(self):
         if self.SERVER_PER_TEST:
-            self.server = ApiServer(self.WITH_USER)
+            self.server = ApiServer(self.WITH_USER, self.SERVER_ENV)
             self.addCleanup(self.server.stop)
             self.server.start()
 

@@ -4243,3 +4243,36 @@ button.btn.alerts-fold-btn, button.btn.phone-fold-btn { display: none; }
   .table-collectors tr.collector-ok { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.1rem 0.6rem; padding-block: 0.35rem; }
   .table-collectors tr.collector-ok > :first-child { grid-column: 1 / -1; }
 }
+
+/* ==========================================================================
+   Access gate (sign-in / first administrator)
+   ========================================================================== */
+.access-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--bg-canvas);
+  overflow-y: auto;
+}
+.access-gate.hidden { display: none; }
+body.gated { overflow: hidden; }
+.access-card {
+  width: 100%;
+  max-width: 24rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--overlay-soft);
+  animation: fadeIn 0.2s ease-out;
+}
+.access-title { margin: 0; font-size: var(--fs-2xl); }
+.access-intro { margin: 0; color: var(--text-muted); font-size: var(--fs-md); }
+.gate-msg { margin: 0; min-height: 1.2em; color: var(--text-muted); font-size: var(--fs-sm); }
+.gate-msg.error { color: var(--color-danger); }

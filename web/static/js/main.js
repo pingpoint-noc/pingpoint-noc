@@ -619,4 +619,13 @@ function parseTimelineHash(hash) {
   return { device: device, ts: Number(match[2]) };
 }
 
-document.addEventListener("DOMContentLoaded", initDashboard);
+document.addEventListener("DOMContentLoaded", function () {
+  // With sign-in required for reads (the server says so in the page) nothing is requested or drawn until the gate lets
+  // the visitor in. Without it the dashboard starts at once, exactly as before.
+  var gateMeta = document.querySelector('meta[name="mini-noc-read-auth"]');
+  if (gateMeta && gateMeta.getAttribute("content") === "1") {
+    runAccessGate().then(initDashboard);
+  } else {
+    initDashboard();
+  }
+});

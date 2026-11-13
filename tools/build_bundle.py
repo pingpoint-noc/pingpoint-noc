@@ -26,6 +26,7 @@ MODULES = [
     "components/scroll_hints.js",
     "views/settings.js",
     "views/welcome.js",
+    "components/access.js",
     "main.js",
 ]
 

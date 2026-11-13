@@ -6,12 +6,39 @@
   <title>PingPoint NOC</title>
   <meta name="color-scheme" content="dark light">
   <meta name="mini-noc-tz" content="{{ tz }}">
+  <meta name="mini-noc-read-auth" content="{{ read_auth }}">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ asset_v }}">
   <script src="/static/theme-init.js?v={{ asset_v }}"></script>
   <link rel="stylesheet" href="/static/styles.css?v={{ asset_v }}">
 </head>
 <body class="noc-body" data-active-tab="tab-overview">
   <a class="skip-link" href="#main-content">Skip to content</a>
+  <!-- Sign-in / first-run screen: only shown when the server asks for a login before reading (MININOC_AUTH_READ=1) -->
+  <div id="access-gate" class="access-gate hidden" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+    <form id="gate-form" class="access-card" autocomplete="on">
+      <h1 id="gate-title" class="access-title">PingPoint NOC</h1>
+      <p id="gate-intro" class="access-intro"></p>
+      <div class="settings-field">
+        <label for="gate-username">Username</label>
+        <input id="gate-username" class="form-input" type="text" autocomplete="username" spellcheck="false" autocapitalize="none">
+      </div>
+      <div class="settings-field">
+        <label for="gate-password">Password</label>
+        <input id="gate-password" class="form-input" type="password" autocomplete="current-password" spellcheck="false">
+      </div>
+      <div id="gate-confirm-wrap" class="settings-field hidden">
+        <label for="gate-confirm">Repeat the password</label>
+        <input id="gate-confirm" class="form-input" type="password" autocomplete="new-password" spellcheck="false">
+      </div>
+      <div id="gate-setup-wrap" class="settings-field hidden">
+        <label for="gate-setup">Setup token</label>
+        <input id="gate-setup" class="form-input" type="password" autocomplete="off" spellcheck="false">
+        <small>The value of <code>MININOC_ADMIN_TOKEN</code> on the server: only whoever installed it can create the first account.</small>
+      </div>
+      <button type="submit" id="gate-submit" class="btn btn-primary">Sign in</button>
+      <p id="gate-msg" class="gate-msg" role="alert" aria-live="polite"></p>
+    </form>
+  </div>
   <!-- Phones only: the header scrolls away, so a thin strip keeps a firing alert or a stalled engine in view -->
   <button type="button" id="alert-strip" class="alert-strip hidden" aria-live="polite"></button>
   <!-- Top Navigation Header -->

@@ -1344,6 +1344,11 @@ async function submitLogout() {
     // the token is dropped here anyway
   }
   storeSession(null);
+  if (STATE.readAuth) {
+    // Reads need a sign-in: go back to the gate instead of leaving a page that can no longer load anything.
+    window.location.reload();
+    return;
+  }
   renderAuthBox();
   setLoginMessage("Signed out.", false);
   await loadSettings();

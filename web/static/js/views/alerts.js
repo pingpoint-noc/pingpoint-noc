@@ -3,7 +3,10 @@
 // ==========================================================================
 
 async function fetchJson(url) {
-  var resp = await fetch(url);
+  var resp = await fetch(url, { headers: authHeaders({}) });
+  if (resp.status === 401 && typeof sessionEnded === "function" && STATE.readAuth) {
+    sessionEnded();
+  }
   if (!resp.ok) {
     throw new Error("HTTP " + resp.status + " for " + url);
   }
