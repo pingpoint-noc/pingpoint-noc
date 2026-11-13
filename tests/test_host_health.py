@@ -67,6 +67,21 @@ class TestHealthEdgeCases(unittest.TestCase):
         lines = storage_row(1, "iso.3.6.1.2.1.25.2.1.2", "main memory", 1024, 0, 0)
         self.assertEqual(build_health_metrics(poller.parse_snmpwalk_lines(lines)), [])
 
+    def test_page_cache_and_buffers_do_not_count_as_used_memory(self):
+        # net-snmp: 1000 units of RAM, 900 "used", of which 500 cache + 300 buffers the kernel gives back on demand
+        ram = "iso.3.6.1.2.1.25.2.1.2"
+        other = "iso.3.6.1.2.1.25.2.1.1"
+        lines = storage_row(1, ram, "Physical memory", 1024, 1000, 900)
+        lines += storage_row(2, other, "Cached memory", 1024, 500, 500)
+        lines += storage_row(3, other, "Memory buffers", 1024, 300, 300)
+        metrics = as_map(build_health_metrics(poller.parse_snmpwalk_lines(lines)))
+        self.assertAlmostEqual(metrics[("memory_used_pct", "")], 10.0)
+
+    def test_memory_without_cache_rows_is_unchanged(self):
+        lines = storage_row(1, "iso.3.6.1.2.1.25.2.1.2", "Physical memory", 1024, 1000, 900)
+        metrics = as_map(build_health_metrics(poller.parse_snmpwalk_lines(lines)))
+        self.assertAlmostEqual(metrics[("memory_used_pct", "")], 90.0)
+
     def test_other_storage_types_are_ignored(self):
         # hrStorageVirtualMemory (.3) and hrStorageRemovableDisk (.5) are not the main memory or a disk
         lines = storage_row(1, "iso.3.6.1.2.1.25.2.1.3", "swap", 1024, 100, 50)

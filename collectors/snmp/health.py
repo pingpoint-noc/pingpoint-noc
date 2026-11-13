@@ -19,11 +19,16 @@ HR_STORAGE_ENTRY = (1, 3, 6, 1, 2, 1, 25, 2, 3, 1)
 # hrStorageTable columns
 COL_TYPE = 2
 COL_DESCR = 3
+COL_UNITS = 4
 COL_SIZE = 5
 COL_USED = 6
 
 # Roots walked by the poller to build these metrics.
 HEALTH_WALK_ROOTS = ("1.3.6.1.2.1.25.3.3.1.2", "1.3.6.1.2.1.25.2.3.1")
+
+# net-snmp lists the page cache and the buffers as separate "storage" rows. The kernel gives that memory back on
+# demand, so it must not count as used: otherwise every healthy Linux server sits at 90 % after a few days.
+RECLAIMABLE_DESCRIPTIONS = ("cached memory", "memory buffers")
 
 RAM_TYPE = "hrStorageRam"
 RAM_OID_SUFFIX = ".25.2.1.2"
@@ -76,10 +81,17 @@ def build_health_metrics(oid_value_pairs):
                 row["kind"] = _storage_kind(raw)
             elif column == COL_DESCR:
                 row["descr"] = str(raw).strip()
+            elif column == COL_UNITS:
+                row["units"] = _to_int(raw)
             elif column == COL_SIZE:
                 row["size"] = _to_int(raw)
             elif column == COL_USED:
                 row["used"] = _to_int(raw)
+
+    reclaimable_bytes = 0
+    for row in storage.values():
+        if row.get("descr", "").lower() in RECLAIMABLE_DESCRIPTIONS and row.get("used"):
+            reclaimable_bytes += row["used"] * (row.get("units") or 1)
 
     metrics = []
     if loads:
@@ -90,7 +102,11 @@ def build_health_metrics(oid_value_pairs):
         kind = row.get("kind")
         if kind is None or row.get("size") is None or row.get("used") is None:
             continue
-        value = _percent(row["used"], row["size"])
+        used = row["used"]
+        if kind == "ram" and reclaimable_bytes:
+            units = row.get("units") or 1
+            used = max(0, used - reclaimable_bytes // units)
+        value = _percent(used, row["size"])
         if value is None:
             continue
         if kind == "ram":

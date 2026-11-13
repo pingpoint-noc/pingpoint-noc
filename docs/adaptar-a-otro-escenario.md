@@ -140,7 +140,8 @@ Cómo calcula la propuesta, para cada umbral que depende de lo ocupada que suele
 | `alert_host_disk_pct` | 90 % | 80 – 98 % | `disk_used_pct` |
 | `alert_icmp_loss_pct` | 40 % | 20 – 90 % | `icmp_loss_pct` |
 | `alert_icmp_latency_ms` | 150 ms | 50 – 2000 ms (múltiplos de 10) | `icmp_rtt_avg_ms` |
-| `alert_bw_threshold_bps` | 10 Mbit/s | desde 1 Mbit/s (múltiplos de 1 Mbit/s) | tasas entre muestras de contadores de 64 bits; un reinicio de contador no cuenta |
+| `alert_bw_utilization_pct` | 80 % | 0 – 100 % (0 = desactivado) | `bw_utilization_pct`; porcentaje de la velocidad del enlace (`ifHighSpeed`) mantenido durante `alert_bw_hold_seconds` |
+| `alert_bw_threshold_bps` | 10 Mbit/s | desde 1 Mbit/s (múltiplos de 1 Mbit/s) | solo para interfaces sin velocidad conocida o con el porcentaje a 0; tasas entre muestras de contadores de 64 bits; un reinicio de contador no cuenta |
 | `alert_syslog_burst_threshold` | 50 eventos/min | desde 20 | eventos por minuto (minutos con eventos) |
 
 **Límites.** Los umbrales de **política** (intentos de login fallidos, escaneo de puertos) no se calibran: no dependen de lo ocupada que esté la red. La propuesta es puntual, con los datos de esa ventana; no es una línea base por hora del día (descartada en el ROADMAP: necesita semanas de datos). Con una red recién montada, esperar a tener datos de varios días.

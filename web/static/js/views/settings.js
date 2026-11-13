@@ -32,6 +32,7 @@ var DESTINATION_LABELS = {
 };
 
 var RULE_THRESHOLD_FIELDS = [
+  { id: "set-thresh-bw-util", key: "alert_bw_utilization_pct" },
   { id: "set-thresh-bw-bps", key: "alert_bw_threshold_bps" },
   { id: "set-thresh-bw-hold", key: "alert_bw_hold_seconds" },
   { id: "set-thresh-failed-logins", key: "alert_failed_logins" },

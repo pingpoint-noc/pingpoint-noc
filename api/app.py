@@ -148,6 +148,7 @@ SECRET_KEYS = (
 URL_KEYS = ("ntfy_url", "discord_url", "slack_url", "webhook_url", "public_url")
 
 DEFAULT_RULE_THRESHOLDS = {
+    "alert_bw_utilization_pct": 80,
     "alert_bw_threshold_bps": 10_000_000,
     "alert_bw_hold_seconds": 120,
     "alert_failed_logins": 5,
@@ -175,6 +176,7 @@ DEFAULT_RULE_THRESHOLDS = {
 }
 
 THRESHOLD_LIMITS = {
+    "alert_bw_utilization_pct": (0, 100),
     "alert_bw_threshold_bps": (100_000, 10_000_000_000),
     "alert_bw_hold_seconds": (15, 3600),
     "alert_failed_logins": (1, 100),

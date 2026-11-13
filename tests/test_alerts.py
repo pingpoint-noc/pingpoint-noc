@@ -29,7 +29,7 @@ class AlertEngineTestCase(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def poll_if(self, ts, if_index=3, descr="lan88", oper="up", in_octets=0, out_octets=0, admin="up"):
+    def poll_if(self, ts, if_index=3, descr="lan88", oper="up", in_octets=0, out_octets=0, admin="up", speed_bps=0):
         self.repo.record_snmp_poll(
             DEVICE,
             ts,
@@ -39,7 +39,7 @@ class AlertEngineTestCase(unittest.TestCase):
                     "descr": descr,
                     "admin": admin,
                     "oper": oper,
-                    "speed_bps": 0,
+                    "speed_bps": speed_bps,
                     "in_octets": in_octets,
                     "out_octets": out_octets,
                 }
@@ -245,6 +245,32 @@ class TestHighBandwidthRule(AlertEngineTestCase):
         self.assertEqual(self.repo.count_active_alerts(), 0)
         self.assertEqual(self.repo.list_alerts(device_id=DEVICE, status="pending"), [])
         self.assertEqual(self.repo.list_alerts(device_id=DEVICE, status="resolved"), [])
+
+    def sustain_two_mbit(self, speed_bps):
+        # 9 samples at 15 s steps = 120 s of 2 Mbit/s
+        for idx in range(9):
+            self.poll_if(NOW - 120 + idx * 15, in_octets=idx * 3_750_000, speed_bps=speed_bps)
+
+    def test_utilisation_is_judged_against_the_link_speed(self):
+        # 2 Mbit/s on a gigabit port is idle: the fixed 1 Mbit/s threshold must not apply when the speed is known
+        self.sustain_two_mbit(1_000_000_000)
+        engine.evaluate_once(self.repo, NOW, bw_threshold_bps=1_000_000, bw_hold_seconds=120, bw_utilization_pct=80)
+        self.assertEqual(self.repo.count_active_alerts(), 0)
+
+    def test_the_same_rate_on_a_slow_link_alerts_and_names_the_share(self):
+        self.sustain_two_mbit(2_400_000)  # 80 % of 2.4 Mbit/s = 1.92 Mbit/s < 2 Mbit/s
+        engine.evaluate_once(self.repo, NOW, bw_threshold_bps=50_000_000, bw_hold_seconds=120, bw_utilization_pct=80)
+        firing = self.repo.list_alerts(device_id=DEVICE, status="firing")
+        self.assertEqual(len(firing), 1)
+        self.assertIn("80 % of the 2400000 bit/s link", firing[0]["message"])
+
+    def test_an_unknown_speed_falls_back_to_the_fixed_threshold(self):
+        self.sustain_two_mbit(0)
+        engine.evaluate_once(self.repo, NOW, bw_threshold_bps=1_000_000, bw_hold_seconds=120, bw_utilization_pct=80)
+        self.assertEqual(self.repo.count_active_alerts(), 1)
+
+    def test_the_default_setting_is_a_percentage_of_the_link(self):
+        self.assertEqual(engine.load_effective_settings(self.repo, None)["bw_utilization_pct"], 80)
 
     def test_sustained_traffic_for_two_minutes_fires_and_later_resolves(self):
         # 9 samples at 15 s steps = 120 s of 2 Mbit/s (3,750,000 bytes per 15 s)

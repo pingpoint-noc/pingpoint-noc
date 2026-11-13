@@ -42,6 +42,7 @@ PUBLIC_URL = ""
 # problem that comes and goes does not produce a firing/resolved pair (and two messages) every time.
 # The library default is 1 (resolve at once, the original behaviour); the service asks for 2 (see main()).
 RESOLVE_CYCLES = 1
+DEFAULT_BW_UTILIZATION_PCT = 80  # share of the link speed; the absolute threshold is only the fallback
 DEFAULT_SERVICE_RESOLVE_CYCLES = 2
 # interface_flapping (K14): starting values from general guides, to be tuned with the lab's own data.
 DEFAULT_FLAP_CHANGES = 3
@@ -63,7 +64,7 @@ DEFAULT_HOST_DISK_PCT = 90
 # A health sample older than this is not evidence of the present (stale_source reports the silent collector).
 HOST_METRIC_MAX_AGE_SECONDS = 600
 # ICMP (K80): loss of the last sample of five pings (two lost packets reach 40 %) and the mean RTT.
-DEFAULT_ICMP_LOSS_PCT = 40
+DEFAULT_ICMP_LOSS_PCT = 40  # a sample is 5 pings (20 % per ping): 40 % = two lost pings, one is routine ICMP rate limiting
 DEFAULT_ICMP_LATENCY_MS = 150
 # Proxmox VE storage usage alert threshold (percentage)
 DEFAULT_PVE_STORAGE_PCT = 85.0
@@ -165,6 +166,7 @@ def load_effective_settings(repo, cli_defaults=None):
     return {
         "bw_threshold_bps": get_val("alert_bw_threshold_bps", 10_000_000.0, is_float=True),
         "bw_hold_seconds": get_val("alert_bw_hold_seconds", 120),
+        "bw_utilization_pct": get_val("alert_bw_utilization_pct", DEFAULT_BW_UTILIZATION_PCT),
         "failed_logins": get_val("alert_failed_logins", 5),
         "stale_seconds": get_val("alert_stale_seconds", 300),
         "port_scan_threshold": get_val("alert_port_scan_threshold", 15),
@@ -609,8 +611,14 @@ def evaluate_interface_rules(
     err_min_increase=DEFAULT_ERR_MIN_INCREASE,
     err_min_intervals=DEFAULT_ERR_MIN_INTERVALS,
     rule_toggles=None,
+    bw_utilization_pct=0,
 ):
-    """Evaluate interface_down, interface_flapping, interface_errors and high_bandwidth for every interface."""
+    """Evaluate interface_down, interface_flapping, interface_errors and high_bandwidth for every interface.
+
+    high_bandwidth: with `bw_utilization_pct` > 0 an interface of known speed alerts above that share of its link
+    speed (a gigabit port at 10 Mbit/s is idle); with an unknown speed (virtual interfaces, tunnels) or 0 it uses
+    the absolute `bw_threshold_bps`.
+    """
     interfaces = repo.get_device_interfaces(device_id)
     lookback = bw_hold_seconds + 45
     if lookback < 90:
@@ -640,6 +648,11 @@ def evaluate_interface_rules(
             and (int(now_ts) - int(updated_utc)) <= 60
         )
         target = "if:%d" % if_index
+        link_speed = int(row.get("speed_bps") or 0)
+        if bw_utilization_pct > 0 and link_speed > 0:
+            bw_limit_bps = link_speed * bw_utilization_pct / 100.0
+        else:
+            bw_limit_bps = float(bw_threshold_bps)
 
         # Unstable interface (K14): several status changes in a short window raise ONE alert, and while it is
         # firing interface_down stays quiet instead of adding a "down / resolved" pair for every flap.
@@ -753,7 +766,7 @@ def evaluate_interface_rules(
                     max_dir = curr["rx_bps"]
                     if curr["tx_bps"] > max_dir:
                         max_dir = curr["tx_bps"]
-                    if max_dir > bw_threshold_bps:
+                    if max_dir > bw_limit_bps:
                         is_high = True
                         if max_dir > peak_bps:
                             peak_bps = max_dir
@@ -768,8 +781,10 @@ def evaluate_interface_rules(
                 if_descr,
                 if_index,
                 peak_bps,
-                float(bw_threshold_bps),
+                bw_limit_bps,
             )
+            if bw_limit_bps != float(bw_threshold_bps):
+                bw_msg += " (%.0f %% of the %.0f bit/s link)" % (bw_utilization_pct, link_speed)
         if rule_toggles is not None and not rule_toggles.get("rule_high_bandwidth_enabled", True):
             is_high = False
             bw_msg = ""
@@ -1754,6 +1769,7 @@ def evaluate_once(
     syslog_burst_threshold=DEFAULT_SYSLOG_BURST_THRESHOLD,
     syslog_burst_window_seconds=DEFAULT_SYSLOG_BURST_WINDOW_SECONDS,
     syslog_burst_factor=DEFAULT_SYSLOG_BURST_FACTOR,
+    bw_utilization_pct=0,
 ):
     """Run all alert rules across all monitored devices at now_ts."""
     if now_ts is None:
@@ -1770,6 +1786,7 @@ def evaluate_once(
             host_cpu_pct, host_cpu_hold_seconds, host_memory_pct, host_disk_pct,
             icmp_loss_pct, icmp_latency_ms, pve_storage_pct,
             syslog_burst_threshold, syslog_burst_window_seconds, syslog_burst_factor,
+            bw_utilization_pct,
         )
         release_held_notices(repo, now_ts)
     finally:
@@ -1794,6 +1811,7 @@ def evaluate_all_devices(
     syslog_burst_threshold=DEFAULT_SYSLOG_BURST_THRESHOLD,
     syslog_burst_window_seconds=DEFAULT_SYSLOG_BURST_WINDOW_SECONDS,
     syslog_burst_factor=DEFAULT_SYSLOG_BURST_FACTOR,
+    bw_utilization_pct=0,
 ):
     """The body of one evaluation cycle (split out so evaluate_once can flush the grouped notices after it)."""
     devices = repo.list_monitored_devices()
@@ -1817,6 +1835,7 @@ def evaluate_all_devices(
             err_min_increase=err_min_increase,
             err_min_intervals=err_min_intervals,
             rule_toggles=rule_toggles,
+            bw_utilization_pct=bw_utilization_pct,
         )
         evaluate_failed_logins_rule(
             repo,
@@ -1935,6 +1954,7 @@ def evaluate_once_guarded(
     syslog_burst_threshold=DEFAULT_SYSLOG_BURST_THRESHOLD,
     syslog_burst_window_seconds=DEFAULT_SYSLOG_BURST_WINDOW_SECONDS,
     syslog_burst_factor=DEFAULT_SYSLOG_BURST_FACTOR,
+    bw_utilization_pct=0,
 ):
     """Run evaluate_once and catch any database lock or runtime error so the daemon never dies."""
     if now_ts is None:
@@ -1973,6 +1993,7 @@ def evaluate_once_guarded(
             syslog_burst_threshold=syslog_burst_threshold,
             syslog_burst_window_seconds=syslog_burst_window_seconds,
             syslog_burst_factor=syslog_burst_factor,
+            bw_utilization_pct=bw_utilization_pct,
         )
         return True
     except Exception as exc:
@@ -2147,6 +2168,7 @@ def main(argv=None):
             syslog_burst_threshold=eff["syslog_burst_threshold"],
             syslog_burst_window_seconds=eff["syslog_burst_window_seconds"],
             syslog_burst_factor=eff["syslog_burst_factor"],
+            bw_utilization_pct=eff["bw_utilization_pct"],
         )
         try:
             if ok:
