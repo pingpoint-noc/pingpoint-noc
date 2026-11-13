@@ -23,10 +23,21 @@ def _device_settings(conn):
     )
 
 
+def _guest_usage(conn):
+    """Version 3: live CPU and memory use of each Proxmox guest, next to what it is allocated."""
+    for column, ddl in (("cpu_frac", "REAL"), ("mem_used_bytes", "INTEGER")):
+        try:
+            conn.execute("ALTER TABLE proxmox_guests ADD COLUMN " + column + " " + ddl + ";")
+        except Exception as exc:  # the table exists on every database; a repeated column means it is already there
+            if "duplicate column" not in str(exc).lower():
+                raise
+
+
 # (version, description, function(conn)); versions are 1, 2, 3, ... without gaps.
 MIGRATIONS = [
     (1, "baseline schema", _baseline),
     (2, "per-device settings", _device_settings),
+    (3, "proxmox guest usage", _guest_usage),
 ]
 
 

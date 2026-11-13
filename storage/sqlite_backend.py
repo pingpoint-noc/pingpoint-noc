@@ -848,6 +848,9 @@ class SQLiteRepository(StorageRepository):
                 if len(changes) > 0:
                     values.append(device_id)
                     conn.execute("UPDATE devices SET " + ", ".join(changes) + " WHERE id = ?;", tuple(values))
+                if has_snmp is not None and not has_snmp:
+                    # no SNMP any more: forget its collector status so nothing keeps reporting it as down
+                    conn.execute("DELETE FROM collector_status WHERE device_id = ? AND collector_name = 'snmp';", (device_id,))
                 return True
         finally:
             conn.close()
@@ -3822,8 +3825,11 @@ class SQLiteRepository(StorageRepository):
         matched_device_id=None,
         onboot=0,
         updated_utc=None,
+        cpu_frac=None,
+        mem_used_bytes=None,
     ):
-        """Insert or update a Proxmox virtual guest (QEMU VM or LXC container)."""
+        """Insert or update a Proxmox virtual guest (QEMU VM or LXC container). cpu_frac is the share of its vCPUs in
+        use (0-1) and mem_used_bytes the memory in use; None when unknown or the guest is stopped."""
         ts = int(updated_utc) if updated_utc is not None else int(time.time())
         conn = self.open_write()
         try:
@@ -3833,8 +3839,8 @@ class SQLiteRepository(StorageRepository):
                     INSERT INTO proxmox_guests (
                         hypervisor_id, vmid, guest_type, name, status,
                         cpus, maxmem_bytes, maxdisk_bytes, ip_addresses,
-                        mac_addresses, matched_device_id, onboot, updated_utc
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        mac_addresses, matched_device_id, onboot, updated_utc, cpu_frac, mem_used_bytes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(hypervisor_id, vmid) DO UPDATE SET
                         guest_type = excluded.guest_type,
                         name = excluded.name,
@@ -3846,7 +3852,9 @@ class SQLiteRepository(StorageRepository):
                         mac_addresses = excluded.mac_addresses,
                         matched_device_id = excluded.matched_device_id,
                         onboot = excluded.onboot,
-                        updated_utc = excluded.updated_utc;
+                        updated_utc = excluded.updated_utc,
+                        cpu_frac = excluded.cpu_frac,
+                        mem_used_bytes = excluded.mem_used_bytes;
                     """,
                     (
                         hypervisor_id,
@@ -3862,6 +3870,8 @@ class SQLiteRepository(StorageRepository):
                         matched_device_id,
                         int(onboot),
                         ts,
+                        None if cpu_frac is None else float(cpu_frac),
+                        None if mem_used_bytes is None else int(mem_used_bytes),
                     ),
                 )
         finally:
@@ -3875,7 +3885,7 @@ class SQLiteRepository(StorageRepository):
                 """
                 SELECT hypervisor_id, vmid, guest_type, name, status,
                        cpus, maxmem_bytes, maxdisk_bytes, ip_addresses,
-                       mac_addresses, matched_device_id, onboot, updated_utc
+                       mac_addresses, matched_device_id, onboot, updated_utc, cpu_frac, mem_used_bytes
                 FROM proxmox_guests
                 WHERE hypervisor_id = ?
                 ORDER BY vmid ASC;

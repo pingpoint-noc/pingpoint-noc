@@ -35,9 +35,20 @@ for unit in "$INSTALL_DIR"/deploy/systemd/mini-noc-*; do
 done
 
 systemctl daemon-reload
-systemctl enable --now mini-noc-snmp.service mini-noc-syslog.service \
-    mini-noc-ipfix.service mini-noc-alerts.service mini-noc-api.service mini-noc-dns.service mini-noc-icmp.service mini-noc-proxmox.service mini-noc-retention.timer
+
+# Syslog: the native receiver needs nothing else installed. A site that already collects with rsyslog (files under
+# /var/log/remote, or something else holding UDP 514) keeps the file ingestor instead, so nothing is received twice.
+if [ -d /var/log/remote ] || (command -v ss > /dev/null && ss -uln 2> /dev/null | grep -qE '[:.]514\s'); then
+    SYSLOG_UNIT=mini-noc-syslog.service
+    systemctl disable --now mini-noc-syslog-udp.service 2> /dev/null || true
+    echo "Syslog: rsyslog detected, using the file ingestor (mini-noc-syslog)."
+else
+    SYSLOG_UNIT=mini-noc-syslog-udp.service
+    systemctl disable --now mini-noc-syslog.service 2> /dev/null || true
+    echo "Syslog: listening on UDP 514 with the native receiver (mini-noc-syslog-udp)."
+fi
+
+systemctl enable --now mini-noc-snmp.service "$SYSLOG_UNIT"     mini-noc-ipfix.service mini-noc-alerts.service mini-noc-api.service mini-noc-dns.service mini-noc-icmp.service mini-noc-proxmox.service mini-noc-retention.timer
 # enable --now does not restart a unit that is already running: without this, an update leaves the old code in memory.
-systemctl restart mini-noc-snmp.service mini-noc-syslog.service mini-noc-ipfix.service \
-    mini-noc-alerts.service mini-noc-api.service mini-noc-dns.service mini-noc-icmp.service mini-noc-proxmox.service
-systemctl --no-pager --lines=0 status mini-noc-snmp mini-noc-syslog mini-noc-ipfix mini-noc-alerts mini-noc-api mini-noc-dns mini-noc-icmp mini-noc-proxmox mini-noc-retention.timer || true
+systemctl restart mini-noc-snmp.service "$SYSLOG_UNIT" mini-noc-ipfix.service     mini-noc-alerts.service mini-noc-api.service mini-noc-dns.service mini-noc-icmp.service mini-noc-proxmox.service
+systemctl --no-pager --lines=0 status mini-noc-snmp "$SYSLOG_UNIT" mini-noc-ipfix mini-noc-alerts mini-noc-api mini-noc-dns mini-noc-icmp mini-noc-proxmox mini-noc-retention.timer || true

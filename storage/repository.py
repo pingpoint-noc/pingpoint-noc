@@ -478,6 +478,8 @@ class StorageRepository(ABC):
         matched_device_id=None,
         onboot=0,
         updated_utc=None,
+        cpu_frac=None,
+        mem_used_bytes=None,
     ):
         """Insert or update a Proxmox virtual guest (QEMU VM or LXC container)."""
 

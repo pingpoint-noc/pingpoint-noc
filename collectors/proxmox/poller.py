@@ -198,6 +198,8 @@ def poll_proxmox_device(repo, device, now_ts=None, client_factory=None, environ=
                 matched_device_id=matched_id,
                 onboot=0,
                 updated_utc=now_ts,
+                cpu_frac=vm["cpu"] if vm["status"] == "running" else None,
+                mem_used_bytes=vm["mem"] if vm["status"] == "running" else None,
             )
             guests_count += 1
 
@@ -242,6 +244,8 @@ def poll_proxmox_device(repo, device, now_ts=None, client_factory=None, environ=
                 matched_device_id=matched_id,
                 onboot=0,
                 updated_utc=now_ts,
+                cpu_frac=ct["cpu"] if ct["status"] == "running" else None,
+                mem_used_bytes=ct["mem"] if ct["status"] == "running" else None,
             )
             guests_count += 1
 

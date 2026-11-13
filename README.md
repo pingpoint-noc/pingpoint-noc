@@ -66,6 +66,10 @@ docker compose up --build        # web on http://localhost:8080, ntfy on http://
 docker compose down -v           # stop and delete the data
 ```
 
+**Syslog.** `deploy/install.sh` starts a native receiver on UDP 514 (`mini-noc-syslog-udp`): point any device's syslog at the NOC's address
+(for example `*.* @<noc-address>:514` in rsyslog) and it appears in the inventory by itself. If rsyslog is already collecting on that machine,
+the installer keeps the file based ingestor (`mini-noc-syslog`) instead. The port is `MININOC_SYSLOG_PORT`.
+
 Details in [`docs/docker.md`](docs/docker.md). The compose file is a demo: the real collectors need `rsyslog`, `nfcapd` and the
 host's UDP ports 514/2055, so they run under systemd.
 

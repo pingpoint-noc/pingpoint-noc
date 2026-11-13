@@ -454,6 +454,14 @@ function explainEmptyReason(reason, sourceName) {
   if (reason === "no_data") {
     return "No data recorded in this window: the " + sourceName + " daemon is healthy, but zero records matched the selected time range or filter.";
   }
+  if (reason === "not_collected") {
+    var hints = {
+      snmp: "Add an SNMP credential profile to this device (python -m tools.add_device) to see interface traffic.",
+      ipfix: "Point the router's IPFIX/NetFlow export at this NOC to see traffic flows.",
+      syslog: "Send this device's syslog to this NOC to see its events here."
+    };
+    return "This kind of data is not collected for this device. " + (hints[sourceName] || "");
+  }
   if (reason === "no_traffic") {
     return "No network traffic observed: SNMP 64-bit samples are fresh and every measured interval reported 0 bit/s.";
   }
@@ -467,8 +475,10 @@ function setFreshnessBadge(elementId, status, asOfUtc) {
   }
   el.className = "freshness-badge freshness-" + status;
   if (status === "na") {
-    // A device that has never had SNMP has no interface data to be fresh or stale: "OK" here would mean "other collectors work".
-    el.textContent = "Source: n/a · no SNMP on this device";
+    // A source this device was never set up for has nothing to be fresh or stale: "OK" would mean "other collectors work",
+    // "DOWN" would blame a collector that has no job here.
+    var what = elementId.indexOf("flows") !== -1 ? "no IPFIX" : (elementId.indexOf("logs") !== -1 ? "no syslog" : "no SNMP");
+    el.textContent = "Not collected · " + what + " for this device";
     return;
   }
   var label = "Source: " + String(status).toUpperCase();
@@ -2713,28 +2723,52 @@ function renderProxmoxOverview(data) {
       var gTr = document.createElement("tr");
       var gStatusBadge = g.status === "running" ? "badge-ok" : "badge-down";
       var gTypeBadge = g.guest_type === "qemu" ? "badge-subtle text-cyan" : "badge-subtle text-purple";
-      var matchCell = "<span class='text-dim'>Unmonitored</span>";
+      var guestName = "<strong>" + escapeHtml(g.name || "--") + "</strong>";
+      var matchCell = "<span class='text-dim'>Not monitored</span>";
       if (g.matched_device_id) {
-        matchCell = "<button type='button' class='btn btn-ghost btn-small text-cyan' style='padding: 2px 8px;' onclick='selectDevice(\"" + escapeHtml(g.matched_device_id) + "\")'><strong>" + escapeHtml(g.matched_device_id) + "</strong> &rarr;</button>";
+        // The name opens that machine (its own Overview: CPU, memory, disks...) like the explicit link next to it
+        guestName = "<button type='button' class='link-button guest-open' data-device='" + escapeHtml(g.matched_device_id) + "' title='Open " + escapeHtml(g.matched_device_id) + "'><strong>" + escapeHtml(g.name || g.matched_device_id) + "</strong></button>";
+        matchCell = "<button type='button' class='btn btn-ghost btn-small text-cyan guest-open' data-device='" + escapeHtml(g.matched_device_id) + "'>Open &rarr;</button>";
       }
+      var running = g.status === "running";
+      var cpuCell = "<span class='text-dim'>--</span>";
+      var ramCell = "<span class='text-dim'>" + escapeHtml(formatBytes(g.maxmem_bytes)) + "</span>";
+      if (running && g.cpu_frac !== null && g.cpu_frac !== undefined) {
+        cpuCell = escapeHtml((g.cpu_frac * 100).toFixed(g.cpu_frac >= 0.1 ? 0 : 1)) + " %";
+      }
+      if (running && g.mem_used_bytes !== null && g.mem_used_bytes !== undefined && g.maxmem_bytes) {
+        ramCell = escapeHtml(formatBytes(g.mem_used_bytes)) + " <span class='text-dim'>/ " + escapeHtml(formatBytes(g.maxmem_bytes)) + "</span>";
+      }
+      // Link-local IPv6 (fe80::) says nothing useful here: show the addresses people use
+      var shownIps = (g.ip_addresses || "").split(",").filter(function (a) { return a && a.toLowerCase().indexOf("fe80:") !== 0; }).join(", ");
       gTr.innerHTML =
         "<th>#" + escapeHtml(g.vmid) + "</th>" +
         "<td><span class='badge " + gTypeBadge + "'>" + escapeHtml((g.guest_type || "").toUpperCase()) + "</span></td>" +
-        "<td><strong>" + escapeHtml(g.name || "--") + "</strong></td>" +
+        "<td>" + guestName + "</td>" +
         "<td><span class='badge " + gStatusBadge + "'>" + escapeHtml(g.status) + "</span></td>" +
         "<td>" + escapeHtml(g.cpus || 1) + " vCPU</td>" +
-        "<td>" + escapeHtml(formatBytes(g.maxmem_bytes)) + "</td>" +
+        "<td>" + cpuCell + "</td>" +
+        "<td>" + ramCell + "</td>" +
         "<td>" + escapeHtml(formatBytes(g.maxdisk_bytes)) + "</td>" +
-        "<td>" + escapeHtml(g.ip_addresses || "--") + "</td>" +
+        "<td>" + escapeHtml(shownIps || "--") + "</td>" +
         "<td>" + matchCell + "</td>";
       gHolder.appendChild(gTr);
     }
     if (guests.length === 0) {
       var emptyG = document.createElement("tr");
-      emptyG.innerHTML = "<td colspan='9' class='text-dim' style='text-align:center;'>No virtual guests found</td>";
+      emptyG.innerHTML = "<td colspan='10' class='text-dim' style='text-align:center;'>No virtual guests found</td>";
       gHolder.appendChild(emptyG);
     }
     commitRows(gTbody, gHolder);
+    if (!gTbody.guestClicksWired) {
+      gTbody.guestClicksWired = true;
+      gTbody.addEventListener("click", function (ev) {
+        var opener = ev.target.closest ? ev.target.closest(".guest-open") : null;
+        if (opener) {
+          selectDevice(opener.getAttribute("data-device"));
+        }
+      });
+    }
   }
 }
 

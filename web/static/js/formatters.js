@@ -300,6 +300,14 @@ function explainEmptyReason(reason, sourceName) {
   if (reason === "no_data") {
     return "No data recorded in this window: the " + sourceName + " daemon is healthy, but zero records matched the selected time range or filter.";
   }
+  if (reason === "not_collected") {
+    var hints = {
+      snmp: "Add an SNMP credential profile to this device (python -m tools.add_device) to see interface traffic.",
+      ipfix: "Point the router's IPFIX/NetFlow export at this NOC to see traffic flows.",
+      syslog: "Send this device's syslog to this NOC to see its events here."
+    };
+    return "This kind of data is not collected for this device. " + (hints[sourceName] || "");
+  }
   if (reason === "no_traffic") {
     return "No network traffic observed: SNMP 64-bit samples are fresh and every measured interval reported 0 bit/s.";
   }
@@ -313,8 +321,10 @@ function setFreshnessBadge(elementId, status, asOfUtc) {
   }
   el.className = "freshness-badge freshness-" + status;
   if (status === "na") {
-    // A device that has never had SNMP has no interface data to be fresh or stale: "OK" here would mean "other collectors work".
-    el.textContent = "Source: n/a · no SNMP on this device";
+    // A source this device was never set up for has nothing to be fresh or stale: "OK" would mean "other collectors work",
+    // "DOWN" would blame a collector that has no job here.
+    var what = elementId.indexOf("flows") !== -1 ? "no IPFIX" : (elementId.indexOf("logs") !== -1 ? "no syslog" : "no SNMP");
+    el.textContent = "Not collected · " + what + " for this device";
     return;
   }
   var label = "Source: " + String(status).toUpperCase();

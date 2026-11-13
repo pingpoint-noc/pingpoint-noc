@@ -110,6 +110,25 @@ class DeviceSettingsTest(unittest.TestCase):
         self.assertEqual(self.firing("interface_down", "far-host"), [])
         self.assertEqual(len(self.firing("interface_down", DEVICE)), 1)
 
+    # ---- sources a device does not have ---------------------------------------------------------------------
+    def test_a_device_without_snmp_does_not_make_platform_health_down(self):
+        from api import services
+        self.repo.ensure_device("mini-noc-host", "Host", "127.0.0.1", device_type="platform")
+        self.repo.record_collector_success("alerts", "mini-noc-host", NOW)
+        self.repo.record_collector_error("snmp", "far-host", NOW, "no answer")
+        self.assertEqual(services.get_health(self.repo, NOW)["status"], "ok")  # far-host has no SNMP (has_snmp=0)
+
+    def test_turning_snmp_off_forgets_its_collector_status(self):
+        self.repo.record_collector_error("snmp", DEVICE, NOW, "no answer")
+        self.repo.set_device_credentials(DEVICE, has_snmp=False)
+        self.assertEqual([r for r in self.repo.get_collector_statuses(DEVICE) if r["collector_name"] == "snmp"], [])
+
+    def test_a_source_the_device_never_had_is_not_collected_rather_than_down(self):
+        from api import services
+        status, last = services.collector_status_for(self.repo, "far-host", "syslog", NOW)
+        self.assertEqual((status, last), ("na", None))
+        self.assertEqual(services.no_data_reason("na"), "not_collected")
+
 
 if __name__ == "__main__":
     unittest.main()

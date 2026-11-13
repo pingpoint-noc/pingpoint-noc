@@ -4397,3 +4397,8 @@ body.gated { overflow: hidden; }
 }
 .hypervisor-link:hover { border-color: currentColor; text-decoration: underline; }
 .hypervisor-link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+/* A button that reads as text inside a table (the guest name opens that machine) */
+.link-button { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: var(--text-bright); cursor: pointer; text-align: left; }
+.link-button:hover { color: var(--color-cyan); text-decoration: underline; }
+.link-button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: 3px; }

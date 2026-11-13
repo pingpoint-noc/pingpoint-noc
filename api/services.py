@@ -221,9 +221,11 @@ def collector_views(repo, device_id, now_ts):
 def collector_status_for(repo, device_id, collector_name, now_ts):
     """Return ('ok'|'stale'|'down', last_success_utc) for one collector of a device."""
     last_success = None
+    has_row = False
     for row in repo.get_collector_statuses(device_id):
         if row["collector_name"] == collector_name:
             last_success = row["last_success_utc"]
+            has_row = True
 
     if last_success is None and collector_name == "ipfix":
         device = repo.get_device_status(device_id)
@@ -240,8 +242,23 @@ def collector_status_for(repo, device_id, collector_name, now_ts):
                         if row["collector_name"] == "ipfix":
                             last_success = row["last_success_utc"]
 
+    if last_success is None and collector_name in ("snmp", "syslog", "ipfix") and not has_row:
+        # A source the device was never set up for is "not collected" ("na"), not "down": a router that only answers
+        # ping has no SNMP, syslog or IPFIX to be late.
+        device = repo.get_device_status(device_id)
+        if device is not None and not int(device.get("has_" + collector_name, 0) or 0):
+            return "na", None
+
     age = age_of(last_success, now_ts)
     return source_status(collector_name, age), last_success
+
+
+def no_data_reason(status):
+    """Why a panel is empty, from the source status: not collected for this device, no data in the window, or the
+    collector is down or stale."""
+    if status == "na":
+        return "not_collected"
+    return "no_data" if status == "ok" else "collector_down"
 
 
 def device_summary(device, collectors, now_ts):
@@ -692,10 +709,7 @@ def get_aggregated_bandwidth_view(repo, device_id, range_key, now_ts, compare=No
 
     empty_reason = None
     if total_samples < 2:
-        if status == "ok":
-            empty_reason = "no_data"
-        else:
-            empty_reason = "collector_down"
+        empty_reason = no_data_reason(status)
     else:
         if any_valid and not any_traffic:
             empty_reason = "no_traffic"
@@ -792,7 +806,7 @@ def get_bandwidth_view(repo, device_id, if_index, range_key, now_ts, compare=Non
             else:
                 empty_reason = "no_data"
         else:
-            empty_reason = "collector_down"
+            empty_reason = "not_collected" if status == "na" else "collector_down"
     else:
         valid = []
         for item in intervals:
@@ -875,10 +889,7 @@ def get_logs_view(repo, device_id, now_ts, severity=None, query_text=None, limit
 
     empty_reason = None
     if len(events) == 0:
-        if status == "ok":
-            empty_reason = "no_data"
-        else:
-            empty_reason = "collector_down"
+        empty_reason = no_data_reason(status)
 
     log_sparkline = repo.get_syslog_sparkline(device_id, now_ts - 3600, now_ts, buckets=14)
 
@@ -910,10 +921,7 @@ def get_top_flows_view(repo, device_id, range_key, now_ts, limit=10):
 
     empty_reason = None
     if talkers["total_flows"] == 0:
-        if status == "ok":
-            empty_reason = "no_data"
-        else:
-            empty_reason = "collector_down"
+        empty_reason = no_data_reason(status)
 
     flow_sparkline = repo.get_flow_sparkline(device_id, window_start, now_ts, buckets=14)
 
@@ -952,10 +960,7 @@ def get_host_flows_view(repo, device_id, host_ip, range_key, now_ts, limit=100):
 
     empty_reason = None
     if host_data["total_flows"] == 0:
-        if status == "ok":
-            empty_reason = "no_data"
-        else:
-            empty_reason = "collector_down"
+        empty_reason = no_data_reason(status)
 
     flow_sparkline = repo.get_flow_sparkline(device_id, window_start, now_ts, buckets=14)
 
@@ -1131,7 +1136,10 @@ def get_health(repo, now_ts):
     any_down = False
     any_stale = False
 
+    snmp_off = {d["id"] for d in repo.list_monitored_devices() if not d.get("has_snmp")}
     for row in raw_collectors:
+        if row["collector_name"] == "snmp" and row["device_id"] in snmp_off:
+            continue  # SNMP switched off for this device: its old status row says nothing about platform health
         age = age_of(row["last_success_utc"], now_ts)
         st = source_status(row["collector_name"], age)
         if st == "down":
@@ -1378,10 +1386,7 @@ def get_host_traffic_view(repo, device_id, range_key, now_ts, buckets=60):
 
     empty_reason = None
     if talkers["total_flows"] == 0:
-        if status == "ok":
-            empty_reason = "no_data"
-        else:
-            empty_reason = "collector_down"
+        empty_reason = no_data_reason(status)
 
     return {
         "device_id": device_id,
