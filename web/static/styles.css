@@ -405,7 +405,9 @@ body.noc-body {
 
 .control-group {
   display: flex;
-  align-items: center;
+  /* A label and its control share the text baseline (not the box centre): capitals next to lowercase only look level
+     that way, whatever the font. */
+  align-items: baseline;
   gap: 0.4rem;
 }
 
@@ -2401,8 +2403,8 @@ tr.if-row.selected-row { background-color: var(--bg-active); }
 .avail-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.3rem 0.75rem;
+  gap: 0.6rem;
+  padding: 0.5rem 1rem;
   background: var(--bg-card);
   color: var(--text-main);
   border: 1px solid var(--border-default);
@@ -3540,6 +3542,10 @@ select option { background: var(--bg-surface); color: var(--text-main); }
 
 .topo-zoom-controls {
   margin-left: auto;
+  /* Eight buttons (zoom, fit, reset, undo, redo): on a phone they wrap instead of widening the page. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
 }
 
 .topo-zoom-btn {
@@ -4340,3 +4346,16 @@ body.gated { overflow: hidden; }
 .access-intro { margin: 0; color: var(--text-muted); font-size: var(--fs-md); }
 .gate-msg { margin: 0; min-height: 1.2em; color: var(--text-muted); font-size: var(--fs-sm); }
 .gate-msg.error { color: var(--color-danger); }
+
+/* Text next to text of another size (a capitals label beside a value, a title beside its note) shares the text
+   baseline instead of the box centre: it only looks level that way, whatever the font. Rows that mix text with
+   buttons or icons keep centring. */
+.overview-section-header,
+.topology-toolbar-group,
+.severity-bar,
+.mini-list-item,
+.chart-legend-strip,
+.chart-stats-ribbon,
+.dest-head { align-items: baseline; }
+/* A row of buttons (zoom, fit, undo...) has no text to line up: centre it. */
+.topo-zoom-controls { align-items: center; }

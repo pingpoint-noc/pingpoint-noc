@@ -9707,6 +9707,7 @@ function applyHints() {
 
 var contextMenuEl = null;
 var contextMenuReturnFocus = null;
+var contextMenuOpenedAt = 0;
 
 function closeContextMenu() {
   if (contextMenuEl && contextMenuEl.parentNode) {
@@ -9822,6 +9823,7 @@ function openContextMenu(x, y, items, returnFocus) {
   menu.style.left = Math.max(4, Math.min(x, window.innerWidth - rect.width - 4)) + "px";
   menu.style.top = Math.max(4, Math.min(y, window.innerHeight - rect.height - 4)) + "px";
   contextMenuEl = menu;
+  contextMenuOpenedAt = Date.now();
   menu.querySelector(".context-menu-item").focus();
 }
 
@@ -9876,7 +9878,8 @@ function initContextMenu() {
     }
   });
   window.addEventListener("scroll", function () {
-    if (contextMenuEl) {
+    // The scroll that brings the clicked thing into view can land right after the menu opens: it must not close it.
+    if (contextMenuEl && Date.now() - contextMenuOpenedAt > 300) {
       closeContextMenu();
     }
   }, true);

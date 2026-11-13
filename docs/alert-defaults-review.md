@@ -51,3 +51,12 @@ their blocks all day, so address-level novelty fired on every rotation.
   be right for both a LAN switch and an overseas host.
 - **Neutral `scenario.py` defaults.** Over 100 files and the tests assume the original lab's addresses; changing them
   needs a first-run wizard (or a preflight that refuses to start without a router address) and a release note.
+
+## Added after the first real deployment (2026-11-13)
+
+- Plumbing interfaces (loopback, Docker/Kubernetes bridges, veth, libvirt and Proxmox firewall bridges, tap devices) are not watched:
+  `DEFAULT_IGNORED_INTERFACES` in `alerts/engine.py` (same idea as LibreNMS's `bad_if_regexp`). First day without it: 24 false alerts.
+- Discards-only interfaces need 100x the errors threshold (`DISCARD_THRESHOLD_FACTOR`): every host of a quiet LAN shows about 20 discards a
+  minute (multicast and IPv6 noise it ignores). Errors keep their own threshold.
+- SNMP memory excludes the page cache and buffers (net-snmp lists them as separate rows).
+- Both constants above should become settings (per device); see ROADMAP, "Siguiente".

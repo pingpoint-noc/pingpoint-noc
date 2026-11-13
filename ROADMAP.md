@@ -1,6 +1,6 @@
 # ROADMAP
 
-Trabajo hecho, pendiente, opcional y descartado de PingPoint NOC. Revisado el 12-11-2026. `Hecho` significa implementado y con tests; **no** significa
+Trabajo hecho, pendiente, opcional y descartado de PingPoint NOC. Revisado el 13-11-2026. `Hecho` significa implementado y con tests; **no** significa
 verificado en un despliegue real. Los identificadores `K<n>` remiten a cambios y decisiones de diseño numerados; los documentos de `docs/` los citan.
 
 ## Hecho
@@ -44,6 +44,47 @@ verificado en un despliegue real. Los identificadores `K<n>` remiten a cambios y
 - [x] **Postfix y rsyslog:** decidido no reparar el socket adicional de Postfix (deshabilitado tras un `double free`): el filtrado de emisores sigue en el socket principal.
 - [x] **Reinicio de «SNMP (servicio)»:** se comprobó en una réplica, porque el entorno de referencia no permite reiniciar el contenedor.
 - [x] **Umbrales con valores reales:** resuelto con `python -m tools.suggest_thresholds` (K130), que los propone desde los datos de cada escenario.
+
+## Siguiente (descubierto el 13-11-2026, primer despliegue real)
+
+PingPoint NOC sustituyó a LibreNMS en un contenedor LXC de casa (systemd, 7 equipos por SNMP v3, avisos a ntfy). Lo que sigue sale de ese
+despliegue y de su revisión; el orden recomendado va primero. Los valores por defecto revisados están en
+[`docs/alert-defaults-review.md`](docs/alert-defaults-review.md) y las fases del plan general (paquete, Docker, migraciones, nombres, docs en
+inglés) en `_notas/PINGPOINT-NOC-PROMPT-SIGUIENTE-CHAT.md` del autor.
+
+*Texto en inglés a propósito: es lo nuevo; el resto se traducirá en la fase 8.*
+
+1. **Schema migrations** (`PRAGMA user_version`, numbered steps). Needed before any new table reaches users; blocks 2 and 3.
+2. **Per-device settings** (new table, API, UI): ICMP latency threshold per device (a LAN switch and an overseas host cannot share one number),
+   interface-ignore pattern (today the constant `DEFAULT_IGNORED_INTERFACES`), new-destination cooldown (constant `NEW_DEST_COOLDOWN_SECONDS`),
+   a role per device (workstation vs server, which would remove the rest of the `flow_new_destination` noise).
+3. **First-run setup wizard in the web** (the login screen and first-admin creation already exist): detect the local networks instead of the lab's
+   addresses, active discovery with a review step, device profiles ("LAN switch", "internet link", "server"), 24-72 h learning followed by
+   "Recommended: ..." suggestions the user accepts (reuse `tools/suggest_thresholds.py`), notification setup with a test message. Three levels:
+   Recommended, Custom, Advanced; nothing should need code.
+4. **Device administration from the web**: rename, change IP, role/type, SNMP profile, dependencies, remove (the inventory editor in Settings
+   only covers roles today; `PUT/DELETE /api/devices/{id}` exist), and **user management** (add users, roles, revoke sessions on the server).
+5. **Neutral defaults in `scenario.py`** (router IP, internal networks, NOC address, time zone are the original lab's): empty by default and
+   asked for at first run. Behaviour change: release note. Over 100 files and tests assume the lab values.
+6. **Native syslog and IPFIX receivers** (the home deployment runs without `rsyslog`/`nfcapd`, so those services are disabled), compose with one
+   service per collector, container healthcheck on `/healthz`, seed that does not repeat.
+7. **Security**: TLS example (Caddy), per-IP limits on enrolment/bootstrap/telemetry, CSP and HSTS, server-side logout (token version per user),
+   persistent login limiter, `MININOC_AUTH_READ` on by default in code (it is on in the systemd unit and off in the code default only for
+   compatibility), global JSON error handler with `sqlite3.OperationalError` as 503.
+8. **Alert tuning left open**: `interface_down` only for interfaces that were once up; ASN or organisation grouping for new destinations (needs
+   external data); a "days until full" disk rule; the SNMP/ICMP checks of a device behind a failed parent.
+9. **Tests and CI**: the browser job in GitHub Actions has never run (Playwright is installed locally only); `test_the_search_placeholder_is_not_cut`
+   already failed before this work (font-dependent); several browser tests (capacity, time zone, digest, overview layout) fail now and then
+   under heavy parallel load and pass alone; run the browser suite with fewer workers or mark it.
+10. **Interface follow-ups**: check Firefox and Safari (`text-box-trim` falls back to line-box centring), a real screen reader, hover descriptions
+    for dynamic elements, the right-click menu for more targets (settings rows, history rows), undo for other editors, the optional
+    "all healthy" banner as a three-way choice (full, compact, hidden).
+11. **Operations of the home deployment**: it was installed from `git archive` (no git inside the container), so it needs an update script
+    (`git pull` on a deploy key, or a pushed tarball); copy the daily database backup out of the container; confirm whether the deployment's public
+    hostname is reachable from the internet (it asks for a sign-in now); move the install token, SNMP v3 keys and ntfy token to the password manager.
+12. **Plan phases still open** (see the prompt file): packaging (`pyproject.toml`, single version, lockfile, Renovate, screenshots, badges, issue
+    templates, CHANGELOG, image on ghcr, which needs the owner's OK), the `PINGPOINT_*` naming layer with `MININOC_*` fallback, splitting
+    `app.py`, `services.py` and `sqlite_backend.py`, and the English docs with a K-number correspondence table.
 
 ## Opcional
 
