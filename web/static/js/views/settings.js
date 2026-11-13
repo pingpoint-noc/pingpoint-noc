@@ -635,9 +635,10 @@ function fillTuningDevices(nodes) {
   for (n = 0; n < nodes.length; n += 1) {
     html += "<option value='" + escapeHtml(nodes[n].id) + "'>" + escapeHtml(nodes[n].name || nodes[n].id) + "</option>";
   }
-  if (select.innerHTML === html) {
-    return;
+  if (select.getAttribute("data-signature") === html) {
+    return;  // the inventory refreshes by itself: keep what the operator is typing
   }
+  select.setAttribute("data-signature", html);
   select.innerHTML = html;
   if (previous) {
     select.value = previous;
@@ -653,7 +654,7 @@ function setTuningMessage(text, isError) {
   }
 }
 
-async function loadDeviceTuning() {
+async function loadDeviceTuning(keepMessage) {
   var select = document.getElementById("tune-device");
   var latency = document.getElementById("tune-icmp-latency");
   var ignored = document.getElementById("tune-ignored-ifaces");
@@ -670,7 +671,9 @@ async function loadDeviceTuning() {
     ignored.value = view.overrides.ignored_interfaces || "";
     var globalMs = view.global && view.global.icmp_latency_ms;
     latency.placeholder = globalMs ? "global: " + globalMs : "global";
-    setTuningMessage("", false);
+    if (keepMessage !== true) {
+      setTuningMessage("", false);
+    }
   } catch (err) {
     setTuningMessage("Could not load the tuning of " + wanted + ": " + err.message, true);
   }
@@ -688,7 +691,7 @@ async function saveDeviceTuning() {
     await sendSettingsRequest("PUT", "/api/devices/" + encodeURIComponent(select.value) + "/settings", payload);
     showToast("Tuning saved for " + select.value);
     setTuningMessage("Saved. The alert engine uses it from its next cycle (within 30 s).", false);
-    await loadDeviceTuning();
+    await loadDeviceTuning(true);
   } catch (err) {
     setTuningMessage("Tuning not saved: " + err.message, true);
     showToast("Tuning not saved: " + err.message, "error");
@@ -1621,7 +1624,9 @@ function initSettings() {
   }
   var tuneSelect = document.getElementById("tune-device");
   if (tuneSelect) {
-    tuneSelect.addEventListener("change", loadDeviceTuning);
+    tuneSelect.addEventListener("change", function () {
+      loadDeviceTuning();
+    });
   }
   var tuneSave = document.getElementById("btn-tune-save");
   if (tuneSave) {

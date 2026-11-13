@@ -2320,12 +2320,14 @@ def get_device_settings_view(repo, device_id):
     """The per-device overrides next to the values they replace, so the UI can show "default" or "custom"."""
     if repo.get_device_status(device_id) is None:
         return None
+    from alerts.engine import DEFAULT_ICMP_LATENCY_MS  # local: the engine imports this module
+
     stored = repo.get_device_settings(device_id)
     globals_ = repo.get_settings()
     return {
         "device_id": device_id,
         "overrides": {key: stored[key] for key in DEVICE_SETTING_KEYS if key in stored},
-        "global": {"icmp_latency_ms": globals_.get("alert_icmp_latency_ms")},
+        "global": {"icmp_latency_ms": globals_.get("alert_icmp_latency_ms", DEFAULT_ICMP_LATENCY_MS)},
     }
 
 

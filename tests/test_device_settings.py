@@ -40,6 +40,7 @@ class DeviceSettingsTest(unittest.TestCase):
     def test_a_device_without_overrides_reports_none(self):
         body = self.client.get("/api/devices/far-host/settings").json()
         self.assertEqual(body["overrides"], {})
+        self.assertEqual(body["global"]["icmp_latency_ms"], 150)
 
     def test_saving_reading_and_clearing_an_override(self):
         response = self.put({"icmp_latency_ms": 400})
