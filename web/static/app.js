@@ -8148,6 +8148,7 @@ async function loadSettingsInventory() {
   }
   try {
     var data = await fetchJson("/api/nodes");
+    fillTuningDevices(data.nodes);
     var holder = beginRows(tbody);
     var editable = canEditSettings();
     var i = 0;
@@ -8237,6 +8238,78 @@ async function loadSettingsInventory() {
     }
   } catch (err) {
     console.error("Failed to load settings inventory:", err);
+  }
+}
+
+// Per-device alert tuning: a device picker plus the overrides that device has (empty field = the global value).
+function fillTuningDevices(nodes) {
+  var select = document.getElementById("tune-device");
+  if (!select) {
+    return;
+  }
+  var previous = select.value;
+  var html = "";
+  var n = 0;
+  for (n = 0; n < nodes.length; n += 1) {
+    html += "<option value='" + escapeHtml(nodes[n].id) + "'>" + escapeHtml(nodes[n].name || nodes[n].id) + "</option>";
+  }
+  if (select.innerHTML === html) {
+    return;
+  }
+  select.innerHTML = html;
+  if (previous) {
+    select.value = previous;
+  }
+  loadDeviceTuning();
+}
+
+function setTuningMessage(text, isError) {
+  var msg = document.getElementById("tune-msg");
+  if (msg) {
+    msg.textContent = text;
+    msg.className = isError ? "settings-msg error" : "settings-msg";
+  }
+}
+
+async function loadDeviceTuning() {
+  var select = document.getElementById("tune-device");
+  var latency = document.getElementById("tune-icmp-latency");
+  var ignored = document.getElementById("tune-ignored-ifaces");
+  if (!select || !latency || !ignored || !select.value) {
+    return;
+  }
+  var wanted = select.value;
+  try {
+    var view = await fetchJson("/api/devices/" + encodeURIComponent(wanted) + "/settings");
+    if (select.value !== wanted) {
+      return;
+    }
+    latency.value = view.overrides.icmp_latency_ms || "";
+    ignored.value = view.overrides.ignored_interfaces || "";
+    var globalMs = view.global && view.global.icmp_latency_ms;
+    latency.placeholder = globalMs ? "global: " + globalMs : "global";
+    setTuningMessage("", false);
+  } catch (err) {
+    setTuningMessage("Could not load the tuning of " + wanted + ": " + err.message, true);
+  }
+}
+
+async function saveDeviceTuning() {
+  var select = document.getElementById("tune-device");
+  var latency = document.getElementById("tune-icmp-latency");
+  var ignored = document.getElementById("tune-ignored-ifaces");
+  if (!select || !select.value) {
+    return;
+  }
+  var payload = { icmp_latency_ms: latency.value.trim(), ignored_interfaces: ignored.value.trim() };
+  try {
+    await sendSettingsRequest("PUT", "/api/devices/" + encodeURIComponent(select.value) + "/settings", payload);
+    showToast("Tuning saved for " + select.value);
+    setTuningMessage("Saved. The alert engine uses it from its next cycle (within 30 s).", false);
+    await loadDeviceTuning();
+  } catch (err) {
+    setTuningMessage("Tuning not saved: " + err.message, true);
+    showToast("Tuning not saved: " + err.message, "error");
   }
 }
 
@@ -9163,6 +9236,14 @@ function initSettings() {
   var addNodeBtn = document.getElementById("btn-settings-add-node");
   if (addNodeBtn) {
     addNodeBtn.addEventListener("click", addNodeFromSettings);
+  }
+  var tuneSelect = document.getElementById("tune-device");
+  if (tuneSelect) {
+    tuneSelect.addEventListener("change", loadDeviceTuning);
+  }
+  var tuneSave = document.getElementById("btn-tune-save");
+  if (tuneSave) {
+    tuneSave.addEventListener("click", saveDeviceTuning);
   }
 
   var form = document.getElementById("settings-form");

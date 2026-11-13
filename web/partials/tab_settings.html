@@ -189,6 +189,27 @@
             </div>
             <p id="settings-inventory-msg" class="settings-msg" role="status" aria-live="polite"></p>
           </div>
+
+          <div class="settings-add-node-bar" id="device-tuning-bar">
+            <h4 class="settings-subheading">Alert Tuning per Device</h4>
+            <p class="dest-blurb">A device can have its own limits instead of the global ones: a LAN switch and a host overseas should not share one latency number. Leave a field empty to use the global value.</p>
+            <div class="auth-form">
+              <div class="settings-field">
+                <label for="tune-device">Device</label>
+                <select id="tune-device" class="form-select"></select>
+              </div>
+              <div class="settings-field">
+                <label for="tune-icmp-latency">ICMP latency limit (ms)</label>
+                <input id="tune-icmp-latency" class="form-input" type="number" min="10" max="10000" step="any" inputmode="decimal" placeholder="global">
+              </div>
+              <div class="settings-field">
+                <label for="tune-ignored-ifaces">Also ignore interfaces matching</label>
+                <input id="tune-ignored-ifaces" class="form-input" type="text" maxlength="200" spellcheck="false" placeholder="regular expression, e.g. ^wg-">
+              </div>
+              <button type="button" id="btn-tune-save" class="btn btn-secondary">Save Tuning</button>
+            </div>
+            <p id="tune-msg" class="settings-msg" role="status" aria-live="polite"></p>
+          </div>
         </section>
 
         <!-- MAINTENANCE WINDOWS (K64) -->

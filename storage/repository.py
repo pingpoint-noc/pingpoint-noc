@@ -20,6 +20,14 @@ class StorageRepository(ABC):
         """Return the operator settings as a {key: text} dict (empty when none were saved)."""
 
     @abstractmethod
+    def get_device_settings(self, device_id=None):
+        """Per-device overrides: {key: text} for one device, or {device_id: {key: text}} for all when device_id is None."""
+
+    @abstractmethod
+    def set_device_settings(self, device_id, values, ts_utc):
+        """Upsert overrides of one device; a value of None removes that key."""
+
+    @abstractmethod
     def delete_settings(self, keys):
         """Remove the given settings keys (unknown keys are ignored)."""
 

@@ -764,6 +764,30 @@ def create_app(db_path, clock=utc_now):
         updated.pop("snmp_cred", None)
         return updated
 
+    @app.get("/api/devices/{device_id}/settings")
+    def device_settings(device_id: str):
+        view = services.get_device_settings_view(repo, device_id)
+        if view is None:
+            raise HTTPException(status_code=404, detail="unknown device")
+        return view
+
+    @app.put("/api/devices/{device_id}/settings")
+    def update_device_settings(
+        device_id: str,
+        payload: dict = Body(default={}),
+        x_admin_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ):
+        actor = authorize_admin(x_admin_token, authorization)
+        try:
+            view = services.update_device_settings(repo, device_id, payload, clock())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if view is None:
+            raise HTTPException(status_code=404, detail="unknown device")
+        record_audit(actor, "device.settings", [device_id] + sorted(payload))
+        return view
+
     @app.delete("/api/devices/{device_id}")
     def delete_device(
         device_id: str,

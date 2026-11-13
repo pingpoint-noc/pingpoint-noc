@@ -503,6 +503,45 @@ class SQLiteRepository(StorageRepository):
         finally:
             conn.close()
 
+    def get_device_settings(self, device_id=None):
+        """Per-device overrides: {key: text} for one device, or {device_id: {key: text}} for all when device_id is None."""
+        conn = self.open_read()
+        try:
+            try:
+                if device_id is None:
+                    rows = conn.execute("SELECT device_id, key, value FROM device_settings;").fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT device_id, key, value FROM device_settings WHERE device_id = ?;", (device_id,)
+                    ).fetchall()
+            except sqlite3.OperationalError:
+                rows = []
+            if device_id is not None:
+                return {row["key"]: row["value"] for row in rows}
+            result = {}
+            for row in rows:
+                result.setdefault(row["device_id"], {})[row["key"]] = row["value"]
+            return result
+        finally:
+            conn.close()
+
+    def set_device_settings(self, device_id, values, ts_utc):
+        """Upsert overrides of one device; a value of None removes that key."""
+        conn = self.open_write()
+        try:
+            with write_transaction(conn):
+                for key, value in values.items():
+                    if value is None:
+                        conn.execute("DELETE FROM device_settings WHERE device_id = ? AND key = ?;", (device_id, key))
+                        continue
+                    conn.execute(
+                        "INSERT INTO device_settings (device_id, key, value, updated_utc) VALUES (?, ?, ?, ?) "
+                        "ON CONFLICT(device_id, key) DO UPDATE SET value = excluded.value, updated_utc = excluded.updated_utc;",
+                        (device_id, key, str(value), int(ts_utc)),
+                    )
+        finally:
+            conn.close()
+
     def delete_settings(self, keys):
         """Delete settings keys; a database created before the table existed has nothing to delete."""
         conn = self.open_write()
@@ -2051,6 +2090,10 @@ class SQLiteRepository(StorageRepository):
                     pass
                 conn.execute("UPDATE devices SET depends_on = NULL WHERE depends_on = ?;", (device_id,))
                 conn.execute("DELETE FROM device_aliases WHERE device_id = ?;", (device_id,))
+                try:
+                    conn.execute("DELETE FROM device_settings WHERE device_id = ?;", (device_id,))
+                except sqlite3.OperationalError:
+                    pass
                 conn.execute("DELETE FROM devices WHERE id = ?;", (device_id,))
                 return True
         finally:

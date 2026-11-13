@@ -56,9 +56,9 @@ inglés) en `_notas/PINGPOINT-NOC-PROMPT-SIGUIENTE-CHAT.md` del autor.
 
 1. ~~**Schema migrations**~~ done: `storage/migrations.py` (`PRAGMA user_version`, numbered steps, one transaction each, safe when services start together,
    refuses a database from a newer release). Version 1 is the current schema; add new steps there. Checked on a copy of the home server's database.
-2. **Per-device settings** (new table, API, UI): ICMP latency threshold per device (a LAN switch and an overseas host cannot share one number),
-   interface-ignore pattern (today the constant `DEFAULT_IGNORED_INTERFACES`), new-destination cooldown (constant `NEW_DEST_COOLDOWN_SECONDS`),
-   a role per device (workstation vs server, which would remove the rest of the `flow_new_destination` noise).
+2. **Per-device settings**: started. Table `device_settings` (migration 2), `GET/PUT /api/devices/{id}/settings` and a card in Settings > Monitored
+   Targets cover the ICMP latency limit and an extra interface-ignore pattern per device (the engine reads them each cycle). Still to do: new-destination
+   cooldown (constant `NEW_DEST_COOLDOWN_SECONDS`) and a role per device (workstation vs server, which would remove the rest of the `flow_new_destination` noise).
 3. **First-run setup wizard in the web** (the login screen and first-admin creation already exist): detect the local networks instead of the lab's
    addresses, active discovery with a review step, device profiles ("LAN switch", "internet link", "server"), 24-72 h learning followed by
    "Recommended: ..." suggestions the user accepts (reuse `tools/suggest_thresholds.py`), notification setup with a test message. Three levels:

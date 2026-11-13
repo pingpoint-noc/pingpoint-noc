@@ -8,6 +8,9 @@ from storage.migrations import MIGRATIONS, SchemaTooNewError, latest_version, ru
 from storage.sqlite_backend import SQLiteRepository
 
 
+BASE = latest_version()
+
+
 def make_repo(tmp):
     repo = SQLiteRepository(Path(tmp) / "t.db")
     repo.init_storage()
@@ -63,19 +66,19 @@ class SchemaMigrationsTest(unittest.TestCase):
             conn.execute("CREATE TABLE t3 (x INTEGER);")
             raise RuntimeError("boom")
 
-        steps = list(MIGRATIONS) + [(2, "two", two), (3, "three", three)]
+        steps = list(MIGRATIONS) + [(BASE + 1, "two", two), (BASE + 2, "three", three)]
         conn = repo.open_write()
         try:
             with self.assertRaises(RuntimeError):
                 run_migrations(conn, steps)
             self.assertEqual(seen, [2, 3])
-            self.assertEqual(schema_version(conn), 2)  # step 2 stayed, step 3 rolled back with its table
+            self.assertEqual(schema_version(conn), BASE + 1)  # step 2 stayed, step 3 rolled back with its table
             tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table';")}
             self.assertIn("t2", tables)
             self.assertNotIn("t3", tables)
-            steps[2] = (3, "three", lambda c: seen.append("3b"))
-            self.assertEqual(run_migrations(conn, steps), 3)
-            self.assertEqual(run_migrations(conn, steps), 3)
+            steps[-1] = (BASE + 2, "three", lambda c: seen.append("3b"))
+            self.assertEqual(run_migrations(conn, steps), BASE + 2)
+            self.assertEqual(run_migrations(conn, steps), BASE + 2)
             self.assertEqual(seen, [2, 3, "3b"])
         finally:
             conn.close()
@@ -107,7 +110,7 @@ class SchemaMigrationsTest(unittest.TestCase):
             calls.append(1)
             conn.execute("CREATE TABLE t2 (x INTEGER);")
 
-        steps = list(MIGRATIONS) + [(2, "two", two)]
+        steps = list(MIGRATIONS) + [(BASE + 1, "two", two)]
         errors = []
 
         def worker():

@@ -11,6 +11,7 @@ import hmac
 import io
 import ipaddress
 import json
+import re
 import time
 
 from api import capacity
@@ -2310,6 +2311,57 @@ def validate_dependency(repo, device_id, parent_id):
     if depth > MAX_DEPENDENCY_DEPTH:
         raise ValueError("the chain of dependencies is too long")
     return parent_id
+
+
+DEVICE_SETTING_KEYS = ("icmp_latency_ms", "ignored_interfaces")
+
+
+def get_device_settings_view(repo, device_id):
+    """The per-device overrides next to the values they replace, so the UI can show "default" or "custom"."""
+    if repo.get_device_status(device_id) is None:
+        return None
+    stored = repo.get_device_settings(device_id)
+    globals_ = repo.get_settings()
+    return {
+        "device_id": device_id,
+        "overrides": {key: stored[key] for key in DEVICE_SETTING_KEYS if key in stored},
+        "global": {"icmp_latency_ms": globals_.get("alert_icmp_latency_ms")},
+    }
+
+
+def update_device_settings(repo, device_id, payload, now_ts):
+    """Validate and save overrides. A key set to null or "" goes back to the global value; unknown keys are refused.
+    Returns the new view, or None for an unknown device."""
+    if repo.get_device_status(device_id) is None:
+        return None
+    if not isinstance(payload, dict):
+        raise ValueError("settings must be a JSON object")
+    unknown = sorted(set(payload) - set(DEVICE_SETTING_KEYS))
+    if unknown:
+        raise ValueError("unknown device setting: " + ", ".join(str(k) for k in unknown))
+    values = {}
+    for key, raw in payload.items():
+        if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+            values[key] = None
+        elif key == "icmp_latency_ms":
+            try:
+                number = float(raw)
+            except (TypeError, ValueError):
+                raise ValueError("icmp_latency_ms must be a number of milliseconds")
+            if isinstance(raw, bool) or not 10 <= number <= 10_000:
+                raise ValueError("icmp_latency_ms must be between 10 and 10000")
+            values[key] = ("%g" % number)
+        else:
+            pattern = str(raw).strip()
+            if len(pattern) > 200:
+                raise ValueError("ignored_interfaces is limited to 200 characters")
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ValueError("ignored_interfaces is not a valid regular expression: %s" % exc)
+            values[key] = pattern
+    repo.set_device_settings(device_id, values, now_ts)
+    return get_device_settings_view(repo, device_id)
 
 
 def update_node_in_inventory(

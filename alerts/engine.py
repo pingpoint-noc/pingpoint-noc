@@ -51,6 +51,20 @@ DEFAULT_IGNORED_INTERFACES = (
     r"cali\w+|flannel\.\d+|cni\d+|cilium_\w+|lxcbr\d+|lxdbr\d+)$"
 )
 IGNORED_INTERFACES_RE = re.compile(DEFAULT_IGNORED_INTERFACES, re.IGNORECASE)
+
+
+def device_ignored_interfaces(repo, device_id):
+    """The compiled "also ignore" pattern a device has in its settings (key ignored_interfaces), or None. An invalid
+    pattern is ignored (the API validates it on save, so this only guards hand-edited rows)."""
+    extra = repo.get_device_settings(device_id).get("ignored_interfaces", "")
+    if not extra:
+        return None
+    try:
+        return re.compile(extra, re.IGNORECASE)
+    except re.error:
+        return None
+
+
 INTERFACE_RULE_IDS = ("interface_down", "interface_flapping", "interface_errors", "high_bandwidth")
 # Discards are mostly deliberate drops (multicast and IPv6 noise the host ignores, broadcast filtering on a bridge),
 # not a damaged link: every host of a quiet LAN shows about 20 a minute. A discards-only interface needs this many
@@ -650,6 +664,7 @@ def evaluate_interface_rules(
         if latest_poll_utc is None or dev_ok > latest_poll_utc:
             latest_poll_utc = dev_ok
 
+    device_ignore = device_ignored_interfaces(repo, device_id)
     for row in interfaces:
         if_index = row["if_index"]
         if_descr = row["if_descr"]
@@ -662,7 +677,9 @@ def evaluate_interface_rules(
             and (int(now_ts) - int(updated_utc)) <= 60
         )
         target = "if:%d" % if_index
-        if IGNORED_INTERFACES_RE.match(str(if_descr or "")):
+        if IGNORED_INTERFACES_RE.match(str(if_descr or "")) or (
+            device_ignore is not None and device_ignore.search(str(if_descr or ""))
+        ):
             # Not a link to watch: close anything an older version opened and move on.
             for ignored_rule in INTERFACE_RULE_IDS:
                 reconcile_alert(
@@ -1674,6 +1691,12 @@ def evaluate_icmp_rules(
 
     def enabled(key):
         return rule_toggles is None or rule_toggles.get(key, True)
+
+    # A per-device latency limit beats the global one: a LAN switch and an overseas host cannot share a number.
+    try:
+        latency_ms = float(repo.get_device_settings(device_id).get("icmp_latency_ms", latency_ms))
+    except ValueError:
+        pass
 
     loss_row = None
     rtt_row = None

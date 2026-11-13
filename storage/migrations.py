@@ -14,9 +14,19 @@ def _baseline(conn):
     """Version 1: nothing to do, ``init_storage`` already created and patched the tables."""
 
 
+def _device_settings(conn):
+    """Version 2: per-device overrides of alert behaviour (key/value, so a new knob needs no new migration)."""
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS device_settings ("
+        "device_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, updated_utc INTEGER NOT NULL, "
+        "PRIMARY KEY (device_id, key)) STRICT;"
+    )
+
+
 # (version, description, function(conn)); versions are 1, 2, 3, ... without gaps.
 MIGRATIONS = [
     (1, "baseline schema", _baseline),
+    (2, "per-device settings", _device_settings),
 ]
 
 
