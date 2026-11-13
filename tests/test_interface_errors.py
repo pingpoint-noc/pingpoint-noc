@@ -144,13 +144,13 @@ class TestErrorsRule(ErrorsBase):
         self.assertIsNone(self.alert())
 
     def test_discards_alone_need_ten_times_the_errors_threshold(self):
-        # discards are mostly deliberate drops (broadcast filtering on a bridge): 30 in the window is not a bad link
+        # discards are mostly deliberate drops (multicast noise, broadcast filtering): 30 in the window is not a bad link
         self.grow(6, 5, field="out_discards")
         self.evaluate()
         self.assertIsNone(self.alert())
 
     def test_a_large_number_of_discards_still_fires(self):
-        self.grow(6, 20, field="out_discards")  # 120 >= 10 x the minimum of 10
+        self.grow(6, 200, field="out_discards")  # 1200 >= 100 x the minimum of 10
         self.evaluate()
         self.assertIsNotNone(self.alert())
 

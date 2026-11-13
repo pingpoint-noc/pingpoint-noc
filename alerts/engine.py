@@ -52,9 +52,10 @@ DEFAULT_IGNORED_INTERFACES = (
 )
 IGNORED_INTERFACES_RE = re.compile(DEFAULT_IGNORED_INTERFACES, re.IGNORECASE)
 INTERFACE_RULE_IDS = ("interface_down", "interface_flapping", "interface_errors", "high_bandwidth")
-# Discards are mostly deliberate drops (broadcast filtering on a bridge, a full queue), not a damaged link, so a
-# discards-only interface needs this many times the errors threshold before it is reported.
-DISCARD_THRESHOLD_FACTOR = 10
+# Discards are mostly deliberate drops (multicast and IPv6 noise the host ignores, broadcast filtering on a bridge),
+# not a damaged link: every host of a quiet LAN shows about 20 a minute. A discards-only interface needs this many
+# times the errors threshold (1000 in 5 minutes by default) before it is reported.
+DISCARD_THRESHOLD_FACTOR = 100
 DEFAULT_BW_UTILIZATION_PCT = 80  # share of the link speed; the absolute threshold is only the fallback
 DEFAULT_SERVICE_RESOLVE_CYCLES = 2
 # interface_flapping (K14): starting values from general guides, to be tuned with the lab's own data.
