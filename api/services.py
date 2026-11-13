@@ -306,17 +306,66 @@ def device_summary(device, collectors, now_ts):
         # False = SNMP never answered (e.g. a host that only sends syslog): not the same as "went down".
         "snmp_seen": snmp_seen,
         "has_snmp": has_snmp,
+        "has_syslog": bool(device.get("has_syslog", 0)),
+        "has_ipfix": bool(device.get("has_ipfix", 0)),
+        "has_telemetry": bool(device.get("has_telemetry", 0)),
         "probe_status": probe_status,
         "snmp_cred": device.get("snmp_cred") or "",
         "collectors": collectors,
     }
 
 
+# Where a device type sits in lists: the gateway first, then the hypervisor and the rest, "other" last.
+DEVICE_TYPE_RANK = {"router": 0, "switch": 1, "proxmox": 2, "server": 3, "dns": 4, "linux": 5}
+
+
+def order_by_hierarchy(devices):
+    """Devices as a tree, not alphabetically: roots (no parent in the list) by type (router, switch, hypervisor, server,
+    dns, linux, other) and name, each followed by the devices behind it or hosted on it (`parent_device_id`, else
+    `depends_on`), again by type and name. Works on any dict with id, name, device_type and the two parent keys."""
+    by_id = {d["id"]: d for d in devices}
+
+    def parent_of(d):
+        for key in ("parent_device_id", "depends_on"):
+            pid = d.get(key)
+            if pid and pid in by_id and pid != d["id"]:
+                return pid
+        return None
+
+    def key(d):
+        return (DEVICE_TYPE_RANK.get(d.get("device_type"), 6), str(d.get("name") or d["id"]).lower(), d["id"])
+
+    children = {}
+    roots = []
+    for d in devices:
+        pid = parent_of(d)
+        if pid is None:
+            roots.append(d)
+        else:
+            children.setdefault(pid, []).append(d)
+    ordered = []
+    seen = set()
+
+    def walk(d):
+        if d["id"] in seen:
+            return
+        seen.add(d["id"])
+        ordered.append(d)
+        for child in sorted(children.get(d["id"], []), key=key):
+            walk(child)
+
+    for root in sorted(roots, key=key):
+        walk(root)
+    for d in sorted(devices, key=key):  # a parent loop leaves devices unreachable from any root
+        walk(d)
+    return ordered
+
+
 def get_overview(repo, now_ts):
     """Every monitored device with freshness, plus the number of firing alerts."""
     devices = []
     newest = None
-    for device in repo.list_monitored_devices():
+    for device in order_by_hierarchy(repo.list_monitored_devices()):
         collectors = collector_views(repo, device["id"], now_ts)
         devices.append(device_summary(device, collectors, now_ts))
         contact = device["last_ok_utc"]
@@ -2431,7 +2480,7 @@ def delete_node_from_inventory(repo, device_id):
 
 def get_nodes_view(repo, now_ts):
     """Return discovered and registered nodes with capability flags and freshness."""
-    raw_nodes = repo.list_inventory_devices()
+    raw_nodes = order_by_hierarchy(repo.list_inventory_devices())
     nodes = []
     newest = None
     snmp_count = 0
@@ -2957,7 +3006,9 @@ def get_network_topology(repo, now_ts):
 
     # Link Nodes to Subnets (unless it's the router itself)
     for node in nodes:
-        if node["device_type"] != "router":
+        # A guest hangs from its hypervisor: a second cable to the subnet would only cross the cluster box.
+        hosted = bool(node.get("parent_device_id")) and node.get("parent_device_id") in node_by_id
+        if node["device_type"] != "router" and not hosted:
             s_id, _, _ = infer_subnet_for_ip(node["ip"])
             if s_id in subnets_map:
                 links.append({

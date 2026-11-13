@@ -273,14 +273,29 @@ async function loadOverviewAndDevice() {
       targetSecTag.textContent = "Target: " + (detail.name || detail.id);
     }
     if (targetSecDesc) {
-      var roleText = "Linux Host (Syslog + IPFIX)";
-      if (isRouter) {
-        roleText = "Network Router (SNMP + Syslog + IPFIX)";
-      } else if (isDns) {
-        roleText = "DNS Resolver & Ad-Blocker (RFC 1035 + Pi-hole API)";
-      } else if (isProxmox) {
-        roleText = "Proxmox VE Hypervisor (REST API + Syslog)";
+      // The role is what the device is (its type); the sources are what is really collected from it
+      var roleNames = {
+        router: "Router / gateway", switch: "Switch", server: "Server", linux: "Linux host",
+        proxmox: "Proxmox VE hypervisor", dns: "DNS resolver", platform: "NOC host"
+      };
+      var roleName = roleNames[detail.device_type] || (isRouter ? "Network device" : "Host");
+      var sources = ["ICMP"];
+      if (detail.has_snmp) {
+        sources.push("SNMP");
       }
+      if (isProxmox) {
+        sources.push("Proxmox API");
+      }
+      if (detail.has_syslog) {
+        sources.push("Syslog");
+      }
+      if (detail.has_ipfix) {
+        sources.push("IPFIX");
+      }
+      if (detail.has_telemetry) {
+        sources.push("agent");
+      }
+      var roleText = roleName + " (" + sources.join(" + ") + ")";
       var vendorBadge = detail.vendor && detail.vendor !== "Generic" ? (" · " + detail.vendor) : "";
       targetSecDesc.textContent = detail.ip + " · " + roleText + vendorBadge;
     }
@@ -798,11 +813,11 @@ async function loadOverviewAndDevice() {
         }
         if (hostInfo && hostInfo.hosted && hypervisorBadgeWrap && hypervisorBadge) {
           hypervisorBadgeWrap.classList.remove("hidden");
-          hypervisorBadge.textContent = "Hosted on Proxmox: " + (hostInfo.hypervisor_id || "Hypervisor") + " (VMID: " + hostInfo.vmid + ", " + (hostInfo.guest_type || "").toUpperCase() + ") ↗";
+          hypervisorBadge.textContent = "Runs on Proxmox " + (hostInfo.hypervisor_id || "hypervisor") + " · " +
+            (hostInfo.guest_type || "").toUpperCase() + " " + hostInfo.vmid + " →";
+          hypervisorBadge.title = "Open the hypervisor " + (hostInfo.hypervisor_id || "") + " in the Overview";
           hypervisorBadge.onclick = function () {
-            if (typeof selectDevice === "function") {
-              selectDevice(hostInfo.hypervisor_id);
-            }
+            selectDevice(hostInfo.hypervisor_id);
           };
         } else if (hypervisorBadgeWrap) {
           hypervisorBadgeWrap.classList.add("hidden");

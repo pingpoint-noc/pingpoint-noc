@@ -2319,7 +2319,10 @@ tr.if-row.selected-row { background-color: var(--bg-active); }
   .kpi-group { flex: 1 1 0; }
   .kpi-group-noc { flex-grow: 4; }
   .kpi-group-target { flex-grow: 3; }
-  .kpi-row .overview-section-header { margin: 0 0 0.35rem 0; gap: 0.75rem; }
+  /* Both headers are the same height whatever they hold (the "Runs on Proxmox" link sits inside the device one), so the
+     two ribbons below start on the same line. */
+  .kpi-row .overview-section-header { margin: 0 0 0.35rem 0; gap: 0.75rem; height: 2.4rem; box-sizing: border-box; padding-bottom: 0; align-items: center; }
+  .kpi-row .overview-section-header #target-hypervisor-badge-wrap { flex: none; }
   .kpi-row .overview-section-header .section-tag { white-space: nowrap; }
   .kpi-row .overview-section-header .section-desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Every card spans the same three rows (title, value, caption) of its ribbon through subgrid, so the values and the
@@ -3632,14 +3635,20 @@ select option { background: var(--bg-surface); color: var(--text-main); }
   fill: var(--bg-body);
   stroke: var(--border-subtle);
   stroke-width: 1;
-  stroke-dasharray: 4 4;
 }
 
 .topo-backdrop-label {
   font-size: var(--fs-xs);
   fill: var(--text-muted);
   font-weight: 600;
+  letter-spacing: 0.04em;
   text-anchor: start;
+  dominant-baseline: central;
+  /* a halo in the box colour keeps a cable that crosses the label from cutting through the letters */
+  paint-order: stroke;
+  stroke: var(--bg-body);
+  stroke-width: 4px;
+  stroke-linejoin: round;
 }
 
 .topo-link {
@@ -4359,3 +4368,19 @@ body.gated { overflow: hidden; }
 .dest-head { align-items: baseline; }
 /* A row of buttons (zoom, fit, undo...) has no text to line up: centre it. */
 .topo-zoom-controls { align-items: center; }
+
+/* "Runs on Proxmox X" is a link to that hypervisor: look and behave like one */
+.hypervisor-link {
+  padding: 0.1rem 0.6rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--border-subtle);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.hypervisor-link:hover { border-color: currentColor; text-decoration: underline; }
+.hypervisor-link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }

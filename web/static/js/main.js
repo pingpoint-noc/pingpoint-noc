@@ -78,6 +78,31 @@ function scrollWindowTo(y) {
   window.scrollTo({ top: y, left: 0, behavior: "instant" });
 }
 
+// Make a monitored device the current target (as if picked in the Target list) and show its Overview.
+// Returns false, with a message, when the device is not in the list.
+function selectDevice(deviceId) {
+  var select = document.getElementById("device-select");
+  var known = false;
+  var i = 0;
+  if (select && deviceId) {
+    for (i = 0; i < select.options.length; i += 1) {
+      if (select.options[i].value === deviceId) {
+        known = true;
+      }
+    }
+  }
+  if (!known) {
+    showToast("Device not found: " + deviceId, "error");
+    return false;
+  }
+  if (select.value !== deviceId) {
+    select.value = deviceId;
+    select.dispatchEvent(new Event("change"));
+  }
+  switchTab("tab-overview");
+  return true;
+}
+
 function switchTab(targetTabId) {
   var previousTab = STATE.activeTab;
   if (previousTab && previousTab !== targetTabId) {

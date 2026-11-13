@@ -1997,14 +1997,29 @@ async function loadOverviewAndDevice() {
       targetSecTag.textContent = "Target: " + (detail.name || detail.id);
     }
     if (targetSecDesc) {
-      var roleText = "Linux Host (Syslog + IPFIX)";
-      if (isRouter) {
-        roleText = "Network Router (SNMP + Syslog + IPFIX)";
-      } else if (isDns) {
-        roleText = "DNS Resolver & Ad-Blocker (RFC 1035 + Pi-hole API)";
-      } else if (isProxmox) {
-        roleText = "Proxmox VE Hypervisor (REST API + Syslog)";
+      // The role is what the device is (its type); the sources are what is really collected from it
+      var roleNames = {
+        router: "Router / gateway", switch: "Switch", server: "Server", linux: "Linux host",
+        proxmox: "Proxmox VE hypervisor", dns: "DNS resolver", platform: "NOC host"
+      };
+      var roleName = roleNames[detail.device_type] || (isRouter ? "Network device" : "Host");
+      var sources = ["ICMP"];
+      if (detail.has_snmp) {
+        sources.push("SNMP");
       }
+      if (isProxmox) {
+        sources.push("Proxmox API");
+      }
+      if (detail.has_syslog) {
+        sources.push("Syslog");
+      }
+      if (detail.has_ipfix) {
+        sources.push("IPFIX");
+      }
+      if (detail.has_telemetry) {
+        sources.push("agent");
+      }
+      var roleText = roleName + " (" + sources.join(" + ") + ")";
       var vendorBadge = detail.vendor && detail.vendor !== "Generic" ? (" · " + detail.vendor) : "";
       targetSecDesc.textContent = detail.ip + " · " + roleText + vendorBadge;
     }
@@ -2522,11 +2537,11 @@ async function loadOverviewAndDevice() {
         }
         if (hostInfo && hostInfo.hosted && hypervisorBadgeWrap && hypervisorBadge) {
           hypervisorBadgeWrap.classList.remove("hidden");
-          hypervisorBadge.textContent = "Hosted on Proxmox: " + (hostInfo.hypervisor_id || "Hypervisor") + " (VMID: " + hostInfo.vmid + ", " + (hostInfo.guest_type || "").toUpperCase() + ") ↗";
+          hypervisorBadge.textContent = "Runs on Proxmox " + (hostInfo.hypervisor_id || "hypervisor") + " · " +
+            (hostInfo.guest_type || "").toUpperCase() + " " + hostInfo.vmid + " →";
+          hypervisorBadge.title = "Open the hypervisor " + (hostInfo.hypervisor_id || "") + " in the Overview";
           hypervisorBadge.onclick = function () {
-            if (typeof selectDevice === "function") {
-              selectDevice(hostInfo.hypervisor_id);
-            }
+            selectDevice(hostInfo.hypervisor_id);
           };
         } else if (hypervisorBadgeWrap) {
           hypervisorBadgeWrap.classList.add("hidden");
@@ -2930,17 +2945,17 @@ function computeTopologyLayout(nodes, links) {
   // Vertical layer Y anchors
   var Y_ROUTER = 50;
   var Y_SUBNET = 170;
-  var Y_HOST = 290;
-  var Y_GUEST = 430;
+  var Y_HOST = 300;
+  var Y_GUEST = 450;
 
   var CARD_ROUTER_W = 180;
-  var CARD_ROUTER_H = 56;
+  var CARD_ROUTER_H = 66;
   var CARD_SUBNET_W = 150;
-  var CARD_SUBNET_H = 56;
+  var CARD_SUBNET_H = 66;
   var CARD_HOST_W = 170;
-  var CARD_HOST_H = 56;
+  var CARD_HOST_H = 66;
   var CARD_GUEST_W = 150;
-  var CARD_GUEST_H = 52;
+  var CARD_GUEST_H = 66;
   var GAP_X = 28;
 
   // The host row is the widest layer: routers and subnets are centred over it so the links fan out evenly
@@ -3025,15 +3040,21 @@ function computeTopologyLayout(nodes, links) {
     if (Object.prototype.hasOwnProperty.call(guestsByParent, parentId)) {
       var pPos = positions[parentId];
       var gList = guestsByParent[parentId];
-      var totalGW = gList.length * (CARD_GUEST_W + GAP_X) - GAP_X;
-      var gStartX = Math.max(30, (pPos.x + pPos.width / 2) - totalGW / 2);
+      // Guests wrap in balanced rows like the hosts (a phone gets two per row), centred under their hypervisor
+      var guestRows = Math.max(1, Math.ceil(gList.length / topologyHostsPerRow()));
+      var perGuestRow = Math.max(1, Math.ceil(gList.length / guestRows));
+      var parentMid = pPos.x + pPos.width / 2;
 
       var k = 0;
       for (k = 0; k < gList.length; k += 1) {
         var guest = gList[k];
+        var gRow = Math.floor(k / perGuestRow);
+        var gCol = k % perGuestRow;
+        var inRow = Math.min(perGuestRow, gList.length - gRow * perGuestRow);
+        var rowW = inRow * (CARD_GUEST_W + GAP_X) - GAP_X;
         positions[guest.id] = {
-          x: gStartX + k * (CARD_GUEST_W + GAP_X),
-          y: guestY,
+          x: parentMid - rowW / 2 + gCol * (CARD_GUEST_W + GAP_X),
+          y: guestY + gRow * (CARD_GUEST_H + 34),
           width: CARD_GUEST_W,
           height: CARD_GUEST_H,
           node: guest
@@ -3055,6 +3076,47 @@ function computeTopologyLayout(nodes, links) {
         node: og
       };
     }
+  }
+
+  // Centre the layers on each other: the hypervisor row sits over its guests (or the guests under the hosts when those
+  // are wider), and the router and subnets over the host row, so one wide row does not leave the rest in a corner.
+  var layerIds = function (list) {
+    return list.filter(function (x) { return positions[x.id]; }).map(function (x) { return x.id; });
+  };
+  var layerSpan = function (ids) {
+    var lo = Infinity;
+    var hi = -Infinity;
+    ids.forEach(function (id) {
+      lo = Math.min(lo, positions[id].x);
+      hi = Math.max(hi, positions[id].x + positions[id].width);
+    });
+    return ids.length ? { lo: lo, hi: hi, mid: (lo + hi) / 2, w: hi - lo } : null;
+  };
+  var shiftIds = function (ids, dx) {
+    ids.forEach(function (id) { positions[id].x += dx; });
+  };
+  var hostIds = layerIds(layers.hosts);
+  var guestIds = layerIds(layers.guests);
+  var hostSpan = layerSpan(hostIds);
+  var guestSpan = layerSpan(guestIds);
+  if (hostSpan && guestSpan) {
+    if (guestSpan.w >= hostSpan.w) {
+      shiftIds(hostIds, guestSpan.mid - hostSpan.mid);
+    } else {
+      shiftIds(guestIds, hostSpan.mid - guestSpan.mid);
+    }
+  }
+  hostSpan = layerSpan(hostIds);
+  if (hostSpan) {
+    shiftIds(layerIds(layers.routers), hostSpan.mid - (layerSpan(layerIds(layers.routers)) || hostSpan).mid);
+    shiftIds(layerIds(layers.subnets), hostSpan.mid - (layerSpan(layerIds(layers.subnets)) || hostSpan).mid);
+  }
+  // Nothing may start left of the margin
+  var everyId = Object.keys(positions);
+  var leftMost = Infinity;
+  everyId.forEach(function (id) { leftMost = Math.min(leftMost, positions[id].x); });
+  if (leftMost !== Infinity && leftMost !== 60) {
+    shiftIds(everyId, 60 - leftMost);
   }
 
   // Calculate layout bounds
@@ -3185,16 +3247,16 @@ function renderTopologyGraph() {
       }
 
       if (guestPosList.length > 0) {
-        var minX = pvePos.x - 20;
-        var maxX = pvePos.x + pvePos.width + 20;
-        var minY = pvePos.y - 25;
+        var minX = pvePos.x - 32;
+        var maxX = pvePos.x + pvePos.width + 32;
+        var minY = pvePos.y - 44;
         var maxY = pvePos.y + pvePos.height + 20;
 
         for (g = 0; g < guestPosList.length; g += 1) {
           var gp = guestPosList[g];
-          if (gp.x - 16 < minX) minX = gp.x - 16;
-          if (gp.x + gp.width + 16 > maxX) maxX = gp.x + gp.width + 16;
-          if (gp.y + gp.height + 20 > maxY) maxY = gp.y + gp.height + 20;
+          if (gp.x - 32 < minX) minX = gp.x - 32;
+          if (gp.x + gp.width + 32 > maxX) maxX = gp.x + gp.width + 32;
+          if (gp.y + gp.height + 24 > maxY) maxY = gp.y + gp.height + 24;
         }
 
         var bdW = maxX - minX;
@@ -3202,8 +3264,8 @@ function renderTopologyGraph() {
 
         var bdGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
         bdGroup.innerHTML =
-          '<rect class="topo-backdrop-rect" x="' + minX + '" y="' + minY + '" width="' + bdW + '" height="' + bdH + '" rx="8"></rect>' +
-          '<text class="topo-backdrop-label" x="' + (minX + 12) + '" y="' + (minY + 16) + '">PROXMOX CLUSTER / ' + escapeHtml((pve.meta && pve.meta.node_name) || pve.label) + '</text>';
+          '<rect class="topo-backdrop-rect" x="' + minX + '" y="' + minY + '" width="' + bdW + '" height="' + bdH + '" rx="10"></rect>' +
+          '<text class="topo-backdrop-label" x="' + (minX + 22) + '" y="' + (minY + 20) + '">PROXMOX CLUSTER / ' + escapeHtml((pve.meta && pve.meta.node_name) || pve.label) + '</text>';
         layerBackdrops.appendChild(bdGroup);
       }
     }
@@ -3271,7 +3333,7 @@ function renderTopologyGraph() {
         subText = node.ip || (node.meta && node.meta.interface) || "Subnet Bus";
       }
       // Text never leaves its card: cut with an ellipsis (about 6.4 px per character) and keep the full text as a tooltip
-      var maxChars = Math.max(6, Math.floor((pos.width - 26) / 6.4));
+      var maxChars = Math.max(6, Math.floor((pos.width - 30) / 6.4));
       var fitText = function (t) { t = String(t || ""); return t.length > maxChars ? t.slice(0, maxChars - 1) + "…" : t; };
 
       var alertBadgeSvg = "";
@@ -3289,10 +3351,10 @@ function renderTopologyGraph() {
 
       var cardInner =
         '<rect class="topo-node-card" x="' + pos.x + '" y="' + pos.y + '" width="' + pos.width + '" height="' + pos.height + '" rx="6" ry="6"></rect>' +
-        '<circle class="topo-node-dot" cx="' + (pos.x + 16) + '" cy="' + (pos.y + 14) + '" r="4.5" fill="' + stColor + '"></circle>' +
-        '<text x="' + (pos.x + 27) + '" y="' + (pos.y + 14) + '" class="topo-node-badge" fill="var(--text-muted)">' + escapeHtml(badgeText) + '</text>' +
-        '<text x="' + (pos.x + 12) + '" y="' + (pos.y + 30) + '" class="topo-node-title">' + escapeHtml(fitText(titleText)) + '</text>' +
-        '<text x="' + (pos.x + 12) + '" y="' + (pos.y + 45) + '" class="topo-node-sub">' + escapeHtml(fitText(subText)) + '</text>' +
+        '<circle class="topo-node-dot" cx="' + (pos.x + 17) + '" cy="' + (pos.y + 17) + '" r="4.5" fill="' + stColor + '"></circle>' +
+        '<text x="' + (pos.x + 30) + '" y="' + (pos.y + 17) + '" class="topo-node-badge" fill="var(--text-muted)">' + escapeHtml(badgeText) + '</text>' +
+        '<text x="' + (pos.x + 14) + '" y="' + (pos.y + 38) + '" class="topo-node-title">' + escapeHtml(fitText(titleText)) + '</text>' +
+        '<text x="' + (pos.x + 14) + '" y="' + (pos.y + 54) + '" class="topo-node-sub">' + escapeHtml(fitText(subText)) + '</text>' +
         alertBadgeSvg;
 
       nodeGroup.innerHTML = '<title>' + escapeHtml(node.label + (node.ip ? " · " + node.ip : "")) + '</title>' + cardInner;
@@ -3642,21 +3704,9 @@ function selectTopologyNode(nodeId) {
   // Inspect in Overview Button
   if (viewOverviewBtn) {
     viewOverviewBtn.onclick = function () {
-      if (node.type === "router" || (node.meta && node.meta.device_id)) {
-        var targetDev = (node.meta && node.meta.device_id) || "edge-router-1";
-        STATE.deviceId = targetDev;
-        switchTab("tab-overview");
-        loadOverviewAndDevice();
-      } else if (node.parent_id && TOPOLOGY_STATE.data) {
-        var parentDev = TOPOLOGY_STATE.data.nodes.find(function (n) { return n.id === node.parent_id; });
-        if (parentDev && parentDev.meta && parentDev.meta.device_id) {
-          STATE.deviceId = parentDev.meta.device_id;
-          switchTab("tab-overview");
-          loadOverviewAndDevice();
-        } else {
-          switchTab("tab-overview");
-        }
-      } else {
+      // The card of a device is the device itself; a subnet or a cluster has no Overview of its own
+      var targetDev = (node.meta && node.meta.device_id) || node.id;
+      if (node.type === "subnet" || !selectDevice(targetDev)) {
         switchTab("tab-overview");
       }
     };
@@ -10097,6 +10147,31 @@ var SCROLL_MEMORY_MS = 5 * 60 * 1000;
 
 function scrollWindowTo(y) {
   window.scrollTo({ top: y, left: 0, behavior: "instant" });
+}
+
+// Make a monitored device the current target (as if picked in the Target list) and show its Overview.
+// Returns false, with a message, when the device is not in the list.
+function selectDevice(deviceId) {
+  var select = document.getElementById("device-select");
+  var known = false;
+  var i = 0;
+  if (select && deviceId) {
+    for (i = 0; i < select.options.length; i += 1) {
+      if (select.options[i].value === deviceId) {
+        known = true;
+      }
+    }
+  }
+  if (!known) {
+    showToast("Device not found: " + deviceId, "error");
+    return false;
+  }
+  if (select.value !== deviceId) {
+    select.value = deviceId;
+    select.dispatchEvent(new Event("change"));
+  }
+  switchTab("tab-overview");
+  return true;
 }
 
 function switchTab(targetTabId) {
