@@ -141,12 +141,12 @@ RESPONSE=""
 if [ -z "$HOST_IP" ]; then
     warn "Could not find this host's IPv4 address."
 elif command -v curl >/dev/null 2>&1; then
-    if RESPONSE=$(curl -fsS --max-time 10 -X POST "$URL" -H "Content-Type: application/json" -d "$BODY" 2>/dev/null); then
+    if RESPONSE=$(curl -fsS --max-time 10 -X POST "$URL" -H "Content-Type: application/json" -H "X-Enroll-Token: ${MININOC_ENROLL_TOKEN:-}" -d "$BODY" 2>/dev/null); then
         REGISTERED=1
     fi
 elif command -v wget >/dev/null 2>&1; then
     TMP_OUT=$(mktemp)
-    if wget -q -O "$TMP_OUT" --timeout=10 --post-data="$BODY" --header="Content-Type: application/json" "$URL"; then
+    if wget -q -O "$TMP_OUT" --timeout=10 --post-data="$BODY" --header="Content-Type: application/json" --header="X-Enroll-Token: ${MININOC_ENROLL_TOKEN:-}" "$URL"; then
         RESPONSE=$(cat "$TMP_OUT")
         REGISTERED=1
     fi

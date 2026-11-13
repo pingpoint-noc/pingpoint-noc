@@ -21,6 +21,7 @@ from fastapi.templating import Jinja2Templates
 
 import scenario
 from api import auth, availability, config_changes, flowstore, services
+from api.netguard import require_local_for_bootstrap
 from alerts import digest, engine
 from alerts.notify import (
     DESTINATION_NAMES,
@@ -546,7 +547,8 @@ def create_app(db_path, clock=utc_now):
         return {"ok": True}
 
     @app.post("/api/bootstrap-admin")
-    def bootstrap_admin(payload: dict = Body(default={})):
+    def bootstrap_admin(request: Request, payload: dict = Body(default={})):
+        require_local_for_bootstrap(request)
         if repo.has_admin_user():
             raise HTTPException(
                 status_code=403,

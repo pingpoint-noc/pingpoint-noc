@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 import scenario
 from api import services
+from api.netguard import client_host, require_enrolment
 from tools.generate_router_config import build_rsc_content
 
 # Only characters that are safe inside the double quotes of the generated bash script.
@@ -184,7 +185,12 @@ def create_bootstrap_router(repo, clock):
         )
 
     @router.post("/api/nodes/register")
-    def register_node(payload: NodeRegistrationPayload):
+    def register_node(
+        payload: NodeRegistrationPayload,
+        request: Request,
+        x_enroll_token: str | None = Header(default=None),
+    ):
+        require_enrolment(request, x_enroll_token)
         try:
             record = services.register_node_in_inventory(
                 repo=repo,
@@ -200,7 +206,12 @@ def create_bootstrap_router(repo, clock):
             raise HTTPException(status_code=400, detail=str(exc))
 
     @router.post("/api/nodes/register-proxmox")
-    def register_proxmox_node(payload: ProxmoxRegistrationPayload):
+    def register_proxmox_node(
+        payload: ProxmoxRegistrationPayload,
+        request: Request,
+        x_enroll_token: str | None = Header(default=None),
+    ):
+        require_enrolment(request, x_enroll_token)
         try:
             record = services.register_proxmox_node_in_inventory(
                 repo=repo,
@@ -240,12 +251,7 @@ def create_bootstrap_router(repo, clock):
         if not services.verify_node_telemetry_token(secret, device["id"], device["ip"], token, global_token=global_tok):
             raise HTTPException(status_code=401, detail="Invalid node telemetry token")
 
-        client_ip = ""
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            client_ip = forwarded.split(",")[0].strip()
-        elif request.client:
-            client_ip = request.client.host
+        client_ip = client_host(request)
         try:
             now_ts = int(payload.ts_utc) if payload.ts_utc is not None else clock()
             result = services.record_node_telemetry(

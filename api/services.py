@@ -2111,7 +2111,9 @@ def register_node_in_inventory(
 
 def generate_node_telemetry_token(secret, device_id, ip):
     """Deterministic HMAC-SHA256 token for node telemetry authentication."""
-    key = str(secret or "mininoc-default-telemetry-secret").encode("utf-8")
+    if not secret:
+        raise ValueError("the session secret is empty; cannot derive a node telemetry token")
+    key = str(secret).encode("utf-8")
     msg = (str(device_id) + ":" + str(ip)).encode("utf-8")
     return hmac.new(key, msg, hashlib.sha256).hexdigest()[:32]
 

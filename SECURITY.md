@@ -7,10 +7,12 @@ PingPoint NOC is an early release meant for **trusted networks**. Report vulnera
 
 - **Read endpoints are public.** Almost every `GET` under `/api` (devices, syslog, flows, topology, settings) needs no
   login; writes require an admin session. Deploy behind a reverse proxy with authentication, or only on a trusted network.
-- **Enrolment endpoints have no login.** `POST /api/nodes/register` and `/api/nodes/register-proxmox` are meant to be
-  called by a booting host. Do not expose the API to untrusted networks; a shared enrolment token is planned.
-- **First-admin bootstrap.** `POST /api/bootstrap-admin` is open until the first admin exists. Create the admin
-  immediately after installing, before exposing the service.
+- **Enrolment endpoints.** `POST /api/nodes/register` and `/api/nodes/register-proxmox` are called by booting hosts.
+  Set `MININOC_ENROLL_TOKEN` on the server and export the same value on the host before running the bootstrap
+  one-liner (it is sent as `X-Enroll-Token`). Without the token, only loopback and private addresses are accepted.
+  `X-Forwarded-For` is ignored unless `MININOC_TRUST_PROXY=1` (set it only behind a proxy you control).
+- **First-admin bootstrap.** `POST /api/bootstrap-admin` is open until the first admin exists, but only from a local
+  (loopback or private) address. Create the admin right after installing.
 - **No TLS.** The API speaks plain HTTP; put it behind a TLS-terminating reverse proxy. The `bootstrap.sh` one-liner
   downloads the agent over the same channel.
 - **Unpinned dependencies.** `requirements.txt` uses lower bounds without a lockfile.

@@ -137,12 +137,12 @@ REGISTER_OK=0
 
 if command -v curl >/dev/null 2>&1; then
     HTTP_CODE=$(curl -fsS -o /dev/null -w "%{http_code}" -X POST "$REGISTER_URL" \
-        -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true)
+        -H "Content-Type: application/json" -H "X-Enroll-Token: ${MININOC_ENROLL_TOKEN:-}" -d "$PAYLOAD" 2>/dev/null || true)
     if [ "$HTTP_CODE" = "200" ]; then
         REGISTER_OK=1
     fi
 elif command -v wget >/dev/null 2>&1; then
-    if wget -q -O /dev/null --post-data="$PAYLOAD" --header="Content-Type: application/json" "$REGISTER_URL" 2>/dev/null; then
+    if wget -q -O /dev/null --post-data="$PAYLOAD" --header="Content-Type: application/json" --header="X-Enroll-Token: ${MININOC_ENROLL_TOKEN:-}" "$REGISTER_URL" 2>/dev/null; then
         REGISTER_OK=1
     fi
 fi
