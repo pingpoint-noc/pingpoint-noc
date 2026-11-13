@@ -77,6 +77,16 @@ class TestAdd(AddDeviceTestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("http", err)
 
+    def test_an_edit_does_not_turn_snmp_back_on(self):
+        self.run_tool("--id", "nosnmp", "--name", "Plain", "--ip", "192.168.89.20", "--type", "dns", "--no-snmp")
+        self.assertEqual(self.device("nosnmp")["has_snmp"], 0)
+        code, _, err = self.run_tool("--id", "nosnmp", "--name", "Plain 2")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.device("nosnmp")["has_snmp"], 0)
+        code, _, err = self.run_tool("--id", "nosnmp", "--snmp")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.device("nosnmp")["has_snmp"], 1)
+
     def test_the_output_never_shows_a_key(self):
         code, out, err = self.run_tool("--id", "r2", "--name", "R2", "--ip", "192.168.89.1", "--cred", "core-v3")
         _, listing, _ = self.run_tool("--list")

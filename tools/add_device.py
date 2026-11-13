@@ -40,6 +40,7 @@ def build_parser():
     parser.add_argument("--cred", help="SNMP credential profile name; an empty value clears it")
     parser.add_argument("--community", help="SNMPv2c community for this device (instead of a profile)")
     parser.add_argument("--no-snmp", action="store_true", help="the device is not polled by SNMP")
+    parser.add_argument("--snmp", action="store_true", help="poll the device by SNMP (default for a new device; an edit keeps the current setting)")
     parser.add_argument("--depends-on", dest="depends_on", help="id of the device this one sits behind")
     parser.add_argument("--dns-type", dest="dns_type", choices=("pihole", "adguard", "probe"),
                         help="for a DNS device: pihole, adguard (AdGuard Home) or probe (only the UDP 53 probe)")
@@ -115,6 +116,8 @@ def save_device(args, repo, env):
 
     if args.cred and args.community:
         raise ValueError("use --cred or --community, not both")
+    if args.snmp and args.no_snmp:
+        raise ValueError("use --snmp or --no-snmp, not both")
     if args.cred and args.no_snmp:
         raise ValueError("--no-snmp and --cred do not go together: a device without SNMP has no credentials")
     cred = None
@@ -133,6 +136,16 @@ def save_device(args, repo, env):
     other = repo.get_device_by_ip(ip)
     if other is not None and other["id"] != device_id:
         print("warning: %s already belongs to the device %s" % (ip, other["id"]), file=sys.stderr)
+
+    # SNMP: a new device is polled; an edit keeps what the device has unless a flag or a credential says otherwise
+    if args.no_snmp:
+        snmp_on = False
+    elif args.snmp or args.cred or args.community:
+        snmp_on = True
+    elif existing is not None:
+        snmp_on = bool(existing.get("has_snmp"))
+    else:
+        snmp_on = True
 
     # ensure_device replaces poll_config_json: carry the stored one over, then apply what was asked for
     poll_config = {}
@@ -161,7 +174,7 @@ def save_device(args, repo, env):
         name=name,
         ip=ip,
         device_type=device_type,
-        has_snmp=0 if args.no_snmp else 1,
+        has_snmp=1 if snmp_on else 0,
         snmp_cred=cred or "",
         poll_config_json=json.dumps(poll_config) if poll_config else None,
     )
@@ -169,7 +182,7 @@ def save_device(args, repo, env):
         device_id,
         snmp_community=args.community,
         snmp_cred=cred,
-        has_snmp=not args.no_snmp,
+        has_snmp=snmp_on,
     )
     if args.depends_on is not None:
         repo.set_depends_on(device_id, parent)
