@@ -35,7 +35,7 @@ def build_parser():
     parser.add_argument("--id", help="device id (letters, digits, '.', '_' and '-')")
     parser.add_argument("--name", help="name shown in the web (required for a new device)")
     parser.add_argument("--ip", help="IP address of the device (required for a new device)")
-    parser.add_argument("--type", dest="device_type", help="router (default), switch, server, linux, dns, proxmox or unknown")
+    parser.add_argument("--type", dest="device_type", help="router, switch, server (default for a new device), linux, dns, proxmox or unknown")
     parser.add_argument("--cred", help="SNMP credential profile name; an empty value clears it")
     parser.add_argument("--community", help="SNMPv2c community for this device (instead of a profile)")
     parser.add_argument("--no-snmp", action="store_true", help="the device is not polled by SNMP")
@@ -97,7 +97,9 @@ def save_device(args, repo, env):
     except ValueError:
         raise ValueError("invalid IP address: " + ip)
 
-    device_type = "router"
+    # A new device is a generic server unless said otherwise: the map treats a "router" as the gateway of every subnet,
+    # so guessing router would put a hypervisor or a NAS at the top of the topology.
+    device_type = "server"
     if existing is not None:
         device_type = existing["device_type"]
     if args.device_type:
@@ -143,6 +145,8 @@ def save_device(args, repo, env):
     if args.depends_on is not None:
         repo.set_depends_on(device_id, parent)
     print("%s %s (%s, %s)" % ("Updated" if existing is not None else "Added", device_id, ip, device_type))
+    if existing is None and not args.device_type:
+        print("note: no --type given, stored as server; use --type router|switch|linux|dns|proxmox to describe it better")
     return 0
 
 

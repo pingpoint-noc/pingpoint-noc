@@ -87,8 +87,8 @@ IPFIX ya se atribuyen por IP de origen (K36). Para dar a cada equipo sus propias
 2. **Dar de alta el equipo** con la herramienta (valida el perfil antes de guardar, no imprime claves, es idempotente):
 
    ```
-   python -m tools.add_device --id router-2 --name "Router 2" --ip 192.168.89.1 --cred core-v3
-   python -m tools.add_device --id router-3 --name "Router 3" --ip 192.168.155.1 --cred lab-v2 --depends-on router-2
+   python -m tools.add_device --id router-2 --name "Router 2" --ip 192.168.89.1 --cred core-v3 --type router
+   python -m tools.add_device --id router-3 --name "Router 3" --ip 192.168.155.1 --cred lab-v2 --type router --depends-on router-2
    python -m tools.add_device --id host-1 --name "Host 1" --ip 192.168.89.9 --type linux --no-snmp
    python -m tools.add_device --list
    python -m tools.add_device --remove router-3

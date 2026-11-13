@@ -46,12 +46,18 @@ class AddDeviceTestCase(unittest.TestCase):
 
 class TestAdd(AddDeviceTestCase):
     def test_adds_a_router_with_a_v3_profile(self):
-        code, out, err = self.run_tool("--id", "r2", "--name", "Router 2", "--ip", "192.168.89.1", "--cred", "core-v3")
+        code, out, err = self.run_tool("--id", "r2", "--name", "Router 2", "--ip", "192.168.89.1", "--cred", "core-v3", "--type", "router")
         self.assertEqual(code, 0, err)
         row = self.device("r2")
         self.assertEqual((row["name"], row["ip"], row["device_type"]), ("Router 2", "192.168.89.1", "router"))
         self.assertEqual((row["snmp_cred"], row["has_snmp"], row["status"]), ("core-v3", 1, "active"))
         self.assertIn("r2", [d["id"] for d in self.repo.list_active_snmp_devices()])
+
+    def test_a_new_device_without_a_type_is_a_server_not_a_router(self):
+        code, out, err = self.run_tool("--id", "h1", "--name", "Host", "--ip", "192.168.89.9", "--no-snmp")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.device("h1")["device_type"], "server")
+        self.assertIn("no --type given", out)
 
     def test_the_output_never_shows_a_key(self):
         code, out, err = self.run_tool("--id", "r2", "--name", "R2", "--ip", "192.168.89.1", "--cred", "core-v3")
