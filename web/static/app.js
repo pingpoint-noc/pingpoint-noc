@@ -5774,6 +5774,16 @@ async function loadTimeline() {
       windowLbl.textContent = formatLocal(data.start_ts_utc) + " → " + formatLocal(data.end_ts_utc);
     }
 
+    // A device that gives neither SNMP counters nor IPFIX flows has no rate to draw: say so instead of a flat 0 bit/s line
+    var noTraffic = Boolean(data.sources && data.sources.snmp && data.sources.snmp.status === "na" &&
+      data.sources.ipfix && data.sources.ipfix.status === "na" && data.bandwidth.points.length === 0);
+    ["tl-chart-box", "tl-legend-bar"].forEach(function (id) {
+      var box = document.getElementById(id);
+      if (box) box.classList.toggle("hidden", noTraffic);
+    });
+    var noTrafficNote = document.getElementById("tl-no-traffic");
+    if (noTrafficNote) noTrafficNote.classList.toggle("hidden", !noTraffic);
+
     renderInteractiveRateChart("tl-canvas", "tl-chart-tooltip", data.bandwidth.points, data.logs.events,
       { originTs: originAlert === null ? null : Number(originAlert.fired_utc) });
 
@@ -8842,6 +8852,7 @@ async function loadSettings() {
         if (tInput && data.rule_thresholds[tf.key]) {
           tInput.value = data.rule_thresholds[tf.key].value;
           tInput.placeholder = "default: " + data.rule_thresholds[tf.key].default;
+          tInput.dispatchEvent(new Event("input"));  // lets the unit hint under the bit/s threshold follow
         }
       }
     }
@@ -9386,6 +9397,17 @@ function initSettings() {
   var addNodeBtn = document.getElementById("btn-settings-add-node");
   if (addNodeBtn) {
     addNodeBtn.addEventListener("click", addNodeFromSettings);
+  }
+  // The bit/s threshold is a long number: show it in the unit people think in (1000000000 = 1 Gbit/s)
+  var bwField = document.getElementById("set-thresh-bw-bps");
+  var bwHuman = document.getElementById("set-thresh-bw-human");
+  if (bwField && bwHuman) {
+    var showBwHuman = function () {
+      var v = Number(bwField.value);
+      bwHuman.textContent = v > 0 ? "= " + formatBps(v) : "";
+    };
+    bwField.addEventListener("input", showBwHuman);
+    showBwHuman();
   }
   var tuneSelect = document.getElementById("tune-device");
   if (tuneSelect) {

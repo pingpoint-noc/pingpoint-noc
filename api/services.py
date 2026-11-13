@@ -985,6 +985,17 @@ HOST_HEALTH_METRICS = ("cpu_load_pct", "memory_used_pct", "disk_used_pct")
 NO_HOST_HEALTH_TEXT = "This device does not report CPU/memory/disk over SNMP (HOST-RESOURCES-MIB) or agent telemetry."
 
 
+# Mount points that are not disks (kernel and runtime file systems, container layers): listing them only adds noise
+PSEUDO_MOUNT_PREFIXES = ("/dev", "/proc", "/sys", "/run", "/snap", "/var/lib/docker", "/var/lib/containers", "/var/lib/lxcfs")
+
+
+def is_pseudo_mount(label):
+    path = str(label or "").strip()
+    if not path.startswith("/"):
+        return False
+    return any(path == prefix or path.startswith(prefix + "/") for prefix in PSEUDO_MOUNT_PREFIXES)
+
+
 def get_host_health_view(repo, now_ts, thresholds):
     """CPU, memory and every disk of each device polled over SNMP (K76) or agent telemetry (K87).
 
@@ -1021,9 +1032,15 @@ def get_host_health_view(repo, now_ts, thresholds):
                 item["cpu_pct"] = row["value"]
             elif row["metric_name"] == "memory_used_pct":
                 item["memory_pct"] = row["value"]
-            elif row["metric_name"] == "disk_used_pct":
+            elif row["metric_name"] == "disk_used_pct" and not is_pseudo_mount(row["label"]):
                 item["disks"].append({"label": row["label"], "used_pct": row["value"]})
         item["disks"].sort(key=lambda d: d["label"])
+        if item["cpu_pct"] is None:
+            # A container has no processor table over SNMP; its hypervisor knows how busy it is
+            guest = repo.find_proxmox_guest_by_matched_device(device["id"])
+            if guest is not None and guest.get("cpu_frac") is not None and guest.get("status") == "running":
+                item["cpu_pct"] = round(float(guest["cpu_frac"]) * 100.0, 1)
+                item["cpu_source"] = "proxmox"
         if item["reports_health"]:
             item["age_seconds"] = now_ts - item["as_of_utc"]
             item["status"] = source_status("syslog" if source == "telemetry" else "snmp", item["age_seconds"])

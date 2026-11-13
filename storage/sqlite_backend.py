@@ -3904,7 +3904,7 @@ class SQLiteRepository(StorageRepository):
                 """
                 SELECT hypervisor_id, vmid, guest_type, name, status,
                        cpus, maxmem_bytes, maxdisk_bytes, ip_addresses,
-                       mac_addresses, matched_device_id, onboot, updated_utc
+                       mac_addresses, matched_device_id, onboot, updated_utc, cpu_frac, mem_used_bytes
                 FROM proxmox_guests
                 WHERE matched_device_id = ?
                 LIMIT 1;

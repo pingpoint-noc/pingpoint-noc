@@ -1088,6 +1088,7 @@ async function loadSettings() {
         if (tInput && data.rule_thresholds[tf.key]) {
           tInput.value = data.rule_thresholds[tf.key].value;
           tInput.placeholder = "default: " + data.rule_thresholds[tf.key].default;
+          tInput.dispatchEvent(new Event("input"));  // lets the unit hint under the bit/s threshold follow
         }
       }
     }
@@ -1632,6 +1633,17 @@ function initSettings() {
   var addNodeBtn = document.getElementById("btn-settings-add-node");
   if (addNodeBtn) {
     addNodeBtn.addEventListener("click", addNodeFromSettings);
+  }
+  // The bit/s threshold is a long number: show it in the unit people think in (1000000000 = 1 Gbit/s)
+  var bwField = document.getElementById("set-thresh-bw-bps");
+  var bwHuman = document.getElementById("set-thresh-bw-human");
+  if (bwField && bwHuman) {
+    var showBwHuman = function () {
+      var v = Number(bwField.value);
+      bwHuman.textContent = v > 0 ? "= " + formatBps(v) : "";
+    };
+    bwField.addEventListener("input", showBwHuman);
+    showBwHuman();
   }
   var tuneSelect = document.getElementById("tune-device");
   if (tuneSelect) {

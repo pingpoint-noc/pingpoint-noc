@@ -111,6 +111,16 @@ async function loadTimeline() {
       windowLbl.textContent = formatLocal(data.start_ts_utc) + " → " + formatLocal(data.end_ts_utc);
     }
 
+    // A device that gives neither SNMP counters nor IPFIX flows has no rate to draw: say so instead of a flat 0 bit/s line
+    var noTraffic = Boolean(data.sources && data.sources.snmp && data.sources.snmp.status === "na" &&
+      data.sources.ipfix && data.sources.ipfix.status === "na" && data.bandwidth.points.length === 0);
+    ["tl-chart-box", "tl-legend-bar"].forEach(function (id) {
+      var box = document.getElementById(id);
+      if (box) box.classList.toggle("hidden", noTraffic);
+    });
+    var noTrafficNote = document.getElementById("tl-no-traffic");
+    if (noTrafficNote) noTrafficNote.classList.toggle("hidden", !noTraffic);
+
     renderInteractiveRateChart("tl-canvas", "tl-chart-tooltip", data.bandwidth.points, data.logs.events,
       { originTs: originAlert === null ? null : Number(originAlert.fired_utc) });
 

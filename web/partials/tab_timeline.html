@@ -36,11 +36,12 @@
         <p id="tl-origin" class="tl-origin hidden" role="status"><strong>Opened from alert:</strong> <span id="tl-origin-text"></span></p>
 
         <!-- Correlated Interactive Chart -->
-        <div class="chart-wrapper timeline-chart-wrapper">
+        <p id="tl-no-traffic" class="empty-reason-card hidden" role="status">No traffic is collected for this device (no SNMP counters or IPFIX flows), so there is no rate to draw. Its syslog events and alerts are still listed below; ping latency is on the Health &amp; Inventory tab.</p>
+        <div class="chart-wrapper timeline-chart-wrapper" id="tl-chart-box">
           <canvas id="tl-canvas" class="noc-chart-canvas" height="240" role="img" aria-label="Incident timeline correlation chart with event markers"></canvas>
           <div id="tl-chart-tooltip" class="noc-chart-tooltip hidden"></div>
         </div>
-        <div class="timeline-legend-bar">
+        <div class="timeline-legend-bar" id="tl-legend-bar">
           <span class="legend-item"><span class="legend-dot bg-cyan"></span> <span id="tl-legend-rx">Inbound (RX)</span></span>
           <span class="legend-item"><span class="legend-dot bg-purple"></span> <span id="tl-legend-tx">Outbound (TX)</span></span>
           <span class="legend-item"><span class="legend-line-marker bg-rose"></span> Syslog Incident Marker (Hover for message)</span>

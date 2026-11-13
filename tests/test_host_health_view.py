@@ -110,5 +110,39 @@ class HostHealthViewTest(unittest.TestCase):
         self.assertIn("ssh", svc_names)
 
 
+class PseudoMountTest(unittest.TestCase):
+    def test_runtime_file_systems_are_not_disks(self):
+        from api.services import is_pseudo_mount
+        for path in ("/dev/shm", "/proc/sys/kernel/random/boot_id", "/run", "/run/lock", "/sys/fs/cgroup", "/var/lib/docker/overlay2/x"):
+            self.assertTrue(is_pseudo_mount(path), path)
+        for path in ("/", "/boot", "/mnt/storage", "/var/lib/postgresql", "C:\\", "D:\ Label"):
+            self.assertFalse(is_pseudo_mount(path), path)
+
+
+class GuestCpuFallbackTest(unittest.TestCase):
+    def test_a_container_without_cpu_over_snmp_shows_the_hypervisor_figure(self):
+        import tempfile
+        from pathlib import Path
+        from api.services import get_host_health_view
+        from storage import create_repository
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = create_repository("sqlite", Path(tmp) / "t.db")
+            repo.init_storage()
+            repo.ensure_device("hv", "Hypervisor", "192.0.2.1", device_type="proxmox", has_snmp=0)
+            repo.ensure_device("ct", "Container", "192.0.2.2", device_type="linux", has_snmp=1)
+            repo.record_device_metrics("ct", 1_800_000_000, [
+                {"metric_name": "memory_used_pct", "label": "", "value": 30.0},
+                {"metric_name": "disk_used_pct", "label": "/", "value": 50.0},
+                {"metric_name": "disk_used_pct", "label": "/dev/shm", "value": 0.0},
+            ])
+            repo.upsert_proxmox_guest("hv", 100, "lxc", "ct", "running", matched_device_id="ct", cpu_frac=0.125, mem_used_bytes=1)
+            view = get_host_health_view(repo, 1_800_000_010, {})
+            item = [d for d in view["devices"] if d["device_id"] == "ct"][0]
+            self.assertEqual(item["cpu_pct"], 12.5)
+            self.assertEqual(item["cpu_source"], "proxmox")
+            self.assertEqual([d["label"] for d in item["disks"]], ["/"])
+
+
 if __name__ == "__main__":
     unittest.main()
