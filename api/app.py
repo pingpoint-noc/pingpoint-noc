@@ -841,6 +841,10 @@ def create_app(db_path, clock=utc_now):
             raise HTTPException(status_code=404, detail="unknown device")
         return res
 
+    @app.get("/api/coverage")
+    def telemetry_coverage():
+        return services.get_telemetry_coverage_view(repo, clock())
+
     @app.get("/api/devices/{device_id}/resources")
     def device_resources(device_id: str, range: str = "1h"):
         try:

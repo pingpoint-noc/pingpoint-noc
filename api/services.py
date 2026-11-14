@@ -2880,6 +2880,60 @@ def get_device_resources_view(repo, device_id, now_ts, range_name="1h"):
     }
 
 
+COVERAGE_SOURCES = ("snmp", "agent", "syslog", "ipfix", "icmp", "dns", "proxmox")
+# {noc} is replaced in the browser with the address the person used to open the NOC; {ip} and {id} with the device's.
+COVERAGE_HOW = {
+    "snmp": "python -m tools.add_device --id {id} --ip {ip} --snmp   (add --cred <profile> or --community <name>; see docs/automatizacion-y-onboarding.md)",
+    "agent": "On the host: curl -fsS \"{noc}/api/bootstrap.sh\" | sudo bash   (also forwards its syslog)",
+    "syslog": "On the host: curl -fsS \"{noc}/api/bootstrap.sh\" | sudo bash   (a router or switch: send its syslog to the NOC, UDP 514)",
+    "ipfix": "Point the router's flow export (IPFIX/NetFlow) at the NOC, UDP 2055; for RouterOS see /api/router-config.rsc",
+    "icmp": "No ping probe has run yet: check the mini-noc-icmp service (journalctl -u mini-noc-icmp)",
+    "dns": "python -m tools.add_device --id {id} --ip {ip} --type dns --dns-type adguard --api-url http://{ip}:3000   (or pihole, or probe)",
+    "proxmox": "On the Proxmox host: curl -fsS \"{noc}/api/bootstrap-pve.sh\" | sudo bash",
+}
+HOST_TYPES = ("linux", "server", "proxmox")
+FLOW_TYPES = ("router", "switch")
+
+
+def get_telemetry_coverage_view(repo, now_ts):
+    """For each monitored device, which data sources reach the NOC and, for each one that is missing, how to turn it on.
+
+    A cell is ok, stale or down (from the collector's last success), missing (applies to this device but nothing arrives) or
+    n/a (the source does not apply to this device type). The command text is generated, never executed."""
+    devices = []
+    for device in repo.list_monitored_devices():
+        collectors = collector_views(repo, device["id"], now_ts)
+        dtype = device.get("device_type")
+        has_snmp = bool(device.get("has_snmp"))
+
+        def from_collector(name, present, collectors=collectors):
+            if name in collectors:
+                return collectors[name]["status"]
+            return "ok" if present else "missing"
+
+        cells = {
+            "snmp": from_collector("snmp", has_snmp) if has_snmp else "missing",
+            "agent": ("ok" if device.get("has_telemetry") else "missing") if dtype in HOST_TYPES else "n/a",
+            "syslog": from_collector("syslog", bool(device.get("has_syslog"))) if device.get("has_syslog") else "missing",
+            "ipfix": from_collector("ipfix", bool(device.get("has_ipfix"))) if device.get("has_ipfix") else (
+                "missing" if dtype in FLOW_TYPES else "n/a"),
+            "icmp": from_collector("icmp", False),
+            "dns": from_collector("dns", False) if dtype == "dns" else "n/a",
+            "proxmox": from_collector("proxmox", False) if dtype == "proxmox" else "n/a",
+        }
+        missing = [name for name in COVERAGE_SOURCES if cells[name] == "missing"]
+        devices.append({
+            "id": device["id"], "name": device["name"], "ip": device["ip"], "device_type": dtype,
+            "cells": cells, "missing": missing,
+        })
+    return {
+        "generated_utc": int(now_ts),
+        "sources": list(COVERAGE_SOURCES),
+        "how": COVERAGE_HOW,
+        "devices": devices,
+    }
+
+
 def get_device_hypervisor_view(repo, device_id):
     """Return hosting hypervisor info for a guest device, or hosted=False if bare-metal."""
     device = repo.get_device_status(device_id)
