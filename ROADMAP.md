@@ -224,7 +224,7 @@ LibreNMS and Zabbix feature pages, Uptime Kuma README. Netdata and Observium wer
 | G10 | Monthly volume trend per device with jump detection (not the discarded hourly baseline) | Accounting | S | Medium | N |
 | G11 | ICMP quality: RTT p95 and jitter chart | Performance | S | Low | S |
 | G12 | Device profiles/templates ("router", "switch", "NAS") with thresholds and rules preloaded; links with F2 and D1 | Performance | M | Low | N |
-| G13 | SNMP v1/v2c default-community or v3 `noAuth` audit of the inventory | Security | S | Low | S |
+| G13 (done 2026-11-14 in the preflight: names devices polled with `public`/`private` and no profile; a web view of it is still open) | SNMP v1/v2c default-community or v3 `noAuth` audit of the inventory | Security | S | Low | S |
 | G14 | Management health report: failed web logins, tokens close to expiry | Security | S | Low | S |
 | G15 | New or vanished LAN device notice, **inventory only** (the SOC-style `new_term` stays discarded) | Security | S-M | Medium | N |
 | G16 | Read-only public status page (service names only, no IPs) | UX | M | Low | N (what to show) |

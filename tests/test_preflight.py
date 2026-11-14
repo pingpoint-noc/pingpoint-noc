@@ -11,6 +11,7 @@ from storage import create_repository
 from tools.preflight import (
     check_db_schema,
     check_db_size,
+    check_default_communities,
     check_env_settings,
     check_flow_expiry,
     check_health,
@@ -509,6 +510,39 @@ class JournalCapTest(unittest.TestCase):
 
     def test_a_machine_without_journald_is_not_judged(self):
         self.assertEqual(check_journal_cap(None), [])
+
+
+class DefaultCommunitiesTest(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.db_path = Path(self.temp_dir.name) / "t.db"
+        self.repo = create_repository("sqlite", self.db_path)
+        self.repo.init_storage()
+
+    def add(self, device_id, community, cred="", has_snmp=1):
+        self.repo.ensure_device(device_id, device_id, "192.0.2.%d" % (len(device_id) + 10), device_type="server", has_snmp=has_snmp)
+        self.repo.set_device_credentials(device_id, snmp_community=community, snmp_cred=cred)
+
+    def test_a_device_with_public_or_private_is_named_and_the_community_is_not_printed(self):
+        self.add("nas", "public")
+        self.add("switch-a", "Private")
+        self.add("good", "k9x-secret-community")
+        results = check_default_communities(self.db_path)
+        self.assertEqual(statuses(results), ["WARN"])
+        text = results[0]["detail"]
+        self.assertIn("nas", text)
+        self.assertIn("switch-a", text)
+        self.assertNotIn("good", text)
+        self.assertNotIn("k9x-secret-community", text)
+
+    def test_a_device_with_a_profile_or_without_snmp_is_not_judged(self):
+        self.add("with-profile", "public", cred="lab-v3")
+        self.add("no-snmp", "public", has_snmp=0)
+        self.assertEqual(statuses(check_default_communities(self.db_path)), ["PASS"])
+
+    def test_a_missing_database_adds_no_line(self):
+        self.assertEqual(check_default_communities(Path(self.temp_dir.name) / "nope.db"), [])
 
 
 if __name__ == "__main__":

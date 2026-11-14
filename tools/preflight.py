@@ -307,6 +307,37 @@ def check_snmp_profiles(db_path, env):
     return [make_result("Perfiles SNMP", "PASS", "; ".join(fine))]
 
 
+WELL_KNOWN_COMMUNITIES = ("public", "private")
+
+
+def check_default_communities(db_path):
+    """Devices polled with a community everybody knows ("public", "private") and no credential profile (K83): anyone on the
+    network can read their counters, and with "private" often change them. Names the devices, never prints a community. Read-only."""
+    path = Path(db_path)
+    if not path.exists():
+        return []
+    try:
+        conn = sqlite3.connect("file:%s?mode=ro" % path.as_posix(), uri=True)
+    except sqlite3.Error:
+        return []
+    try:
+        rows = conn.execute(
+            "SELECT id, snmp_community FROM devices WHERE device_type != 'platform' AND has_snmp = 1 AND snmp_cred = '' ORDER BY id"
+        ).fetchall()
+    except sqlite3.Error:
+        return []  # an older schema: the schema check reports it
+    finally:
+        conn.close()
+    weak = [device_id for device_id, community in rows if str(community or "").strip().lower() in WELL_KNOWN_COMMUNITIES]
+    if not weak:
+        return [make_result("Comunidades SNMP", "PASS", "ningún equipo usa una comunidad conocida (public o private) sin perfil")]
+    return [make_result(
+        "Comunidades SNMP", "WARN",
+        "%d equipo(s) con comunidad conocida (public o private): %s. Cambia la comunidad del equipo o dale un perfil SNMPv3 "
+        "(python -m tools.add_device --id <id> --cred <perfil>)" % (len(weak), ", ".join(weak)),
+    )]
+
+
 def check_icmp_data(db_path, now_ts):
     """The ICMP collector (K80) has stored a recent sample, ideally for every active device. Read-only."""
     path = Path(db_path)
@@ -542,6 +573,7 @@ def main(argv=None):
     results.extend(check_snmp_security(env))
     results.extend(check_journal_cap(read_journal_config()))
     results.extend(check_snmp_profiles(args.db_path, env))
+    results.extend(check_default_communities(args.db_path))
     flow_dir = env.get("MININOC_FLOW_DIR", FLOW_DIR)
     conf_text = None
     try:
