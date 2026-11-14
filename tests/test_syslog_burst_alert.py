@@ -46,6 +46,24 @@ class TestSyslogBurstAlert(unittest.TestCase):
         self.assertEqual(len(alerts), 1)
         self.assertIn('Most repeated (45 of 60, 75%): "audit: type=N apparmor="DENIED" pid=N comm="rsyslogd""', alerts[0]["message"])
 
+    def test_lines_matching_the_device_ignore_pattern_are_not_counted(self):
+        self.repo.set_device_settings(self.device_id, {"syslog_burst_ignore": "apparmor"}, 1700000000)
+        noise = ['audit: apparmor="DENIED" pid=%d' % i for i in range(80)]
+        self.assertEqual(self.burst(noise), [])  # all 80 lines are ignored
+        # ...but a real burst of other lines on the same device still fires
+        other = ["service crashed %d" % i for i in range(60)]
+        self.assertEqual(len(self.burst(other, now_ts=1700000100)), 1)
+
+    def test_the_ignored_lines_do_not_inflate_the_usual_rate(self):
+        self.repo.set_device_settings(self.device_id, {"syslog_burst_ignore": "apparmor"}, 1700000000)
+        now_ts = 1700000000
+        # an hour of steady noise before the window: 60 lines a minute that must not count as "usual"
+        self.repo.insert_syslog_events([
+            {"device_id": self.device_id, "ts_utc": now_ts - 60 - i * 5, "facility": "kern", "severity": "notice",
+             "program": "kernel", "msg": "apparmor DENIED %d" % i} for i in range(720)])
+        alerts = self.burst(["real error %d" % i for i in range(60)], now_ts=now_ts)
+        self.assertEqual(len(alerts), 1)
+
     def test_a_burst_of_many_different_messages_names_none(self):
         alerts = self.burst(["unique line %s" % chr(97 + i % 26) * (i + 1) for i in range(60)])
         self.assertEqual(len(alerts), 1)

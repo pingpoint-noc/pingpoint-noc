@@ -169,6 +169,13 @@ installs; N: needs a decision or a real device first). Nothing here is done yet.
 | C4 (docs done 2026-11-14; the preflight check for missing rotation is still open) | **logrotate:** `bootstrap.sh` writes only the forwarding file, so a host's own rotation is not ours. Document it and make the preflight warn about a host whose `/var/log` has no rotation. | Section in `docs/montar-contenedor.md`; preflight check with a test. | Nil | S |
 | C5 (done 2026-11-14) | The installer sets a journald cap; a container installed by hand does not. | The preflight reports "journald has no size cap" with the one-line fix. | Nil | S |
 
+### Found while testing on the reference server (2026-11-14)
+
+| # | Task | Done when | Risk | Unattended |
+|---|---|---|---|---|
+| H1 (done 2026-11-14) | **Per-device syslog ignore pattern for the burst rule** (`syslog_burst_ignore` in `device_settings`). Verified cause of the recurring burst on a Proxmox host: about 22 `apparmor="DENIED"` lines a minute, all day, from three LXC guests (journald vs the host's `rsyslogd` profile); the "bursts" are bumps on that floor. | The lines stay stored and searchable, but neither the current count nor the usual rate include them; field in Settings > Monitored Targets. | Low | S |
+| H2 | Find out whether the AppArmor denials come from the guest's rsyslog that `bootstrap.sh` installs (steady rate, every guest that has it). If so, `bootstrap.sh` should warn or pick another forwarding path in an LXC guest on Proxmox. | Reproduced in a throw-away container with and without rsyslog. | Medium | N |
+
 ### P1: per-device bandwidth threshold
 
 | # | Task | Done when | Risk | Unattended |

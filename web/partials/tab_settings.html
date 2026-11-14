@@ -216,6 +216,11 @@
                 <label for="tune-ignored-ifaces">Also ignore interfaces matching</label>
                 <input id="tune-ignored-ifaces" class="form-input" type="text" maxlength="200" spellcheck="false" placeholder="regular expression, e.g. ^wg-">
               </div>
+              <div class="settings-field">
+                <label for="tune-syslog-ignore">Do not count in a syslog burst lines matching</label>
+                <input id="tune-syslog-ignore" class="form-input" type="text" maxlength="200" spellcheck="false" placeholder="regular expression, e.g. apparmor=&quot;DENIED&quot;">
+                <p class="dest-blurb">For a device that always logs a known, harmless message in large numbers. The lines are still stored and searchable; only the burst alert stops counting them.</p>
+              </div>
               <button type="button" id="btn-tune-save" class="btn btn-secondary">Save Tuning</button>
             </div>
             <p id="tune-msg" class="settings-msg" role="status" aria-live="polite"></p>

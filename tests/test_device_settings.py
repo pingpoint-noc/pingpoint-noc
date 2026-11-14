@@ -64,6 +64,8 @@ class DeviceSettingsTest(unittest.TestCase):
             {"icmp_latency_ms": 5},
             {"icmp_latency_ms": 99999},
             {"icmp_latency_ms": True},
+            {"syslog_burst_ignore": "(unclosed"},
+            {"syslog_burst_ignore": "x" * 201},
             {"bw_threshold_bps": "fast"},
             {"bw_threshold_bps": 10},
             {"bw_threshold_bps": -5},
@@ -84,6 +86,10 @@ class DeviceSettingsTest(unittest.TestCase):
         self.put({"icmp_latency_ms": 100}, device="temp")
         self.assertTrue(self.repo.delete_discovered_device("temp"))
         self.assertEqual(self.repo.get_device_settings("temp"), {})
+
+    def test_a_syslog_ignore_pattern_is_saved_and_cleared(self):
+        self.assertEqual(self.put({"syslog_burst_ignore": "apparmor"}).json()["overrides"], {"syslog_burst_ignore": "apparmor"})
+        self.assertEqual(self.put({"syslog_burst_ignore": ""}).json()["overrides"], {})
 
     def test_a_bandwidth_limit_is_saved_as_whole_bits_per_second_and_cleared(self):
         self.assertEqual(self.put({"bw_threshold_bps": "2500000.7"}).json()["overrides"], {"bw_threshold_bps": "2500000"})

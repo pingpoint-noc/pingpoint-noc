@@ -2394,7 +2394,7 @@ def validate_dependency(repo, device_id, parent_id):
     return parent_id
 
 
-DEVICE_SETTING_KEYS = ("icmp_latency_ms", "ignored_interfaces", "bw_threshold_bps")
+DEVICE_SETTING_KEYS = ("icmp_latency_ms", "ignored_interfaces", "bw_threshold_bps", "syslog_burst_ignore")
 
 
 def get_device_settings_view(repo, device_id):
@@ -2448,11 +2448,11 @@ def update_device_settings(repo, device_id, payload, now_ts):
         else:
             pattern = str(raw).strip()
             if len(pattern) > 200:
-                raise ValueError("ignored_interfaces is limited to 200 characters")
+                raise ValueError("%s is limited to 200 characters" % key)
             try:
                 re.compile(pattern)
             except re.error as exc:
-                raise ValueError("ignored_interfaces is not a valid regular expression: %s" % exc)
+                raise ValueError("%s is not a valid regular expression: %s" % (key, exc))
             values[key] = pattern
     repo.set_device_settings(device_id, values, now_ts)
     return get_device_settings_view(repo, device_id)

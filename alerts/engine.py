@@ -908,16 +908,30 @@ def evaluate_failed_logins_rule(
     )
 
 
-def _syslog_baseline_per_window(repo, device_id, window_start_ts, window_seconds):
+def device_syslog_ignore(repo, device_id):
+    """The compiled pattern of syslog lines a device's burst rule must not count (key syslog_burst_ignore), or None. An invalid
+    pattern is ignored (the API validates it on save)."""
+    raw = repo.get_device_settings(device_id).get("syslog_burst_ignore", "")
+    if not raw:
+        return None
+    try:
+        return re.compile(raw, re.IGNORECASE)
+    except re.error:
+        return None
+
+
+def _syslog_baseline_per_window(repo, device_id, window_start_ts, window_seconds, ignore=None):
     """Usual events per window: one bounded COUNT(*) over the SYSLOG_BURST_BASELINE_WINDOWS windows that end right
     before the current one (uses idx_syslog_dev_ts), divided by the number of windows. 0 when there is no history."""
     base_start = int(window_start_ts) - SYSLOG_BURST_BASELINE_WINDOWS * int(window_seconds)
     conn = repo.open_read()
     try:
-        row = conn.execute(
-            "SELECT COUNT(*) FROM syslog_events WHERE device_id = ? AND ts_utc >= ? AND ts_utc < ?;",
-            (device_id, base_start, int(window_start_ts)),
-        ).fetchone()
+        sql = "SELECT COUNT(*) FROM syslog_events WHERE device_id = ? AND ts_utc >= ? AND ts_utc < ?"
+        params = [device_id, base_start, int(window_start_ts)]
+        if ignore is not None:
+            conn.create_function("ignored", 1, lambda message: 1 if ignore.search(message or "") else 0)
+            sql += " AND NOT ignored(message)"
+        row = conn.execute(sql + ";", params).fetchone()
     finally:
         conn.close()
     return (row[0] if row else 0) / float(SYSLOG_BURST_BASELINE_WINDOWS)
@@ -964,8 +978,11 @@ def evaluate_syslog_burst_rule(
         end_ts_utc=now_ts,
         limit=2000,
     )
+    ignore = device_syslog_ignore(repo, device_id)
+    if ignore is not None:
+        events = [event for event in events if not ignore.search(str(event.get("message") or ""))]
     count = len(events)
-    base = _syslog_baseline_per_window(repo, device_id, start_ts, burst_window_seconds)
+    base = _syslog_baseline_per_window(repo, device_id, start_ts, burst_window_seconds, ignore)
     above_usual = count >= burst_factor * max(base, 1)
     first_event = repo.first_syslog_ts(device_id)
     learning = first_event is None or (now_ts - first_event) < SYSLOG_BURST_LEARNING_SECONDS

@@ -8680,7 +8680,8 @@ async function loadDeviceTuning(keepMessage) {
   var latency = document.getElementById("tune-icmp-latency");
   var ignored = document.getElementById("tune-ignored-ifaces");
   var bwLimit = document.getElementById("tune-bw-limit");
-  if (!select || !latency || !ignored || !bwLimit || !select.value) {
+  var syslogIgnore = document.getElementById("tune-syslog-ignore");
+  if (!select || !latency || !ignored || !bwLimit || !syslogIgnore || !select.value) {
     return;
   }
   var wanted = select.value;
@@ -8692,6 +8693,7 @@ async function loadDeviceTuning(keepMessage) {
     latency.value = view.overrides.icmp_latency_ms || "";
     ignored.value = view.overrides.ignored_interfaces || "";
     bwLimit.value = view.overrides.bw_threshold_bps || "";
+    syslogIgnore.value = view.overrides.syslog_burst_ignore || "";
     var globalBw = view.global && view.global.bw_threshold_bps;
     bwLimit.placeholder = globalBw ? "global: " + globalBw : "global";
     var globalMs = view.global && view.global.icmp_latency_ms;
@@ -8712,10 +8714,12 @@ async function saveDeviceTuning() {
     return;
   }
   var bwLimit = document.getElementById("tune-bw-limit");
+  var syslogIgnoreField = document.getElementById("tune-syslog-ignore");
   var payload = {
     icmp_latency_ms: latency.value.trim(),
     ignored_interfaces: ignored.value.trim(),
-    bw_threshold_bps: bwLimit ? bwLimit.value.trim() : ""
+    bw_threshold_bps: bwLimit ? bwLimit.value.trim() : "",
+    syslog_burst_ignore: syslogIgnoreField ? syslogIgnoreField.value.trim() : ""
   };
   try {
     await sendSettingsRequest("PUT", "/api/devices/" + encodeURIComponent(select.value) + "/settings", payload);
