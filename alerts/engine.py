@@ -957,7 +957,17 @@ def evaluate_syslog_burst_rule(
 def evaluate_stale_sources_rule(repo, device_id, now_ts, stale_seconds, rule_toggles=None):
     """Evaluate stale_source for each collector of a device using collector_status.last_success_utc (decision S5)."""
     device = repo.get_device_status(device_id) or {}
-    for row in repo.get_collector_statuses(device_id):
+    statuses = repo.get_collector_statuses(device_id)
+    # A stale alert whose collector no longer has a status row (the source was removed from the device) would never be
+    # looked at again: close it here.
+    known_targets = {"collector:" + row["collector_name"] for row in statuses}
+    for open_alert in repo.list_alerts(device_id=device_id, status="firing"):
+        if open_alert["rule_id"] == "stale_source" and open_alert["target"] not in known_targets:
+            reconcile_alert(
+                repo=repo, device_id=device_id, rule_id="stale_source", target=open_alert["target"], severity="warning",
+                is_triggered=False, now_ts=now_ts, hold_seconds=0, message="",
+            )
+    for row in statuses:
         cname = row["collector_name"]
         target = "collector:" + cname
         last_ok = row["last_success_utc"]

@@ -153,6 +153,7 @@ class IcmpAlertsTestCase(unittest.TestCase):
         engine.reconcile_alert(
             self.repo, PARENT, "stale_source", "collector:snmp", "warning", True, NOW, 0, "no telemetry"
         )
+        self.repo.record_collector_success("snmp", PARENT, NOW - 3600)  # the status row that keeps the alert open
         self.notifier.sent.clear()
         self.record(NOW, loss=100.0)
         self.record(NOW, loss=100.0, device=PARENT)
@@ -166,6 +167,7 @@ class IcmpAlertsTestCase(unittest.TestCase):
         engine.reconcile_alert(
             self.repo, PARENT, "stale_source", "collector:snmp", "warning", True, NOW, 0, "no telemetry"
         )
+        self.repo.record_collector_success("snmp", PARENT, NOW - 3600)  # the status row that keeps the alert open
         self.notifier.sent.clear()
         self.record(NOW, loss=0.0, rtt=400.0)
         engine.evaluate_once(self.repo, NOW)
@@ -181,6 +183,19 @@ class IcmpAlertsTestCase(unittest.TestCase):
         # The device never answered SNMP (a collector error left a status row), then SNMP was switched off for it
         self.repo.record_collector_error("snmp", DEVICE, NOW - 60, "no answer")
         engine.evaluate_once(self.repo, NOW)
+        self.assertEqual(self.firing("stale_source"), [])
+
+    def test_a_stale_alert_closes_when_its_collector_row_is_gone(self):
+        self.repo.record_collector_success("snmp", DEVICE, NOW - 3600)
+        self.repo.set_device_credentials(DEVICE, has_snmp=True)
+        engine.evaluate_once(self.repo, NOW)
+        self.assertEqual(len(self.firing("stale_source")), 1)
+        conn = self.repo.open_write()
+        try:
+            conn.execute("DELETE FROM collector_status WHERE device_id = ?;", (DEVICE,))
+        finally:
+            conn.close()
+        engine.evaluate_once(self.repo, NOW + 30)
         self.assertEqual(self.firing("stale_source"), [])
 
     def test_the_rule_ids_are_known_to_the_rest_of_the_system(self):
