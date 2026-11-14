@@ -97,7 +97,9 @@ class TestBootstrapAndRegistrationApi(unittest.TestCase):
         self.assertTrue(script.startswith("#!/bin/bash"))
         self.assertIn('NOC_IP="192.168.88.4"', script)
         self.assertIn("/etc/rsyslog.d/99-mininoc.conf", script)
-        self.assertIn("*.* @$NOC_HOST:514", script)
+        self.assertIn('*.* action(type="omfwd" target="$NOC_IP" port="514" protocol="udp"', script)
+        self.assertIn('queue.type="LinkedList"', script)
+        self.assertIn('queue.discardMark="4000"', script)
         self.assertIn("/api/nodes/register", script)
 
     def test_bootstrap_script_does_not_claim_success_when_registration_fails(self):

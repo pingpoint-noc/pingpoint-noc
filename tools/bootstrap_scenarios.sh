@@ -25,7 +25,7 @@ mkpath() { # dir, then the tools to leave OUT
 
 # A normal
 out=$(bash $GOOD 2>&1); rc=$?; check "A normal install" 0 $rc; echo "$out" | tail -2
-grep -q '^\*\.\* @192.168.88.100:514$' $CONF && echo "   conf ok" || { echo "   CONF WRONG: $(cat $CONF)"; fail=$((fail+1)); }
+grep -q 'target="192.168.88.100" port="514"' $CONF && grep -q 'queue.discardMark' $CONF && echo "   conf ok" || { echo "   CONF WRONG: $(cat $CONF)"; fail=$((fail+1)); }
 
 # L unknown option
 out=$(bash $GOOD --bogus 2>&1); rc=$?; check "L unknown option" 2 $rc; echo "$out" | tail -1

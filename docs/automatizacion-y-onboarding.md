@@ -130,7 +130,7 @@ así se puede leer, pasar por `bash -n` y probar entera. La ruta la rellena con 
    inventario hasta que se borre en *Health & Inventory*). Cualquier otra opción termina con código 2.
 2. **Instala rsyslog y curl si faltan** con `apt-get`, `dnf`, `yum` o `apk`; si no hay ninguno, o falla, **se detiene** (sin rsyslog no se
    reenvía nada).
-3. **Escribe `/etc/rsyslog.d/99-mininoc.conf`** (`*.* @<colector>:514`; con un colector IPv6 va entre corchetes) y la **valida con
+3. **Escribe `/etc/rsyslog.d/99-mininoc.conf`** (una acción `omfwd` a UDP 514 con cola acotada en memoria: 5000 mensajes, y pasados 4000 se descartan los de severidad info y debug; un colector IPv6 va sin corchetes en `target`) y la **valida con
    `rsyslogd -N1` antes de que rsyslog la lea**: si la rechaza, restaura el fichero anterior y sale con código 1.
 4. **Relee la configuración** con `systemctl` (haciendo antes `reset-failed`: tras varios reinicios seguidos systemd se niega con
    `start-limit-hit` y deja rsyslog parado), luego `service` y por último `pkill -HUP` (contenedores sin systemd). Si nada funciona,
