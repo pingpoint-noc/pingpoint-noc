@@ -133,3 +133,104 @@ Descartados por criterio de diseño:
     Also for the audit chat: whether to keep the page-load animation as it is (and why the top of the header and the part below it look different while loading), the NOT SEEN interface
     label (fixed: it used the device's last contact of any kind instead of its last SNMP poll), and the remaining disk and log items in 8.
     Also: a per-device bandwidth threshold in `device_settings` (a NAS on a virtual NIC with unknown speed fires `high_bandwidth` at any global value; today the fallback is the global absolute one).
+
+## Audit of 2026-11-14 (prioritised)
+
+Done with Playwright against the live server (desktop 1440x900 and mobile 390x844, every view, layout-shift observer) plus a read of the code. Each task
+has a "done when" line, its risk, and whether it is **safe unattended** (S: additive or mechanical, covered by tests, no behaviour change for existing
+installs; N: needs a decision or a real device first). Nothing here is done yet. Verified facts are marked; the rest is a proposal.
+
+### P0: wrong or misleading output (found in the audit)
+
+| # | Task | Done when | Risk | Unattended |
+|---|---|---|---|---|
+| A1 | **A device without SNMP shows "down" because of an old SNMP timestamp.** Verified: a DNS device with `has_snmp=0`, working ICMP and DNS collectors, shows `source_status: down` (its old `last_ok_utc` is 8.8 h old) because `device_summary` tests `snmp_seen` before `has_snmp`; a leftover `snmp` collector row also remains. | Test: `has_snmp=0`, stale `last_ok_utc`, fresh ICMP: status `ok`. Leftover SNMP status row removed when SNMP is off for the device. | Low | S |
+| A2 | **Header badge says "All Systems Operational" while a device is down** (verified on mobile: badge green, "1 needs attention"). The badge counts alerts only. | Badge turns amber ("n need attention") when any device is down or stale without an alert; test for both states. | Low (wording) | S |
+| A3 | **`syslog_burst` names no cause.** Verified: the burst on a Proxmox host was mostly (122 of the last 300 lines) `apparmor="DENIED"` lines from a guest's `rsyslogd` (LXC profile, `/run/systemd/journal/dev-log`), the rest were SSH sessions. The alert only says "92 events". | Alert message and guidance quote the top repeated message pattern (digits normalised) and its share. Separately, find out whether `bootstrap.sh` makes `rsyslogd` in an LXC guest log those denials (needs a real container). | Low / Medium | S (message), N (bootstrap) |
+| A4 | **Empty Syslog view tells every user to send logs to `127.0.0.1:514`.** | The hint uses the collector address the NOC already offers elsewhere (`MININOC_NOC_IP` or the request host). | Low | S |
+| A5 | **First screen is empty for a ping-only default target.** The target selector starts on the first device (a router seen only by ping), so Bandwidth, Top Talkers and IPFIX panels are empty on the first visit. | Default target is the device with most recent data (or the last used, kept in `localStorage`); test with a ping-only device first in the list. | Low | S |
+
+### P1: interface
+
+| # | Task | Done when | Risk | Unattended |
+|---|---|---|---|---|
+| B1 | **Page-load animation: keep it, but fix its cause.** Verified: `body.booting #main-content{opacity:0}` waits at most 1.5 s, then fades in over 0.15 s (opacity only, so no blur; `prefers-reduced-motion` is honoured). It is fine and should stay. The *header looks different from what is below* because the header is outside `#main-content` and is never hidden: its badge, clock and target selector fill in after the first data, while the content below is still transparent. Measured CLS: 0.235 desktop, 0.716 mobile, with an alert firing. The shifts come from `main-content` (0.156 at 146 ms on desktop; 0.349 on mobile, reported twice by the browser) when the alert banner and the "Good morning" block get their real height, plus about 0.05 in `noc-navbar-controls` and the KPI row. | Alerts section and greeting keep the height they had last time (in `localStorage`, with a safe default); header badge and clock have a fixed width. CLS < 0.1 on desktop and mobile in a browser test with an alert firing. | Low | S |
+| B2 | **`html { scrollbar-gutter: stable }`.** Verified: header controls move 10 px between a tab that scrolls (Refresh at x=997) and one that does not (x=1007, Syslog). | Browser test: the header's bounding boxes are equal on all tabs. | Nil | S |
+| B3 | **The alert banner is about 300 px tall on every tab** (verified: "Why it matters / Check first" is open on the banner; on Syslog the page below it is empty). | Banner shows one line plus a "Why it matters" toggle, open state remembered per alert; nothing else moves. Needs a decision on the default. | Low (design) | N |
+| B4 | Mobile: the tab bar is a menu (`#nav-menu-btn`). Verified: no horizontal scroll at 390 px. | Browser test: open the menu and visit all eight views at 390 px. | Nil | S |
+
+### P1: disks and logs (item 8 above, with what the audit found)
+
+| # | Task | Done when | Risk | Unattended |
+|---|---|---|---|---|
+| C1 | **"Days until full" rule.** The capacity view already forecasts the NOC host disk (`disk_free_bytes`, `disk_total_bytes`); no rule uses it, and Linux hosts report `disk_used_pct` only. | Rule `disk_full_forecast` (warn < 14 d, critical < 3 d), needs 48 h of samples, linear fit; tests for flat, growing, noisy and short series. Ship **off by default** until the thresholds are reviewed. | Medium (false positives) | S (disabled), N (enabling) |
+| C2 | **Per-source cap on stored syslog rows** (today only age and total size limit it). | `MININOC_SYSLOG_MAX_ROWS_PER_SOURCE`; retention trims the flooding source first; test: one source at 10x the cap cannot evict the others. | Low | S |
+| C3 | **rsyslog queue limits in `bootstrap.sh`.** Verified: it writes `*.* @host:514` with no queue or rate limit; it cannot fill a disk, but a flood costs bandwidth and a failing guest (see A3) multiplies it. | `action(type="omfwd" ... queue.type="LinkedList" queue.size=... queue.discardMark=...)` plus an `imuxsock` rate limit; `rsyslogd -N1` passes and rollback still works on Debian, Alpine and Rocky containers. | Medium (touches every enrolled host) | N |
+| C4 | **logrotate:** `bootstrap.sh` writes only the forwarding file, so a host's own rotation is not ours. Document it and make the preflight warn about a host whose `/var/log` has no rotation. | Section in `docs/montar-contenedor.md`; preflight check with a test. | Nil | S |
+| C5 | The installer sets a journald cap; a container installed by hand does not. | The preflight reports "journald has no size cap" with the one-line fix. | Nil | S |
+
+### P1: per-device bandwidth threshold
+
+| # | Task | Done when | Risk | Unattended |
+|---|---|---|---|---|
+| D1 | Key `bw_threshold_bps` in `device_settings` (a key/value table, **no migration needed**), validated like `icmp_latency_ms`; the engine reads it before the global value; a field in Settings > Monitored Targets. | Tests: a NAS-like device with unknown speed and its own limit alerts only above it; other devices unchanged; `PUT` rejects negatives and non-numbers. | Low | S |
+| D2 | Utilisation in %, from `ifHighSpeed` (already read by the SNMP poller), with an alert for a negotiated-speed change (1 G to 100 M). | Percent shown next to bit/s when the speed is known; none when it is 0. | Low | S |
+
+### P1: Resources panel and telemetry coverage
+
+Real coverage of the reference deployment (verified from `/api/devices/*`): CPU, memory and disks arrive for 7 hosts (agent or SNMP); syslog from 5; **IPFIX from none**
+(the ISP router cannot export it, so the IPFIX and Top Talkers panels stay empty); two hosts have SNMP only; the router and the DNS server have ping and DNS only.
+Today `/api/host-health` returns only the latest values, with no history.
+
+| # | Task | Done when | Risk | Unattended |
+|---|---|---|---|---|
+| E1 | `GET /api/devices/{id}/resources?window=` over `get_device_metrics_series` (cpu, memory, load 1/5/15), points thinned to <= 300, statuses `ok / no_data / not_collected`. | API tests, including a device without metrics. | Low | S |
+| E2 | **Resources panel** in the Overview (CPU, RAM, load per device; reuse the chart component). | Browser test with two devices; the empty state says what is missing. | Low | S |
+| E3 | **Coverage matrix** (device x SNMP, agent, syslog, IPFIX, ICMP, DNS, Proxmox) with, for each missing cell, the command that enables it (text only, never executed). | Test with neutral sample devices; one cell per source; commands come from the existing bootstrap endpoints. | Low | S |
+
+### P2: larger pieces
+
+| # | Task | Done when | Risk | Unattended |
+|---|---|---|---|---|
+| F1 | **Native IPFIX receiver** (today it needs `nfcapd`; see `collectors/ipfix/ingestor.py`). Templates v9/IPFIX, options templates, enterprise fields. | Replays the `samples/` captures with the same flows as `nfdump`; fuzz test on truncated and hostile packets; per-sender limits. | Medium (untrusted UDP) | N for deploy; S for code with fuzz tests on a branch |
+| F2 | **First-run wizard** (local networks detected, discovery with a review step, profiles, notification test). Split in W1 detect networks, W2 review discovery, W3 profiles and learning, W4 notifications. | Each step usable without code; neutral defaults (F3) first. | Medium (design) | N |
+| F3 | **Neutral `scenario.py`.** Defaults are still the original lab's (`192.168.88.1`, networks, NOC address); over 100 files assume them. Step 1 (mechanical): a test fixture sets the lab values, so no test depends on the defaults. Step 2: empty defaults, asked at first run, release note. | Step 1: suite unchanged and green with the defaults emptied locally. Step 2: a fresh install shows the wizard. | Medium (behaviour change) | S (step 1), N (step 2) |
+| F4 | Tell a hypervisor guest from a plain host in the topology when the Proxmox API is not configured (item 14f). | Heuristic documented and tested; the user can correct a wrong guess. | Medium | N |
+
+### P2: ideas from the network-management course and other open NMS
+
+Sources: <https://alesanco-es.github.io/teaching/nm/> (index, labs A1/A2 and L1 SNMP read; the other labs were not opened, so the FCAPS mapping is inferred from titles),
+LibreNMS and Zabbix feature pages, Uptime Kuma README. Netdata and Observium were **not** read: those ideas come from memory and are unverified. Everything stays within
+"a NOC monitors, it does not provision". Order = value over effort.
+
+| # | Idea | Area | Effort | False-positive risk | Unattended |
+|---|---|---|---|---|---|
+| G1 | Alert escalation: a firing alert unacknowledged after N min goes to another destination (check `engine.py:564` first: there is a mention of it) | Fault | S | Low | S |
+| G2 | HTTP(S) and TCP probes with keyword and latency; then TLS certificate expiry (14/7 days) | Fault | M | Medium (2 failures in a row needed) | S |
+| G3 | SNMP trap and inform receiver (v2c/v3): faster `linkDown` than polling | Fault | M | Low | N (needs a real device) |
+| G4 | Cause/symptom grouping: one incident when a parent fails (extends dependencies and item 9) | Fault | M | Low | N (design) |
+| G5 | LLDP/CDP neighbours by SNMP to draw real links in the topology | Configuration | M | Low | N (needs real walks in `samples/`) |
+| G6 | ENTITY-MIB inventory (model, serial, firmware) and a "firmware changed" notice | Configuration | S-M | Low | N (same) |
+| G7 | Vendor by MAC OUI for discovered devices | Configuration | S | Nil | S |
+| G8 | ARP/FDB tables: which MAC is on which port, duplicate IP | Configuration | M | Medium (legitimate moves) | N |
+| G9 | Top consumers per day/month from IPFIX as CSV; p95 billing-style report per port | Accounting | S-M | Nil | S |
+| G10 | Monthly volume trend per device with jump detection (not the discarded hourly baseline) | Accounting | S | Medium | N |
+| G11 | ICMP quality: RTT p95 and jitter chart | Performance | S | Low | S |
+| G12 | Device profiles/templates ("router", "switch", "NAS") with thresholds and rules preloaded; links with F2 and D1 | Performance | M | Low | N |
+| G13 | SNMP v1/v2c default-community or v3 `noAuth` audit of the inventory | Security | S | Low | S |
+| G14 | Management health report: failed web logins, tokens close to expiry | Security | S | Low | S |
+| G15 | New or vanished LAN device notice, **inventory only** (the SOC-style `new_term` stays discarded) | Security | S-M | Medium | N |
+| G16 | Read-only public status page (service names only, no IPs) | UX | M | Low | N (what to show) |
+| G17 | Prometheus `/metrics` (check first that it does not exist) | Operation | S | Nil | S |
+| G18 | Config backup (Oxidized/RANCID style): **not** in the NOC (it needs credentials); link to Oxidized in the docs | Configuration | n/a | n/a | n/a |
+| G19 | Simple anomaly detection on a 7-day moving average, informational only, no push by default | Performance | L | High | N |
+
+### Order of work
+
+1. A1, A2, A4, A5, B2 (small, visible, safe).
+2. B1, A3 (message part), D1, E1 to E3.
+3. C1 (disabled), C2, C4, C5, F3 step 1.
+4. C3, B3, D2, G1, G2, G7, G9, G11, G13, G14, G17.
+5. F1, F2, G3 to G6 with real data; G15 and G19 last.
+
+In the reference deployment, look first at the syslog burst behind A3 and the stale device behind A1 (server work, kept out of this repo).
