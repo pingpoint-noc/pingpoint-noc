@@ -70,6 +70,41 @@
         </div>
       </section>
 
+      <!-- Resources by machine: every host, hypervisor, virtual machine and container in one table -->
+      <section class="panel panel-wide" id="fleet-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Resources by Machine</h2>
+            <span class="panel-subtitle">CPU, memory and disk of every host, virtual machine and container &middot; busiest first &middot; click a column to sort</span>
+          </div>
+          <div class="panel-actions">
+            <label class="visually-hidden" for="fleet-range">History shown in the miniatures</label>
+            <select id="fleet-range" class="form-select">
+              <option value="1h">Last hour</option>
+              <option value="24h" selected>Last 24 hours</option>
+              <option value="7d">Last 7 days</option>
+            </select>
+          </div>
+        </div>
+        <p id="fleet-empty" class="empty-reason-card" hidden></p>
+        <div tabindex="0" role="region" aria-labelledby="fleet-caption" class="table-container">
+          <table class="data-table table-stack table-fleet">
+            <caption id="fleet-caption" class="visually-hidden">CPU, memory and disk of each machine, one row per machine</caption>
+            <thead>
+              <tr>
+                <th><button type="button" class="link-button fleet-sort" data-sort="name">Machine</button></th>
+                <th><button type="button" class="link-button fleet-sort" data-sort="cpu">CPU</button></th>
+                <th><button type="button" class="link-button fleet-sort" data-sort="mem">Memory</button></th>
+                <th><button type="button" class="link-button fleet-sort" data-sort="disk">Disk</button></th>
+                <th>Source</th>
+                <th><span class="visually-hidden">Open</span></th>
+              </tr>
+            </thead>
+            <tbody id="fleet-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- ICMP: packet loss, latency and jitter of every device, also those without SNMP -->
       <section class="panel panel-wide" id="icmp-health-panel">
         <div class="panel-header">

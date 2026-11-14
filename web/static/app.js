@@ -6017,6 +6017,8 @@ async function loadHealth() {
     console.error("Failed to load health metrics:", err);
   }
   await loadHostHealth();
+  wireFleet();
+  await loadFleetResources();
   await loadIcmpHealth();
   await loadResources();
   await loadCoverage();
@@ -6087,6 +6089,143 @@ function hostHealthServices(dev) {
 }
 
 // One row per device (K113): the former block of cards per device took ~120 px each and the tab 5000 px.
+// 6b. RESOURCES BY MACHINE (/api/resources/fleet): one row per host, hypervisor, virtual machine and container
+var FLEET = { rows: [], sortKey: "cpu", sortDir: -1 };
+var FLEET_KIND = { host: "HOST", hypervisor: "PROXMOX", vm: "VM", ct: "CT" };
+
+function fleetTone(pct) {
+  if (pct === null || pct === undefined) {
+    return "";
+  }
+  if (pct >= 90) {
+    return "fleet-crit";
+  }
+  return pct >= 75 ? "fleet-warn" : "";
+}
+
+// A 80x22 line of the last values, 0 to 100 %. Decorative: the figure next to it carries the information.
+function fleetSpark(values) {
+  if (!values || values.length < 2) {
+    return "";
+  }
+  var step = 80 / (values.length - 1);
+  var points = values.map(function (v, i) {
+    return (i * step).toFixed(1) + "," + (22 - Math.max(0, Math.min(100, v)) * 0.22).toFixed(1);
+  }).join(" ");
+  return "<svg class='fleet-spark' viewBox='0 0 80 22' width='80' height='22' aria-hidden='true' focusable='false'>" +
+    "<polyline fill='none' stroke='currentColor' stroke-width='1.5' stroke-linejoin='round' points='" + points + "'/></svg>";
+}
+
+function fleetCell(label, pct, series, detail) {
+  if (pct === null || pct === undefined) {
+    return "<td data-label='" + label + "' class='text-dim'>n/a</td>";
+  }
+  var shown = pct < 10 ? pct.toFixed(1) : pct.toFixed(0);
+  return "<td data-label='" + label + "' class='fleet-cell " + fleetTone(pct) + "'><span class='fleet-body'>" +
+    "<span class='fleet-figure'>" + shown + " %</span>" +
+    "<span class='fleet-bar' aria-hidden='true'><span style='width:" + Math.max(0, Math.min(100, pct)).toFixed(0) + "%'></span></span>" +
+    fleetSpark(series) + (detail ? "<span class='fleet-detail text-dim'>" + escapeHtml(detail) + "</span>" : "") + "</span></td>";
+}
+
+function fleetSortValue(row, key) {
+  if (key === "name") {
+    return row.name.toLowerCase();
+  }
+  var value = key === "cpu" ? row.cpu_pct : (key === "mem" ? row.mem_pct : row.disk_pct);
+  return value === null || value === undefined ? -1 : value;
+}
+
+function renderFleet() {
+  var tbody = document.getElementById("fleet-tbody");
+  if (!tbody) {
+    return;
+  }
+  var rows = FLEET.rows.slice();
+  rows.sort(function (a, b) {
+    var x = fleetSortValue(a, FLEET.sortKey);
+    var y = fleetSortValue(b, FLEET.sortKey);
+    if (x < y) {
+      return -1 * FLEET.sortDir;
+    }
+    return x > y ? FLEET.sortDir : 0;
+  });
+  var holder = beginRows(tbody);
+  rows.forEach(function (row) {
+    var tr = document.createElement("tr");
+    var off = row.status !== "running" && row.status !== "up";
+    var memDetail = row.mem_total_bytes ? (row.mem_used_bytes !== null && row.mem_used_bytes !== undefined ?
+      formatBytes(row.mem_used_bytes) + " of " : "of ") + formatBytes(row.mem_total_bytes) : "";
+    var machine = "<th><strong>" + escapeHtml(row.name) + "</strong> <span class='badge badge-subtle'>" + (FLEET_KIND[row.kind] || "") + "</span>" +
+      (off ? " <span class='badge badge-down'>" + escapeHtml(row.status) + "</span>" : "") +
+      (row.vmid ? " <span class='text-dim'>#" + escapeHtml(row.vmid) + "</span>" : "") + "</th>";
+    var open = row.device_id ?
+      "<td data-label='Open'><button type='button' class='btn btn-ghost btn-small fleet-open' data-device='" + escapeHtml(row.device_id) + "'>Open &rarr;</button></td>" :
+      "<td data-label='Open' class='text-dim'>Not monitored</td>";
+    tr.innerHTML = machine +
+      fleetCell("CPU", row.cpu_pct, row.cpu_series, row.vcpus ? row.vcpus + " vCPU" : "") +
+      fleetCell("Memory", row.mem_pct, row.mem_series, memDetail) +
+      fleetCell("Disk", row.disk_pct, null, "") +
+      "<td data-label='Source' class='text-dim'>" + escapeHtml(row.source === "proxmox" ? "Proxmox API" : (row.source === "agent" ? "Agent" : "SNMP")) + "</td>" + open;
+    holder.appendChild(tr);
+  });
+  commitRows(tbody, holder);
+  document.querySelectorAll(".fleet-sort").forEach(function (btn) {
+    var active = btn.getAttribute("data-sort") === FLEET.sortKey;
+    btn.setAttribute("aria-sort", active ? (FLEET.sortDir < 0 ? "descending" : "ascending") : "none");
+    btn.classList.toggle("is-active", active);
+  });
+}
+
+async function loadFleetResources() {
+  var emptyEl = document.getElementById("fleet-empty");
+  var range = document.getElementById("fleet-range");
+  if (!document.getElementById("fleet-tbody")) {
+    return;
+  }
+  try {
+    var data = await fetchJson("/api/resources/fleet?range=" + encodeURIComponent(range ? range.value : "24h"));
+    FLEET.rows = data.rows;
+    renderFleet();
+    if (emptyEl) {
+      emptyEl.hidden = data.rows.length > 0;
+      emptyEl.textContent = data.rows.length > 0 ? "" :
+        "No machine reports CPU, memory or disk yet: enrol a host (bootstrap command), poll a device over SNMP or add the Proxmox API.";
+    }
+  } catch (err) {
+    console.error("Failed to load resources by machine:", err);
+    if (emptyEl) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = "Could not load resources: " + err.message;
+    }
+  }
+}
+
+function wireFleet() {
+  var panel = document.getElementById("fleet-panel");
+  if (!panel || panel.fleetWired) {
+    return;
+  }
+  panel.fleetWired = true;
+  panel.addEventListener("click", function (ev) {
+    var sorter = ev.target.closest ? ev.target.closest(".fleet-sort") : null;
+    if (sorter) {
+      var key = sorter.getAttribute("data-sort");
+      FLEET.sortDir = FLEET.sortKey === key ? -FLEET.sortDir : (key === "name" ? 1 : -1);
+      FLEET.sortKey = key;
+      renderFleet();
+      return;
+    }
+    var opener = ev.target.closest ? ev.target.closest(".fleet-open") : null;
+    if (opener) {
+      selectDevice(opener.getAttribute("data-device"));
+    }
+  });
+  var range = document.getElementById("fleet-range");
+  if (range) {
+    range.addEventListener("change", loadFleetResources);
+  }
+}
+
 async function loadHostHealth() {
   var tbody = document.getElementById("host-health-tbody");
   var emptyEl = document.getElementById("host-health-empty");

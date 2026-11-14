@@ -76,6 +76,23 @@ def resolve_proxmox_credentials(device, environ=None):
     }
 
 
+def guest_usage_metrics(guest):
+    """CPU, memory and disk use of one running guest as device_metrics rows (label = vmid); nothing for a stopped one.
+
+    A QEMU guest reports no disk use over the list call (it is 0), so only a positive value is stored.
+    """
+    if guest.get("status") != "running":
+        return []
+    label = str(guest["vmid"])
+    rows = [{"metric_name": "pve_guest_cpu_pct", "label": label, "value": round(float(guest.get("cpu", 0.0)) * 100.0, 2)}]
+    if guest.get("maxmem", 0) > 0:
+        rows.append({"metric_name": "pve_guest_mem_used_pct", "label": label, "value": round(100.0 * guest.get("mem", 0) / guest["maxmem"], 2)})
+        rows.append({"metric_name": "pve_guest_mem_used_bytes", "label": label, "value": float(guest.get("mem", 0))})
+    if guest.get("maxdisk", 0) > 0 and guest.get("disk", 0) > 0:
+        rows.append({"metric_name": "pve_guest_disk_used_pct", "label": label, "value": round(100.0 * guest["disk"] / guest["maxdisk"], 2)})
+    return rows
+
+
 def poll_proxmox_device(repo, device, now_ts=None, client_factory=None, environ=None):
     """Poll a single Proxmox VE hypervisor device, record metrics and correlate guests."""
     if now_ts is None:
@@ -160,6 +177,7 @@ def poll_proxmox_device(repo, device, now_ts=None, client_factory=None, environ=
 
         # 3. Fetch virtual guests (QEMU VMs and LXC containers)
         guests_count = 0
+        guest_metrics = []
         qemu_raw = client.get(f"/nodes/{node_name}/qemu")
         qemu_vms = parse_qemu_list(qemu_raw)
 
@@ -202,6 +220,7 @@ def poll_proxmox_device(repo, device, now_ts=None, client_factory=None, environ=
                 mem_used_bytes=vm["mem"] if vm["status"] == "running" else None,
             )
             guests_count += 1
+            guest_metrics.extend(guest_usage_metrics(vm))
 
         lxc_raw = client.get(f"/nodes/{node_name}/lxc")
         lxc_containers = parse_lxc_list(lxc_raw)
@@ -248,6 +267,11 @@ def poll_proxmox_device(repo, device, now_ts=None, client_factory=None, environ=
                 mem_used_bytes=ct["mem"] if ct["status"] == "running" else None,
             )
             guests_count += 1
+            guest_metrics.extend(guest_usage_metrics(ct))
+
+        # History of every running guest (CPU, memory, disk), kept on the hypervisor with the vmid as the label: the fleet view draws it.
+        if guest_metrics:
+            repo.record_device_metrics(device_id, now_ts, guest_metrics)
 
         # 4. Mark success in collector_status and device reachability
         repo.record_collector_success(

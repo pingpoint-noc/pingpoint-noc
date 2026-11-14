@@ -4457,3 +4457,20 @@ button.coverage-gap:focus-visible { outline: 2px solid var(--border-focus); outl
 .setup-badge { font-size: var(--fs-xs); color: var(--text-dim); border: 1px solid var(--border-default); border-radius: 999px; padding: 0 0.5rem; }
 .setup-done .setup-badge { color: var(--color-ok); border-color: var(--color-ok-border); }
 .setup-proposal { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.25rem 0; font-size: var(--fs-sm, 0.85rem); }
+
+/* Resources by Machine */
+.table-fleet .fleet-cell { min-width: 11rem; }
+.fleet-figure { display: inline-block; min-width: 3.2rem; font-variant-numeric: tabular-nums; }
+.fleet-bar { display: inline-block; width: 4.5rem; height: 0.4rem; vertical-align: middle; border-radius: 999px; background: var(--border-subtle); overflow: hidden; }
+.fleet-bar > span { display: block; height: 100%; background: var(--accent-solid); }
+.fleet-spark { vertical-align: middle; color: var(--text-dim); }
+.fleet-body { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.15rem 0.5rem; }
+.fleet-detail { flex-basis: 100%; font-size: var(--fs-xs); }
+@media (max-width: 700px) { .fleet-body { justify-content: flex-end; } .fleet-detail { text-align: right; } }
+.fleet-warn .fleet-bar > span { background: var(--color-warn); }
+.fleet-warn .fleet-figure { color: var(--color-warn); }
+.fleet-crit .fleet-bar > span { background: var(--color-danger); }
+.fleet-crit .fleet-figure { color: var(--color-danger); font-weight: 600; }
+.fleet-sort { font: inherit; font-weight: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; }
+.fleet-sort.is-active::after { content: " \2193"; }
+.fleet-sort.is-active[aria-sort="ascending"]::after { content: " \2191"; }

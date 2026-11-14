@@ -1055,6 +1055,14 @@ def create_app(db_path, clock=utc_now):
         group = build_notifiers(repo.get_settings(), os.environ)
         return setup.status(repo, clock(), proposals=proposals, destinations=group.names() if group is not None else [])
 
+    @app.get("/api/resources/fleet")
+    def fleet_resources(range: str = "24h"):
+        """CPU, memory and disk of every machine (hosts, hypervisors, virtual machines, containers), one row each, with a short history."""
+        try:
+            return services.get_fleet_resources_view(repo, clock(), range)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
     @app.get("/api/metrics")
     def prometheus_metrics():
         """Device state, CPU and memory, active alerts and database size in the Prometheus text format (read-only)."""

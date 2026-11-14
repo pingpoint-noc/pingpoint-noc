@@ -2982,6 +2982,146 @@ def get_device_resources_view(repo, device_id, now_ts, range_name="1h"):
     }
 
 
+FLEET_SPARK_POINTS = 48
+FLEET_DEVICE_METRICS = ("cpu_load_pct", "memory_used_pct", "mem_total_bytes", "mem_used_bytes", "disk_used_pct",
+                        "pve_cpu_usage", "pve_mem_used_pct", "pve_mem_total_bytes", "pve_mem_used_bytes", "pve_rootfs_used_pct")
+FLEET_GUEST_METRICS = ("pve_guest_cpu_pct", "pve_guest_mem_used_pct", "pve_guest_mem_used_bytes", "pve_guest_disk_used_pct")
+
+
+def _spark(points):
+    """A short list of values (oldest first) for a miniature chart; empty when there is nothing."""
+    return [round(p["value"], 1) for p in thin_series(points, FLEET_SPARK_POINTS)]
+
+
+def _points(rows):
+    return [{"ts_utc": int(r["ts_utc"]), "value": float(r["value"])} for r in rows if r["value"] is not None]
+
+
+def _fleet_device_usage(repo, device, start, now_ts):
+    """CPU, memory and disk of a device from its agent or SNMP (or, for a hypervisor, from its own API) with 2 miniature series."""
+    device_id = device["id"]
+    latest = {}
+    disks = []
+    newest = None
+    for row in repo.get_latest_metric_rows(device_id, FLEET_DEVICE_METRICS):
+        if newest is None or row["ts_utc"] > newest:
+            newest = row["ts_utc"]
+        if row["metric_name"] == "disk_used_pct":
+            if not is_pseudo_mount(row["label"]):
+                disks.append(float(row["value"]))
+        else:
+            latest[row["metric_name"]] = float(row["value"])
+    cpu = latest.get("cpu_load_pct")
+    if cpu is None and latest.get("pve_cpu_usage") is not None:
+        cpu = round(latest["pve_cpu_usage"] * 100.0, 1)
+    mem = latest.get("memory_used_pct", latest.get("pve_mem_used_pct"))
+    disk = max(disks) if disks else latest.get("pve_rootfs_used_pct")
+    cpu_metric = "cpu_load_pct" if latest.get("cpu_load_pct") is not None else "pve_cpu_usage"
+    mem_metric = "memory_used_pct" if latest.get("memory_used_pct") is not None else "pve_mem_used_pct"
+    cpu_points = _points(repo.get_device_metrics_series(device_id, cpu_metric, start, int(now_ts)))
+    if cpu_metric == "pve_cpu_usage":
+        cpu_points = [{"ts_utc": p["ts_utc"], "value": p["value"] * 100.0} for p in cpu_points]
+    mem_points = _points(repo.get_device_metrics_series(device_id, mem_metric, start, int(now_ts)))
+    return {
+        "cpu_pct": cpu, "mem_pct": mem, "disk_pct": disk,
+        "mem_used_bytes": latest.get("mem_used_bytes", latest.get("pve_mem_used_bytes")),
+        "mem_total_bytes": latest.get("mem_total_bytes", latest.get("pve_mem_total_bytes")),
+        "cpu_series": _spark(cpu_points), "mem_series": _spark(mem_points), "as_of_utc": newest,
+    }
+
+
+def get_fleet_resources_view(repo, now_ts, range_name="24h"):
+    """One row per machine (a host, a hypervisor, a virtual machine or a container) with CPU, memory and disk now and over the range.
+
+    A guest that is also a monitored device is ONE row and takes its figures from the machine itself (agent or SNMP, which see inside);
+    a guest nobody monitors shows what its hypervisor reports. Rows are ordered running first, then by CPU, busiest first."""
+    if range_name not in RESOURCE_RANGES:
+        raise ValueError("range must be one of: " + ", ".join(sorted(RESOURCE_RANGES)))
+    now_ts = int(now_ts)
+    start = now_ts - RESOURCE_RANGES[range_name]
+    devices = repo.list_monitored_devices()
+    rows = []
+    claimed = set()
+
+    for hyp in [d for d in devices if d.get("device_type") == "proxmox"]:
+        guests = repo.list_proxmox_guests(hyp["id"])
+        if not guests:
+            continue
+        latest = {}
+        for row in repo.get_latest_metric_rows(hyp["id"], FLEET_GUEST_METRICS):
+            latest[(row["metric_name"], row["label"])] = float(row["value"])
+        history = {}
+        for metric in ("pve_guest_cpu_pct", "pve_guest_mem_used_pct"):
+            for r in repo.get_device_metrics_series(hyp["id"], metric, start, now_ts):
+                if r["value"] is not None:
+                    history.setdefault((metric, r["label"]), []).append({"ts_utc": int(r["ts_utc"]), "value": float(r["value"])})
+        for g in guests:
+            label = str(g["vmid"])
+            running = g.get("status") == "running"
+            matched = g.get("matched_device_id")
+            usage = None
+            if matched and matched in {d["id"] for d in devices}:
+                claimed.add(matched)
+                own = next(d for d in devices if d["id"] == matched)
+                usage = _fleet_device_usage(repo, own, start, now_ts)
+                if usage["cpu_pct"] is None and usage["mem_pct"] is None:
+                    usage = None
+                else:
+                    usage["source"] = "agent" if own.get("has_telemetry") else "snmp"
+            if usage is None:
+                cpu = latest.get(("pve_guest_cpu_pct", label))
+                if cpu is None and running and g.get("cpu_frac") is not None:
+                    cpu = round(float(g["cpu_frac"]) * 100.0, 1)
+                mem_used = g.get("mem_used_bytes") if running else None
+                mem_total = g.get("maxmem_bytes") or None
+                mem_pct = latest.get(("pve_guest_mem_used_pct", label))
+                if mem_pct is None and mem_used is not None and mem_total:
+                    mem_pct = round(100.0 * mem_used / mem_total, 1)
+                usage = {
+                    "cpu_pct": cpu if running else None, "mem_pct": mem_pct if running else None,
+                    "disk_pct": latest.get(("pve_guest_disk_used_pct", label)) if running else None,
+                    "mem_used_bytes": mem_used, "mem_total_bytes": mem_total,
+                    "cpu_series": _spark(history.get(("pve_guest_cpu_pct", label), [])),
+                    "mem_series": _spark(history.get(("pve_guest_mem_used_pct", label), [])),
+                    "as_of_utc": g.get("updated_utc"), "source": "proxmox",
+                }
+            rows.append(dict(
+                usage, key="pve:%s:%s" % (hyp["id"], label), name=g.get("name") or ("#" + label),
+                kind="ct" if g.get("guest_type") == "lxc" else "vm", device_id=matched or None,
+                hypervisor_id=hyp["id"], vmid=g["vmid"], status="running" if running else str(g.get("status") or "unknown"),
+                vcpus=g.get("cpus"),
+            ))
+
+    for device in devices:
+        if device["id"] in claimed:
+            continue
+        has_source = bool(device.get("has_snmp")) or bool(device.get("has_telemetry")) or device.get("device_type") == "proxmox"
+        if not has_source:
+            continue
+        usage = _fleet_device_usage(repo, device, start, now_ts)
+        if usage["cpu_pct"] is None and usage["mem_pct"] is None and usage["disk_pct"] is None:
+            continue
+        usage["source"] = "proxmox" if device.get("device_type") == "proxmox" and not device.get("has_telemetry") and not device.get("has_snmp") \
+            else ("agent" if device.get("has_telemetry") else "snmp")
+        rows.append(dict(
+            usage, key="dev:" + device["id"], name=device.get("name") or device["id"],
+            kind="hypervisor" if device.get("device_type") == "proxmox" else "host", device_id=device["id"],
+            hypervisor_id=None, vmid=None, status="up" if device.get("reachable") else "down", vcpus=None,
+        ))
+
+    def order(row):
+        running = row["status"] in ("running", "up")
+        return (0 if running else 1, -(row["cpu_pct"] if row["cpu_pct"] is not None else -1.0), row["name"].lower())
+
+    rows.sort(key=order)
+    return {
+        "range": range_name,
+        "generated_utc": now_ts,
+        "rows": rows,
+        "summary": {"machines": len(rows), "running": sum(1 for r in rows if r["status"] in ("running", "up"))},
+    }
+
+
 COVERAGE_SOURCES = ("snmp", "agent", "syslog", "ipfix", "icmp", "dns", "proxmox")
 # {noc} is replaced in the browser with the address the person used to open the NOC; {ip} and {id} with the device's.
 COVERAGE_HOW = {
