@@ -181,7 +181,7 @@ installs; N: needs a decision or a real device first). Nothing here is done yet.
 | # | Task | Done when | Risk | Unattended |
 |---|---|---|---|---|
 | D1 (done 2026-11-14) | Key `bw_threshold_bps` in `device_settings` (a key/value table, **no migration needed**), validated like `icmp_latency_ms`; the engine reads it before the global value; a field in Settings > Monitored Targets. | Tests: a NAS-like device with unknown speed and its own limit alerts only above it; other devices unchanged; `PUT` rejects negatives and non-numbers. | Low | S |
-| D2 | Utilisation in %, from `ifHighSpeed` (already read by the SNMP poller), with an alert for a negotiated-speed change (1 G to 100 M). | Percent shown next to bit/s when the speed is known; none when it is 0. | Low | S |
+| D2 (done 2026-11-14: the rate shows its share of the link (`formatBpsOfLink`), none when the speed is 0; rule `interface_speed_drop` (warning) when an interface that stays up renegotiates to a lower speed, remembered in `interfaces.speed_prev_bps` / `speed_changed_utc` (migration 4), closes when the speed returns or after 24 h; toggle in Settings) | Utilisation in %, from `ifHighSpeed` (already read by the SNMP poller), with an alert for a negotiated-speed change (1 G to 100 M). | Percent shown next to bit/s when the speed is known; none when it is 0. | Low | S |
 
 ### P1: Resources panel and telemetry coverage
 

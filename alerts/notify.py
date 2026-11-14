@@ -43,6 +43,7 @@ KNOWN_RULE_IDS = (
     "interface_down",
     "interface_flapping",
     "interface_errors",
+    "interface_speed_drop",
     "failed_logins",
     "stale_source",
     "flow_port_scan",

@@ -395,19 +395,19 @@ async function loadOverviewBandwidthChart() {
     var kpiRx = document.getElementById("kpi-rx-val");
     var kpiTx = document.getElementById("kpi-tx-val");
     if (kpiRx) {
-      kpiRx.textContent = formatBps(lastRx);
+      kpiRx.textContent = formatBpsOfLink(lastRx, data.speed_bps);
     }
     if (kpiTx) {
-      kpiTx.textContent = "TX Out: " + formatBps(lastTx);
+      kpiTx.textContent = "TX Out: " + formatBpsOfLink(lastTx, data.speed_bps);
     }
 
     var ovRxCur = document.getElementById("ov-rx-current");
     var ovTxCur = document.getElementById("ov-tx-current");
     if (ovRxCur) {
-      ovRxCur.textContent = formatBps(lastRx);
+      ovRxCur.textContent = formatBpsOfLink(lastRx, data.speed_bps);
     }
     if (ovTxCur) {
-      ovTxCur.textContent = formatBps(lastTx);
+      ovTxCur.textContent = formatBpsOfLink(lastTx, data.speed_bps);
     }
 
     var bwSparkValues = [];
@@ -669,13 +669,13 @@ async function loadBandwidth() {
     // Update KPI Ribbon
     var kpiRx = document.getElementById("kpi-rx-val");
     var kpiTx = document.getElementById("kpi-tx-val");
-    if (kpiRx) kpiRx.textContent = formatBps(lastRx);
-    if (kpiTx) kpiTx.textContent = "TX Out: " + formatBps(lastTx);
+    if (kpiRx) kpiRx.textContent = formatBpsOfLink(lastRx, data.speed_bps);
+    if (kpiTx) kpiTx.textContent = "TX Out: " + formatBpsOfLink(lastTx, data.speed_bps);
 
     var ovRxCur = document.getElementById("ov-rx-current");
     var ovTxCur = document.getElementById("ov-tx-current");
-    if (ovRxCur) ovRxCur.textContent = formatBps(lastRx);
-    if (ovTxCur) ovTxCur.textContent = formatBps(lastTx);
+    if (ovRxCur) ovRxCur.textContent = formatBpsOfLink(lastRx, data.speed_bps);
+    if (ovTxCur) ovTxCur.textContent = formatBpsOfLink(lastTx, data.speed_bps);
 
     // Render Interface Traffic Sparkline
     var bwSparkValues = [];

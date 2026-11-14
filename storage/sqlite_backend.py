@@ -1288,9 +1288,24 @@ class SQLiteRepository(StorageRepository):
 
                     # Status changes for the flapping rule (K14). Nothing is recorded on the first poll or after a reboot.
                     previous = conn.execute(
-                        "SELECT oper_status, last_change_ticks FROM interfaces WHERE device_id = ? AND if_index = ?;",
+                        "SELECT oper_status, last_change_ticks, speed_bps FROM interfaces WHERE device_id = ? AND if_index = ?;",
                         (device_id, if_index),
                     ).fetchone()
+                    # A change of the negotiated speed (1 Gbit/s to 100 Mbit/s) is only believed while the link is up both
+                    # times: a port that is down reports 0 or an odd value, and that is not a renegotiation.
+                    speed_prev = None
+                    speed_changed = None
+                    if (
+                        previous is not None
+                        and not rebooted
+                        and previous["oper_status"] == "up"
+                        and oper_status == "up"
+                        and int(previous["speed_bps"] or 0) > 0
+                        and int(speed_bps or 0) > 0
+                        and int(previous["speed_bps"]) != int(speed_bps)
+                    ):
+                        speed_prev = int(previous["speed_bps"])
+                        speed_changed = ts_utc
                     if previous is not None and not rebooted:
                         if previous["oper_status"] != oper_status:
                             conn.execute(
@@ -1320,18 +1335,21 @@ class SQLiteRepository(StorageRepository):
                         """
                         INSERT INTO interfaces (
                             device_id, if_index, if_descr, admin_status, oper_status, speed_bps, updated_utc,
-                            last_change_ticks
+                            last_change_ticks, speed_prev_bps, speed_changed_utc
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(device_id, if_index) DO UPDATE SET
                             if_descr = excluded.if_descr,
                             admin_status = excluded.admin_status,
                             oper_status = excluded.oper_status,
                             speed_bps = excluded.speed_bps,
                             updated_utc = excluded.updated_utc,
-                            last_change_ticks = excluded.last_change_ticks;
+                            last_change_ticks = excluded.last_change_ticks,
+                            speed_prev_bps = COALESCE(excluded.speed_prev_bps, interfaces.speed_prev_bps),
+                            speed_changed_utc = COALESCE(excluded.speed_changed_utc, interfaces.speed_changed_utc);
                         """,
-                        (device_id, if_index, if_descr, admin_status, oper_status, speed_bps, ts_utc, last_change_ticks),
+                        (device_id, if_index, if_descr, admin_status, oper_status, speed_bps, ts_utc, last_change_ticks,
+                         speed_prev, speed_changed),
                     )
 
                     if in_octets is not None and out_octets is not None:
@@ -3252,7 +3270,7 @@ class SQLiteRepository(StorageRepository):
             rows = conn.execute(
                 """
                 SELECT device_id, if_index, if_descr, admin_status, oper_status,
-                       speed_bps, updated_utc
+                       speed_bps, updated_utc, speed_prev_bps, speed_changed_utc
                 FROM interfaces
                 WHERE device_id = ?
                 ORDER BY if_index ASC;

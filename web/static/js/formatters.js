@@ -116,6 +116,17 @@ function formatDuration(seconds) {
   return secs + "s";
 }
 
+// A rate with its share of the link when the speed is known ("42.0 Mbit/s (4.2%)"); with an unknown or zero speed, just the rate.
+function formatBpsOfLink(bps, speedBps) {
+  var text = formatBps(bps);
+  if (!speedBps || speedBps <= 0 || bps === null || bps === undefined) {
+    return text;
+  }
+  var pct = 100 * bps / speedBps;
+  var shown = pct < 0.1 ? "<0.1" : (pct < 10 ? pct.toFixed(1) : pct.toFixed(0));
+  return text + " (" + shown + "%)";
+}
+
 function formatBps(bps) {
   if (bps === null || bps === undefined) {
     return "gap / reset";

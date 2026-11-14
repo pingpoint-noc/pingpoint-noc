@@ -1809,6 +1809,11 @@ ALERT_GUIDANCE = {
         "check": "Bandwidth & Interfaces: which interface; Syslog around those times for link lines; the physical link or the other end.",
         "links": [{"view": "bandwidth", "anchor": "device-panel"}, {"view": "syslog", "anchor": "logs-panel"}],
     },
+    "interface_speed_drop": {
+        "why": "A link renegotiated to a lower speed (for example 1 Gbit/s to 100 Mbit/s) and stayed up: usually a damaged cable pair, a poor connector or a failing port. It closes when the speed returns or after a day.",
+        "check": "Bandwidth & Interfaces: which interface and its speed now; then the cable and the port at both ends.",
+        "links": [{"view": "bandwidth", "anchor": "device-panel"}],
+    },
     "interface_errors": {
         "why": "An interface keeps counting errors or discards (the counters grow, not just hold an old value): bad cable or port, duplex mismatch or an overloaded queue.",
         "check": "Bandwidth & Interfaces: which interface and whether its traffic is also high; then the cable, the port and the other end.",

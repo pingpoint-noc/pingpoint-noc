@@ -76,7 +76,7 @@ def device_ignored_interfaces(repo, device_id):
         return None
 
 
-INTERFACE_RULE_IDS = ("interface_down", "interface_flapping", "interface_errors", "high_bandwidth")
+INTERFACE_RULE_IDS = ("interface_down", "interface_flapping", "interface_errors", "high_bandwidth", "interface_speed_drop")
 # Discards are mostly deliberate drops (multicast and IPv6 noise the host ignores, broadcast filtering on a bridge),
 # not a damaged link: every host of a quiet LAN shows about 20 a minute. A discards-only interface needs this many
 # times the errors threshold (1000 in 5 minutes by default) before it is reported.
@@ -133,9 +133,24 @@ RULE_TOGGLE_KEYS = (
     "rule_pve_storage_high_enabled",
     "rule_syslog_burst_enabled",
     "rule_disk_full_forecast_enabled",
+    "rule_interface_speed_drop_enabled",
 )
 # Rules that are off until someone turns them on: a new forecast rule must not wake anyone before its limits are reviewed.
 DEFAULT_OFF_TOGGLES = frozenset({"rule_disk_full_forecast_enabled"})
+# interface_speed_drop: how long the alert stays open after the negotiated speed fell (it closes earlier if the speed comes back).
+SPEED_DROP_HOLD_SECONDS = 86400
+
+
+def format_link_speed(bps):
+    """1_000_000_000 -> '1 Gbit/s', 100_000_000 -> '100 Mbit/s'."""
+    bps = int(bps)
+    if bps >= 1_000_000_000 and bps % 100_000_000 == 0:
+        return "%g Gbit/s" % (bps / 1_000_000_000)
+    if bps >= 1_000_000:
+        return "%g Mbit/s" % (bps / 1_000_000)
+    return "%g kbit/s" % (bps / 1000)
+
+
 # disk_full_forecast: warn when the forecast says the disk of the NOC host fills within this many days; critical within the second.
 DISK_FORECAST_WARN_DAYS = 14.0
 DISK_FORECAST_CRITICAL_DAYS = 3.0
@@ -752,6 +767,35 @@ def evaluate_interface_rules(
             now_ts=now_ts,
             hold_seconds=0,
             message=flap_msg,
+        )
+
+        # Negotiated speed (D2): a link that renegotiated down (1 Gbit/s to 100 Mbit/s: a bad cable pair, a failing port).
+        speed_msg = ""
+        previous_speed = int(row.get("speed_prev_bps") or 0)
+        changed_utc = row.get("speed_changed_utc")
+        is_speed_drop = (
+            is_seen
+            and oper_status == "up"
+            and changed_utc is not None
+            and (int(now_ts) - int(changed_utc)) <= SPEED_DROP_HOLD_SECONDS
+            and 0 < link_speed < previous_speed
+        )
+        if rule_toggles is not None and not rule_toggles.get("rule_interface_speed_drop_enabled", True):
+            is_speed_drop = False
+        if is_speed_drop:
+            speed_msg = "Interface %s (ifIndex %d) negotiated speed fell from %s to %s" % (
+                if_descr, if_index, format_link_speed(previous_speed), format_link_speed(link_speed),
+            )
+        reconcile_alert(
+            repo=repo,
+            device_id=device_id,
+            rule_id="interface_speed_drop",
+            target=target,
+            severity="warning",
+            is_triggered=is_speed_drop,
+            now_ts=now_ts,
+            hold_seconds=0,
+            message=speed_msg,
         )
 
         # Errors and discards (K15): by GROWTH over the window, never by the accumulated Counter32 value.

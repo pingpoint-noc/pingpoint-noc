@@ -64,6 +64,7 @@ var RULE_TOGGLE_FIELDS = [
   { id: "toggle-rule-flow-port-scan", key: "rule_flow_port_scan_enabled" },
   { id: "toggle-rule-interface-flapping", key: "rule_interface_flapping_enabled" },
   { id: "toggle-rule-interface-errors", key: "rule_interface_errors_enabled" },
+  { id: "toggle-rule-interface-speed-drop", key: "rule_interface_speed_drop_enabled" },
   { id: "toggle-rule-flow-new-destination", key: "rule_flow_new_destination_enabled" },
   { id: "toggle-rule-dns-service-down", key: "rule_dns_service_down_enabled" },
   { id: "toggle-rule-dns-blocklist-dropped", key: "rule_dns_blocklist_dropped_enabled" },
@@ -1130,7 +1131,7 @@ async function fillMaintenanceForm() {
 
 // Same ids as the server's KNOWN_RULE_IDS (alerts/notify.py); the server rejects anything else.
 var MAINTENANCE_RULES = [
-  "high_bandwidth", "interface_down", "interface_flapping", "interface_errors", "failed_logins", "stale_source",
+  "high_bandwidth", "interface_down", "interface_flapping", "interface_errors", "interface_speed_drop", "failed_logins", "stale_source",
   "flow_port_scan", "flow_rare_connection", "flow_new_destination", "dns_service_down", "dns_blocklist_dropped",
   "host_cpu_high", "host_memory_high", "host_disk_high", "host_service_down", "icmp_loss_high", "icmp_latency_high",
   "pve_storage_high", "syslog_burst", "disk_full_forecast"

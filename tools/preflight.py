@@ -89,15 +89,14 @@ def check_db_schema(db_path):
         return [make_result("Base de datos", "FAIL", "no se puede abrir en solo lectura: %s" % exc)]
     results = []
     try:
-        expectations = [
-            ("interfaces", -1, "last_change_ticks"),
-        ]
+        expectations = []
         # Columns added to a table that other columns were added to later are checked by name, not by position
         # (alerts ends in notify_held now, devices in depends_on): clear_cycles, then the acknowledgement (K63) and
         # the held notice (K64, K65); devices.depends_on (K65).
         for table, wanted_columns in (
             ("alerts", ["clear_cycles", "ack_by", "ack_utc", "ack_note", "notify_held"]),
             ("devices", ["depends_on", "snmp_cred"]),
+            ("interfaces", ["last_change_ticks", "speed_prev_bps", "speed_changed_utc"]),
         ):
             columns = column_names(conn, table)
             missing = [name for name in wanted_columns if name not in columns]

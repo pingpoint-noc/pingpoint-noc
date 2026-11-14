@@ -33,11 +33,22 @@ def _guest_usage(conn):
                 raise
 
 
+def _interface_speed_change(conn):
+    """Version 4: the speed an interface had before its last change, and when it changed (rule interface_speed_drop)."""
+    for column in ("speed_prev_bps", "speed_changed_utc"):
+        try:
+            conn.execute("ALTER TABLE interfaces ADD COLUMN " + column + " INTEGER;")
+        except Exception as exc:
+            if "duplicate column" not in str(exc).lower():
+                raise
+
+
 # (version, description, function(conn)); versions are 1, 2, 3, ... without gaps.
 MIGRATIONS = [
     (1, "baseline schema", _baseline),
     (2, "per-device settings", _device_settings),
     (3, "proxmox guest usage", _guest_usage),
+    (4, "interface speed change", _interface_speed_change),
 ]
 
 

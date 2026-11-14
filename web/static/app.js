@@ -270,6 +270,17 @@ function formatDuration(seconds) {
   return secs + "s";
 }
 
+// A rate with its share of the link when the speed is known ("42.0 Mbit/s (4.2%)"); with an unknown or zero speed, just the rate.
+function formatBpsOfLink(bps, speedBps) {
+  var text = formatBps(bps);
+  if (!speedBps || speedBps <= 0 || bps === null || bps === undefined) {
+    return text;
+  }
+  var pct = 100 * bps / speedBps;
+  var shown = pct < 0.1 ? "<0.1" : (pct < 10 ? pct.toFixed(1) : pct.toFixed(0));
+  return text + " (" + shown + "%)";
+}
+
 function formatBps(bps) {
   if (bps === null || bps === undefined) {
     return "gap / reset";
@@ -4532,19 +4543,19 @@ async function loadOverviewBandwidthChart() {
     var kpiRx = document.getElementById("kpi-rx-val");
     var kpiTx = document.getElementById("kpi-tx-val");
     if (kpiRx) {
-      kpiRx.textContent = formatBps(lastRx);
+      kpiRx.textContent = formatBpsOfLink(lastRx, data.speed_bps);
     }
     if (kpiTx) {
-      kpiTx.textContent = "TX Out: " + formatBps(lastTx);
+      kpiTx.textContent = "TX Out: " + formatBpsOfLink(lastTx, data.speed_bps);
     }
 
     var ovRxCur = document.getElementById("ov-rx-current");
     var ovTxCur = document.getElementById("ov-tx-current");
     if (ovRxCur) {
-      ovRxCur.textContent = formatBps(lastRx);
+      ovRxCur.textContent = formatBpsOfLink(lastRx, data.speed_bps);
     }
     if (ovTxCur) {
-      ovTxCur.textContent = formatBps(lastTx);
+      ovTxCur.textContent = formatBpsOfLink(lastTx, data.speed_bps);
     }
 
     var bwSparkValues = [];
@@ -4806,13 +4817,13 @@ async function loadBandwidth() {
     // Update KPI Ribbon
     var kpiRx = document.getElementById("kpi-rx-val");
     var kpiTx = document.getElementById("kpi-tx-val");
-    if (kpiRx) kpiRx.textContent = formatBps(lastRx);
-    if (kpiTx) kpiTx.textContent = "TX Out: " + formatBps(lastTx);
+    if (kpiRx) kpiRx.textContent = formatBpsOfLink(lastRx, data.speed_bps);
+    if (kpiTx) kpiTx.textContent = "TX Out: " + formatBpsOfLink(lastTx, data.speed_bps);
 
     var ovRxCur = document.getElementById("ov-rx-current");
     var ovTxCur = document.getElementById("ov-tx-current");
-    if (ovRxCur) ovRxCur.textContent = formatBps(lastRx);
-    if (ovTxCur) ovTxCur.textContent = formatBps(lastTx);
+    if (ovRxCur) ovRxCur.textContent = formatBpsOfLink(lastRx, data.speed_bps);
+    if (ovTxCur) ovTxCur.textContent = formatBpsOfLink(lastTx, data.speed_bps);
 
     // Render Interface Traffic Sparkline
     var bwSparkValues = [];
@@ -8078,6 +8089,7 @@ var RULE_TOGGLE_FIELDS = [
   { id: "toggle-rule-flow-port-scan", key: "rule_flow_port_scan_enabled" },
   { id: "toggle-rule-interface-flapping", key: "rule_interface_flapping_enabled" },
   { id: "toggle-rule-interface-errors", key: "rule_interface_errors_enabled" },
+  { id: "toggle-rule-interface-speed-drop", key: "rule_interface_speed_drop_enabled" },
   { id: "toggle-rule-flow-new-destination", key: "rule_flow_new_destination_enabled" },
   { id: "toggle-rule-dns-service-down", key: "rule_dns_service_down_enabled" },
   { id: "toggle-rule-dns-blocklist-dropped", key: "rule_dns_blocklist_dropped_enabled" },
@@ -9144,7 +9156,7 @@ async function fillMaintenanceForm() {
 
 // Same ids as the server's KNOWN_RULE_IDS (alerts/notify.py); the server rejects anything else.
 var MAINTENANCE_RULES = [
-  "high_bandwidth", "interface_down", "interface_flapping", "interface_errors", "failed_logins", "stale_source",
+  "high_bandwidth", "interface_down", "interface_flapping", "interface_errors", "interface_speed_drop", "failed_logins", "stale_source",
   "flow_port_scan", "flow_rare_connection", "flow_new_destination", "dns_service_down", "dns_blocklist_dropped",
   "host_cpu_high", "host_memory_high", "host_disk_high", "host_service_down", "icmp_loss_high", "icmp_latency_high",
   "pve_storage_high", "syslog_burst", "disk_full_forecast"
