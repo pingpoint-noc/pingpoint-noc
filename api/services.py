@@ -2819,6 +2819,67 @@ def get_proxmox_view(repo, device_id, now_ts):
     }
 
 
+RESOURCE_METRICS = (
+    ("cpu_pct", "cpu_load_pct"),
+    ("memory_pct", "memory_used_pct"),
+    ("load_1m", "host_loadavg_1m"),
+    ("load_5m", "host_loadavg_5m"),
+    ("load_15m", "host_loadavg_15m"),
+)
+RESOURCE_RANGES = {"15m": 900, "1h": 3600, "24h": 86400, "7d": 7 * 86400}
+
+
+def thin_series(points, target=TARGET_POINTS):
+    """At most `target` points, each the average of an equal share of the originals (timestamp = the share's last one)."""
+    if len(points) <= target:
+        return list(points)
+    size = -(-len(points) // target)
+    thinned = []
+    for start in range(0, len(points), size):
+        chunk = points[start:start + size]
+        thinned.append({"ts_utc": chunk[-1]["ts_utc"], "value": round(sum(p["value"] for p in chunk) / len(chunk), 3)})
+    return thinned
+
+
+def get_device_resources_view(repo, device_id, now_ts, range_name="1h"):
+    """CPU, memory and load history of one device (SNMP HOST-RESOURCES or agent telemetry), at most 300 points per series.
+
+    status: not_collected (the device has neither source), no_data (a source exists but nothing in the window), ok."""
+    if range_name not in RESOURCE_RANGES:
+        raise ValueError("range must be one of: " + ", ".join(sorted(RESOURCE_RANGES)))
+    device = repo.get_device_status(device_id)
+    if device is None:
+        return None
+    start = int(now_ts) - RESOURCE_RANGES[range_name]
+    series = {}
+    newest = None
+    for key, metric in RESOURCE_METRICS:
+        points = [
+            {"ts_utc": int(row["ts_utc"]), "value": float(row["value"])}
+            for row in repo.get_device_metrics_series(device_id, metric, start, int(now_ts))
+            if row["value"] is not None
+        ]
+        if points and (newest is None or points[-1]["ts_utc"] > newest):
+            newest = points[-1]["ts_utc"]
+        series[key] = thin_series(points)
+    has_source = bool(device.get("has_snmp")) or bool(device.get("has_telemetry"))
+    if not has_source and newest is None:
+        status = "not_collected"
+    elif newest is None:
+        status = "no_data"
+    else:
+        status = "ok"
+    return {
+        "device_id": device_id,
+        "range": range_name,
+        "generated_utc": int(now_ts),
+        "as_of_utc": newest,
+        "source_status": status,
+        "empty_reason": None if status == "ok" else status,
+        "series": series,
+    }
+
+
 def get_device_hypervisor_view(repo, device_id):
     """Return hosting hypervisor info for a guest device, or hosted=False if bare-metal."""
     device = repo.get_device_status(device_id)

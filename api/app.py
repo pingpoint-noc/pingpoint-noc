@@ -841,6 +841,16 @@ def create_app(db_path, clock=utc_now):
             raise HTTPException(status_code=404, detail="unknown device")
         return res
 
+    @app.get("/api/devices/{device_id}/resources")
+    def device_resources(device_id: str, range: str = "1h"):
+        try:
+            res = services.get_device_resources_view(repo, device_id, clock(), range)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if res is None:
+            raise HTTPException(status_code=404, detail="unknown device")
+        return res
+
     @app.get("/api/devices/{device_id}/hypervisor")
     def device_hypervisor(device_id: str):
         res = services.get_device_hypervisor_view(repo, device_id)
