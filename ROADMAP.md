@@ -132,3 +132,4 @@ Descartados por criterio de diseño:
     (<https://alesanco-es.github.io/teaching/nm/>: SNMP/MIBs, fault, configuration, accounting, performance and security management) and from other open NMS projects.
     Also for the audit chat: whether to keep the page-load animation as it is (and why the top of the header and the part below it look different while loading), the NOT SEEN interface
     label (fixed: it used the device's last contact of any kind instead of its last SNMP poll), and the remaining disk and log items in 8.
+    Also: a per-device bandwidth threshold in `device_settings` (a NAS on a virtual NIC with unknown speed fires `high_bandwidth` at any global value; today the fallback is the global absolute one).
