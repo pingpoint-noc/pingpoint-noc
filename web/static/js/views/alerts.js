@@ -420,13 +420,15 @@ async function loadAlerts() {
         if (al.guidance) {
           // The guidance (why it matters, what to check) is open by default only with one or two alerts on a wide screen: with a
           // longer list the banner would push every tab down the page, so each card starts as one line and unfolds on demand.
-          // It keeps what the person chose across refreshes and does not change when other alerts come or go.
+          // On the Overview only: on every other view the banner is a reminder above the work, not the work (it was ~300 px of
+          // text above an empty Syslog page). It keeps what the person chose across refreshes and does not change when other
+          // alerts come or go.
           STATE.alertGuidanceOpen = STATE.alertGuidanceOpen || {};
           var guidanceKey = al.rule_id + "|" + al.target + "|" + al.fired_utc;
           // The default is decided once, when the alert is first seen, and kept (K128): recomputed on every refresh from the
           // number of alerts at that moment, a third alert used to fold the open ones and a resolved one unfolded the rest.
           if (!(guidanceKey in STATE.alertGuidanceOpen)) {
-            STATE.alertGuidanceOpen[guidanceKey] = data.active.length <= 2 && !window.matchMedia("(max-width: 700px)").matches;
+            STATE.alertGuidanceOpen[guidanceKey] = data.active.length <= 2 && STATE.activeTab === "tab-overview" && !window.matchMedia("(max-width: 700px)").matches;
           }
           var guidanceOpen = STATE.alertGuidanceOpen[guidanceKey];
           guidanceHtml =
