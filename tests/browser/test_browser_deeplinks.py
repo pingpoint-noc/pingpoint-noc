@@ -53,7 +53,7 @@ class DeepLinkTest(BrowserTestCase):
         self.assertEqual(page.evaluate("location.hash"), "#/flows?device=" + other + "&range=1h")
         self.assertEqual(self.errors, [])
 
-    def test_back_and_forward_restore_the_previous_view_and_target(self):
+    def test_back_and_forward_walk_through_views_and_each_view_keeps_its_target(self):
         page = self.open_ready()
         first, other = self.other_device(page)
         page.locator("button[data-tab='tab-syslog']").click()
@@ -64,11 +64,10 @@ class DeepLinkTest(BrowserTestCase):
         page.go_back()
         page.wait_for_function("document.querySelector('.nav-tab-btn.active').dataset.tab === 'tab-syslog'")
         self.assertEqual(page.input_value("#device-select"), other)
-        page.go_back()
-        page.wait_for_function("document.querySelector('.nav-tab-btn.active').dataset.tab === 'tab-syslog'")
-        page.wait_for_function("document.getElementById('device-select').value === '" + first + "'")
+        # Picking a device replaces the entry of the view it was picked in: Back and Forward walk through views only
         page.go_back()
         page.wait_for_function("document.querySelector('.nav-tab-btn.active').dataset.tab === 'tab-overview'")
+        self.assertEqual(page.input_value("#device-select"), first)
         self.assertEqual(page.evaluate("location.hash"), "")
         page.go_forward()
         page.wait_for_function("document.querySelector('.nav-tab-btn.active').dataset.tab === 'tab-syslog'")
