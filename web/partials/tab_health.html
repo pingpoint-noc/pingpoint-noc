@@ -118,6 +118,24 @@
         <div id="resources-cards" class="host-overview-stats"></div>
       </section>
 
+      <!-- Telemetry coverage: which sources reach the NOC for each device, and how to turn on what is missing -->
+      <section class="panel panel-wide" id="coverage-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Telemetry Coverage</h2>
+            <span class="panel-subtitle">What each device sends to the NOC &middot; click a gap to see the command that enables it</span>
+          </div>
+        </div>
+        <div tabindex="0" role="region" aria-labelledby="coverage-caption" class="table-container">
+          <table class="data-table table-coverage">
+            <caption id="coverage-caption" class="visually-hidden">Data sources received from each device: SNMP, agent, syslog, IPFIX, ICMP, DNS and Proxmox</caption>
+            <thead id="coverage-thead"></thead>
+            <tbody id="coverage-tbody"></tbody>
+          </table>
+        </div>
+        <div id="coverage-how" class="empty-reason-card" role="status" aria-live="polite" hidden></div>
+      </section>
+
       <!-- Capacity: will the database and the disk last? -->
       <section class="panel panel-wide" id="capacity-panel">
         <div class="panel-header">

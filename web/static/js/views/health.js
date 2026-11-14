@@ -71,6 +71,7 @@ async function loadHealth() {
   await loadHostHealth();
   await loadIcmpHealth();
   await loadResources();
+  await loadCoverage();
   await loadCapacity();
   await loadAlertNoise();
   await loadAvailabilityReport();
@@ -449,6 +450,86 @@ async function loadResources() {
   } catch (err) {
     console.error("Failed to load the resources history:", err);
     setFreshnessBadge("resources-freshness", "down", null);
+  }
+}
+
+// Telemetry coverage (/api/coverage): a device x source grid. Each gap is a button that shows the command that fills it,
+// with this NOC's address (the one the page was opened from) and the device's own id and IP filled in.
+var COVERAGE_LABELS = { snmp: "SNMP", agent: "Agent", syslog: "Syslog", ipfix: "IPFIX", icmp: "ICMP", dns: "DNS", proxmox: "Proxmox" };
+var COVERAGE_DATA = null;
+
+function coverageCommand(template, device) {
+  return template.split("{noc}").join(window.location.origin).split("{ip}").join(device.ip).split("{id}").join(device.id);
+}
+
+function showCoverageHow(deviceId, source) {
+  var box = document.getElementById("coverage-how");
+  var data = COVERAGE_DATA;
+  if (!box || !data) {
+    return;
+  }
+  var device = null;
+  var i = 0;
+  for (i = 0; i < data.devices.length; i += 1) {
+    if (data.devices[i].id === deviceId) {
+      device = data.devices[i];
+    }
+  }
+  if (!device || !data.how[source]) {
+    return;
+  }
+  box.hidden = false;
+  box.innerHTML = "<strong>" + escapeHtml(device.name) + " &middot; " + escapeHtml(COVERAGE_LABELS[source] || source) + ":</strong> " +
+    "<code>" + escapeHtml(coverageCommand(data.how[source], device)) + "</code>";
+}
+
+async function loadCoverage() {
+  var thead = document.getElementById("coverage-thead");
+  var tbody = document.getElementById("coverage-tbody");
+  if (!thead || !tbody) {
+    return;
+  }
+  try {
+    var data = await fetchJson("/api/coverage");
+    COVERAGE_DATA = data;
+    var head = "<tr><th>Device</th>";
+    var s = 0;
+    for (s = 0; s < data.sources.length; s += 1) {
+      head += "<th>" + escapeHtml(COVERAGE_LABELS[data.sources[s]] || data.sources[s]) + "</th>";
+    }
+    thead.innerHTML = head + "</tr>";
+    var holder = beginRows(tbody);
+    var d = 0;
+    for (d = 0; d < data.devices.length; d += 1) {
+      var dev = data.devices[d];
+      var tr = document.createElement("tr");
+      var cells = "<th>" + escapeHtml(dev.name) + "</th>";
+      for (s = 0; s < data.sources.length; s += 1) {
+        var src = data.sources[s];
+        var state = dev.cells[src];
+        if (state === "missing") {
+          cells += "<td><button type='button' class='badge badge-stale coverage-gap' data-device='" + escapeHtml(dev.id) + "' data-source='" + escapeHtml(src) + "' aria-label='" +
+            escapeHtml(dev.name + ": no " + (COVERAGE_LABELS[src] || src) + ". Show how to enable it") + "'>missing</button></td>";
+        } else if (state === "n/a") {
+          cells += "<td><span class='coverage-na' title='Does not apply to this device type'>—</span></td>";
+        } else {
+          var badge = state === "ok" ? "badge-ok" : (state === "stale" ? "badge-stale" : "badge-down");
+          cells += "<td><span class='badge " + badge + "'>" + escapeHtml(state) + "</span></td>";
+        }
+      }
+      tr.innerHTML = cells;
+      holder.appendChild(tr);
+    }
+    commitRows(tbody, holder);
+    var gaps = tbody.querySelectorAll(".coverage-gap");
+    var g = 0;
+    for (g = 0; g < gaps.length; g += 1) {
+      gaps[g].addEventListener("click", function (ev) {
+        showCoverageHow(ev.currentTarget.getAttribute("data-device"), ev.currentTarget.getAttribute("data-source"));
+      });
+    }
+  } catch (err) {
+    console.error("Failed to load the telemetry coverage:", err);
   }
 }
 

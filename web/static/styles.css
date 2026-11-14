@@ -4431,3 +4431,8 @@ body[data-absent-syslog="1"] #tab-syslog > .source-absent-note { display: block;
 @media (min-width: 1280px) { .kpi-row .kpi-header-row { min-height: 2.3rem; align-items: flex-start; } }
 
 .card-metric .sub { font-size: var(--fs-xs); color: var(--text-muted); }
+
+.coverage-na { color: var(--text-muted); }
+button.coverage-gap { cursor: pointer; font: inherit; }
+button.coverage-gap:focus-visible { outline: 2px solid var(--color-focus, currentColor); outline-offset: 2px; }
+#coverage-how code { overflow-wrap: anywhere; }
