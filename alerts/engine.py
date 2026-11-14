@@ -53,6 +53,17 @@ DEFAULT_IGNORED_INTERFACES = (
 IGNORED_INTERFACES_RE = re.compile(DEFAULT_IGNORED_INTERFACES, re.IGNORECASE)
 
 
+def device_bandwidth_limit(repo, device_id):
+    """The absolute bit/s limit a device has in its settings (key bw_threshold_bps), or None. A bad or non-positive value is
+    ignored (the API validates it on save, so this only guards hand-edited rows)."""
+    raw = repo.get_device_settings(device_id).get("bw_threshold_bps", "")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
 def device_ignored_interfaces(repo, device_id):
     """The compiled "also ignore" pattern a device has in its settings (key ignored_interfaces), or None. An invalid
     pattern is ignored (the API validates it on save, so this only guards hand-edited rows)."""
@@ -667,6 +678,7 @@ def evaluate_interface_rules(
                 latest_poll_utc = snmp_ok
 
     device_ignore = device_ignored_interfaces(repo, device_id)
+    device_bw_limit = device_bandwidth_limit(repo, device_id)
     for row in interfaces:
         if_index = row["if_index"]
         if_descr = row["if_descr"]
@@ -690,8 +702,13 @@ def evaluate_interface_rules(
                 )
             continue
         link_speed = int(row.get("speed_bps") or 0)
-        if bw_utilization_pct > 0 and link_speed > 0:
+        limit_is_share = False
+        if device_bw_limit is not None:
+            # The device's own absolute limit wins: a NAS on a virtual NIC reports no (or a wrong) speed.
+            bw_limit_bps = device_bw_limit
+        elif bw_utilization_pct > 0 and link_speed > 0:
             bw_limit_bps = link_speed * bw_utilization_pct / 100.0
+            limit_is_share = True
         else:
             bw_limit_bps = float(bw_threshold_bps)
 
@@ -828,7 +845,7 @@ def evaluate_interface_rules(
                 peak_bps,
                 bw_limit_bps,
             )
-            if bw_limit_bps != float(bw_threshold_bps):
+            if limit_is_share:
                 bw_msg += " (%.0f %% of the %.0f bit/s link)" % (bw_utilization_pct, link_speed)
         if rule_toggles is not None and not rule_toggles.get("rule_high_bandwidth_enabled", True):
             is_high = False

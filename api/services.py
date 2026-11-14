@@ -2389,7 +2389,7 @@ def validate_dependency(repo, device_id, parent_id):
     return parent_id
 
 
-DEVICE_SETTING_KEYS = ("icmp_latency_ms", "ignored_interfaces")
+DEVICE_SETTING_KEYS = ("icmp_latency_ms", "ignored_interfaces", "bw_threshold_bps")
 
 
 def get_device_settings_view(repo, device_id):
@@ -2403,7 +2403,10 @@ def get_device_settings_view(repo, device_id):
     return {
         "device_id": device_id,
         "overrides": {key: stored[key] for key in DEVICE_SETTING_KEYS if key in stored},
-        "global": {"icmp_latency_ms": globals_.get("alert_icmp_latency_ms", DEFAULT_ICMP_LATENCY_MS)},
+        "global": {
+            "icmp_latency_ms": globals_.get("alert_icmp_latency_ms", DEFAULT_ICMP_LATENCY_MS),
+            "bw_threshold_bps": globals_.get("alert_bw_threshold_bps"),
+        },
     }
 
 
@@ -2429,6 +2432,14 @@ def update_device_settings(repo, device_id, payload, now_ts):
             if isinstance(raw, bool) or not 10 <= number <= 10_000:
                 raise ValueError("icmp_latency_ms must be between 10 and 10000")
             values[key] = ("%g" % number)
+        elif key == "bw_threshold_bps":
+            try:
+                number = float(raw)
+            except (TypeError, ValueError):
+                raise ValueError("bw_threshold_bps must be a number of bit/s")
+            if isinstance(raw, bool) or not 1_000 <= number <= 1_000_000_000_000:
+                raise ValueError("bw_threshold_bps must be between 1000 and 1000000000000")
+            values[key] = ("%d" % number)
         else:
             pattern = str(raw).strip()
             if len(pattern) > 200:

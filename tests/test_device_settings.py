@@ -64,6 +64,10 @@ class DeviceSettingsTest(unittest.TestCase):
             {"icmp_latency_ms": 5},
             {"icmp_latency_ms": 99999},
             {"icmp_latency_ms": True},
+            {"bw_threshold_bps": "fast"},
+            {"bw_threshold_bps": 10},
+            {"bw_threshold_bps": -5},
+            {"bw_threshold_bps": True},
             {"ignored_interfaces": "(unclosed"},
             {"ignored_interfaces": "x" * 201},
             {"unknown_key": 1},
@@ -80,6 +84,10 @@ class DeviceSettingsTest(unittest.TestCase):
         self.put({"icmp_latency_ms": 100}, device="temp")
         self.assertTrue(self.repo.delete_discovered_device("temp"))
         self.assertEqual(self.repo.get_device_settings("temp"), {})
+
+    def test_a_bandwidth_limit_is_saved_as_whole_bits_per_second_and_cleared(self):
+        self.assertEqual(self.put({"bw_threshold_bps": "2500000.7"}).json()["overrides"], {"bw_threshold_bps": "2500000"})
+        self.assertEqual(self.put({"bw_threshold_bps": ""}).json()["overrides"], {})
 
     # ---- engine -------------------------------------------------------------------------------------------
     def record_rtt(self, device, rtt):
@@ -98,6 +106,33 @@ class DeviceSettingsTest(unittest.TestCase):
         engine.evaluate_once(self.repo, NOW)
         self.assertEqual(self.firing("icmp_latency_high", "far-host"), [])  # 200 < its own 400
         self.assertEqual(len(self.firing("icmp_latency_high", DEVICE)), 1)  # 200 > global 150
+
+    def poll_traffic(self, device, speed_bps):
+        """2 Mbit/s received for two minutes on one interface."""
+        self.repo.record_collector_success("snmp", device, NOW)
+        for idx in range(9):
+            ts = NOW - 120 + idx * 15
+            self.repo.record_snmp_poll(device, ts, 10_000 + ts, {
+                3: {"descr": "eth0", "admin": "up", "oper": "up", "speed_bps": speed_bps,
+                    "in_octets": idx * 3_750_000, "out_octets": 0}})
+
+    def test_a_per_device_bandwidth_limit_replaces_the_global_one_even_when_the_speed_is_unknown(self):
+        self.poll_traffic(DEVICE, 0)
+        self.poll_traffic("far-host", 0)
+        self.put({"bw_threshold_bps": 5_000_000})
+        engine.evaluate_once(self.repo, NOW, bw_threshold_bps=1_000_000, bw_hold_seconds=120)
+        self.assertEqual(self.firing("high_bandwidth", "far-host"), [])  # 2 Mbit/s < its own 5 Mbit/s
+        self.assertEqual(len(self.firing("high_bandwidth", DEVICE)), 1)  # 2 Mbit/s > the global 1 Mbit/s
+
+    def test_a_per_device_bandwidth_limit_wins_over_the_share_of_a_known_link(self):
+        self.poll_traffic("far-host", 1_000_000_000)
+        engine.evaluate_once(self.repo, NOW, bw_threshold_bps=50_000_000, bw_hold_seconds=120, bw_utilization_pct=80)
+        self.assertEqual(self.firing("high_bandwidth", "far-host"), [])  # idle gigabit port
+        self.put({"bw_threshold_bps": 1_000_000})
+        engine.evaluate_once(self.repo, NOW, bw_threshold_bps=50_000_000, bw_hold_seconds=120, bw_utilization_pct=80)
+        alerts = self.firing("high_bandwidth", "far-host")
+        self.assertEqual(len(alerts), 1)
+        self.assertNotIn("% of the", alerts[0]["message"])
 
     def test_a_per_device_ignore_pattern_silences_interfaces_of_that_device_only(self):
         for device in (DEVICE, "far-host"):

@@ -208,6 +208,11 @@
                 <input id="tune-icmp-latency" class="form-input" type="number" min="10" max="10000" step="any" inputmode="decimal" placeholder="global">
               </div>
               <div class="settings-field">
+                <label for="tune-bw-limit">Bandwidth limit per interface (bit/s)</label>
+                <input id="tune-bw-limit" class="form-input" type="number" min="1000" step="any" inputmode="numeric" placeholder="global" aria-describedby="tune-bw-hint">
+                <p id="tune-bw-hint" class="dest-blurb">For a device whose link speed is unknown or wrong (a NAS on a virtual NIC). It replaces both the global limit and the share of the link.</p>
+              </div>
+              <div class="settings-field">
                 <label for="tune-ignored-ifaces">Also ignore interfaces matching</label>
                 <input id="tune-ignored-ifaces" class="form-input" type="text" maxlength="200" spellcheck="false" placeholder="regular expression, e.g. ^wg-">
               </div>
