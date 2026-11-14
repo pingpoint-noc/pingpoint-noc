@@ -3490,8 +3490,17 @@ class SQLiteRepository(StorageRepository):
     SIZE_CAP_STEP_SECONDS = 6 * 3600
     SIZE_CAP_KEEP_SECONDS = 86400
 
-    def run_retention(self, now_ts_utc, retention_days=15, max_db_bytes=0):
-        """Delete records older than retention_days, then enforce the size cap (0 = no cap)."""
+    def run_retention(self, now_ts_utc, retention_days=15, max_db_bytes=0, syslog_max_rows_per_source=None):
+        """Delete records older than retention_days, then enforce the size cap (0 = no cap).
+
+        `syslog_max_rows_per_source` keeps at most that many of the newest syslog rows of each source, so one host in a
+        loop cannot push every other host's logs out (None = MININOC_SYSLOG_MAX_ROWS_PER_SOURCE, default 500000; 0 = no cap).
+        """
+        if syslog_max_rows_per_source is None:
+            try:
+                syslog_max_rows_per_source = int(os.environ.get("MININOC_SYSLOG_MAX_ROWS_PER_SOURCE", "500000"))
+            except ValueError:
+                syslog_max_rows_per_source = 500000
         cutoff_utc = int(now_ts_utc - (retention_days * 86400))
         conn = self.open_write()
         try:
@@ -3513,6 +3522,17 @@ class SQLiteRepository(StorageRepository):
                 )
                 conn.execute("DELETE FROM device_metrics WHERE ts_utc < ?;", (cutoff_utc,))
                 conn.execute("DELETE FROM syslog_events WHERE ts_utc < ?;", (cutoff_utc,))
+                if syslog_max_rows_per_source > 0:
+                    crowded = conn.execute(
+                        "SELECT device_id FROM syslog_events GROUP BY device_id HAVING COUNT(*) > ?;",
+                        (syslog_max_rows_per_source,),
+                    ).fetchall()
+                    for (flooder,) in crowded:
+                        conn.execute(
+                            "DELETE FROM syslog_events WHERE device_id = ? AND id NOT IN ("
+                            "SELECT id FROM syslog_events WHERE device_id = ? ORDER BY ts_utc DESC, id DESC LIMIT ?);",
+                            (flooder, flooder, syslog_max_rows_per_source),
+                        )
                 conn.execute("DELETE FROM flows WHERE ts_end_utc < ?;", (float(cutoff_utc),))
                 conn.execute(
                     "DELETE FROM alerts WHERE status = 'resolved' AND resolved_utc < ?;",

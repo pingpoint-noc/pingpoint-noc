@@ -444,7 +444,7 @@ class StorageRepository(ABC):
         """Return ordered list of metric dicts for a metric in [start_ts_utc, end_ts_utc]."""
 
     @abstractmethod
-    def run_retention(self, now_ts_utc, retention_days=15, max_db_bytes=0):
+    def run_retention(self, now_ts_utc, retention_days=15, max_db_bytes=0, syslog_max_rows_per_source=None):
         """Purge historical records older than retention_days."""
 
     @abstractmethod
