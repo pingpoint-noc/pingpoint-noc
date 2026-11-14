@@ -10,6 +10,7 @@
 | [`decisiones-snmp.md`](decisiones-snmp.md) | Decisiones del poller SNMP, por qué y cómo cambiarlas |
 | [`../README.md`](../README.md) | Instalar y arrancar desde cero |
 | [`../ROADMAP.md`](../ROADMAP.md) | Hecho, opcional y descartado |
+| [`TRASPASO.md`](TRASPASO.md) | Estado, pendiente y el texto para continuar en un chat nuevo |
 
 ## Operación
 

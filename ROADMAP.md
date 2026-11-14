@@ -193,6 +193,7 @@ Today `/api/host-health` returns only the latest values, with no history.
 |---|---|---|---|---|
 | E1 (done 2026-11-14) | `GET /api/devices/{id}/resources?range=` (15m, 1h, 24h, 7d) over `get_device_metrics_series` (cpu, memory, load 1/5/15), points thinned to <= 300, statuses `ok / no_data / not_collected`. | API tests, including a device without metrics. | Low | S |
 | E2 (done 2026-11-14) | **Resources panel** in Health & Inventory > Capacity & Trends (CPU, memory and load of the selected device, 24 h, with sparklines). | Browser test with two devices; the empty state says what is missing. | Low | S |
+| E4 (done 2026-11-14: `GET /api/resources/fleet` and the panel Resources by Machine in Health & Inventory > Capacity & Trends, one row per host, hypervisor, VM or container with CPU, memory and disk, a miniature history and column sorting; a guest that is also a monitored device is one row with its own figures; the Proxmox poller records `pve_guest_*` metrics per vmid) | **Fleet view of resources** (asked for: where to see what each container uses). | Every machine in one table, history from what was recorded. | Low | S |
 | E3 (done 2026-11-14) | **Coverage matrix** (`GET /api/coverage` and a table in the same group; device x SNMP, agent, syslog, IPFIX, ICMP, DNS, Proxmox) with, for each missing cell, the command that enables it (text only, never executed). | Test with neutral sample devices; one cell per source; commands come from the existing bootstrap endpoints. | Low | S |
 
 ### P2: larger pieces

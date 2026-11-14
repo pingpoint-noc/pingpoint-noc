@@ -27,7 +27,7 @@ class FleetResourcesTest(BrowserTestCase):
         page = self.open_page()
         page.wait_for_function("typeof switchTab === 'function'")
         page.route("**/api/resources/fleet*", lambda route: route.fulfill(json=payload))
-        page.evaluate("() => { switchTab('tab-health'); }")
+        page.evaluate("() => { switchTab('tab-health'); document.getElementById('health-group-trends').open = true; }")
         return page
 
     def names(self, page):

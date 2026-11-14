@@ -70,6 +70,40 @@
         </div>
       </section>
 
+      <!-- ICMP: packet loss, latency and jitter of every device, also those without SNMP -->
+      <section class="panel panel-wide" id="icmp-health-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Reachability &amp; Latency</h2>
+            <span class="panel-subtitle">Packet loss, round-trip time and jitter by ICMP ping (five pings a minute) &middot; the amber level is the alert threshold</span>
+          </div>
+          <div class="panel-actions">
+            <span id="icmp-health-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+        <p id="icmp-health-empty" class="empty-reason-card" hidden></p>
+        <div tabindex="0" role="region" aria-labelledby="icmp-health-caption" class="table-container">
+          <table class="data-table table-stack table-icmp-health">
+            <caption id="icmp-health-caption" class="visually-hidden">Packet loss, round-trip time and jitter of each device, one row per device</caption>
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Packet loss</th>
+                <th>Round-trip time</th>
+                <th>Jitter</th>
+                <th>Slowest ping</th>
+                <th>RTT p95 (24 h)</th>
+                <th>Sample</th>
+              </tr>
+            </thead>
+            <tbody id="icmp-health-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+      </section>
+
+      <details class="health-group" id="health-group-trends">
+      <summary><h2 class="health-group-title">Capacity &amp; Trends</h2><span class="health-group-sub">Database growth, alert noise and availability over the retained days</span></summary>
       <!-- Resources by machine: every host, hypervisor, virtual machine and container in one table -->
       <section class="panel panel-wide" id="fleet-panel">
         <div class="panel-header">
@@ -105,40 +139,6 @@
         </div>
       </section>
 
-      <!-- ICMP: packet loss, latency and jitter of every device, also those without SNMP -->
-      <section class="panel panel-wide" id="icmp-health-panel">
-        <div class="panel-header">
-          <div class="panel-title-wrap">
-            <h2>Reachability &amp; Latency</h2>
-            <span class="panel-subtitle">Packet loss, round-trip time and jitter by ICMP ping (five pings a minute) &middot; the amber level is the alert threshold</span>
-          </div>
-          <div class="panel-actions">
-            <span id="icmp-health-freshness" class="freshness-badge">Loading...</span>
-          </div>
-        </div>
-        <p id="icmp-health-empty" class="empty-reason-card" hidden></p>
-        <div tabindex="0" role="region" aria-labelledby="icmp-health-caption" class="table-container">
-          <table class="data-table table-stack table-icmp-health">
-            <caption id="icmp-health-caption" class="visually-hidden">Packet loss, round-trip time and jitter of each device, one row per device</caption>
-            <thead>
-              <tr>
-                <th>Device</th>
-                <th>Packet loss</th>
-                <th>Round-trip time</th>
-                <th>Jitter</th>
-                <th>Slowest ping</th>
-                <th>RTT p95 (24 h)</th>
-                <th>Sample</th>
-              </tr>
-            </thead>
-            <tbody id="icmp-health-tbody"></tbody>
-          </table>
-        </div>
-      </section>
-      </section>
-
-      <details class="health-group" id="health-group-trends">
-      <summary><h2 class="health-group-title">Capacity &amp; Trends</h2><span class="health-group-sub">Database growth, alert noise and availability over the retained days</span></summary>
       <!-- Resources: CPU, memory and load history of the selected device -->
       <section class="panel panel-wide" id="resources-panel">
         <div class="panel-header">
