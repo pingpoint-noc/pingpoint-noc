@@ -6,7 +6,7 @@ Un único fichero que se sobrescribe en cada cierre. No contiene datos de ningú
 
 Di **«quiero seguir»** (o pega esto) en un chat nuevo dentro de este repo:
 
-> Quiero seguir con PingPoint NOC. Lee `docs/TRASPASO.md`, la sección «Audit of 2026-11-14» de `ROADMAP.md` y tu memoria del proyecto. Todo está en `main` y subido. Empieza por la lista «Pendiente» de ese traspaso, en orden, y no hagas push ni despliegues sin que te lo pida. Antes de dar algo por bueno corre la suite normal y la de navegador.
+> Quiero seguir con PingPoint NOC. Lee `docs/TRASPASO.md`, la sección «Audit of 2026-11-14» de `ROADMAP.md` y tu memoria del proyecto. Todo está en `main` y subido. Empieza por la limpieza de pruebas y luego sigue la lista «Pendiente» de ese traspaso, en orden. No hagas push ni despliegues sin que te lo pida. Antes de dar algo por bueno corre la suite normal y la de navegador.
 
 ## Estado (14-11-2026)
 
@@ -20,6 +20,15 @@ Hecho y subido a `main`:
 - **C3:** `bootstrap.sh` reenvía por una cola rsyslog acotada (probado con `rsyslogd -N1` en Debian, Alpine y Rocky).
 - **H2 (resuelto):** en contenedores Ubuntu 24.04 sobre Proxmox 9 el perfil AppArmor de `rsyslogd` impide que journald le entregue nada, así que no hay `/var/log/syslog` ni reenvío. `bootstrap.sh` lo detecta con una línea de prueba, deshabilita ese perfil y avisa de reiniciar el contenedor una vez (detalle y pruebas descartadas en `ROADMAP.md`, fila H2).
 - **Resources by Machine:** `GET /api/resources/fleet` y panel en Health & Inventory > Capacity & Trends: una fila por equipo, VM o contenedor con CPU, memoria y disco, miniatura de histórico y orden por columna. El poller de Proxmox guarda ahora el uso de cada invitado.
+
+## Limpieza de las pruebas (hacerla al empezar, con permiso)
+
+Quedó sin borrar lo que se creó para probar. Los detalles concretos (identificadores y direcciones) están en la memoria del proyecto y en las notas privadas del servidor, no aquí:
+
+- El contenedor LXC desechable de pruebas, que sigue arrancado exportando flujos con `softflowd` y generando tráfico con un bucle: pararlo y destruirlo en el hipervisor.
+- El equipo que el NOC dio de alta solo a partir de esos flujos: quitarlo en Settings > Monitored Targets (Remove).
+- Docker Desktop del PC de desarrollo: está cerrado; solo se abre para probar `rsyslog` en contenedores.
+- Comprobar que no quedan archivos de prueba en `/tmp` del hipervisor ni ficheros `*.bak` creados a mano en el contenedor de pruebas (se van con él).
 
 ## Pendiente (en este orden)
 
