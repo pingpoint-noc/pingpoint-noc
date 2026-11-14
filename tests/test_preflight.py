@@ -498,6 +498,20 @@ class TestNfexpireLimits(unittest.TestCase):
         self.assertNotIn("Limites de nfexpire", names)
 
 
+class ServiceAlternativesTest(unittest.TestCase):
+    def test_either_receiver_of_a_pair_is_enough(self):
+        states = {"mini-noc-syslog": "inactive", "mini-noc-syslog-udp": "active"}
+        results = check_services(["mini-noc-syslog|mini-noc-syslog-udp"], lambda name: states.get(name, "inactive"))
+        self.assertEqual(statuses(results), ["PASS"])
+        self.assertIn("mini-noc-syslog-udp", results[0]["detail"])
+
+    def test_neither_running_fails_and_names_both(self):
+        results = check_services(["mini-noc-ipfix|mini-noc-ipfix-udp"], lambda name: "inactive")
+        self.assertEqual(statuses(results), ["FAIL"])
+        self.assertIn("mini-noc-ipfix está inactive", results[0]["detail"])
+        self.assertIn("mini-noc-ipfix-udp está inactive", results[0]["detail"])
+
+
 class JournalCapTest(unittest.TestCase):
     def test_a_cap_in_any_file_passes(self):
         texts = ["[Journal]\n#SystemMaxUse=\n", "[Journal]\nSystemMaxUse=300M\n"]

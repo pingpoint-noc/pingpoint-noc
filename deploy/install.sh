@@ -61,10 +61,22 @@ else
     echo "Syslog: listening on UDP 514 with the native receiver (mini-noc-syslog-udp)."
 fi
 
-systemctl enable --now mini-noc-snmp.service "$SYSLOG_UNIT"     mini-noc-ipfix.service mini-noc-alerts.service mini-noc-api.service mini-noc-dns.service mini-noc-icmp.service mini-noc-proxmox.service mini-noc-retention.timer
+# Flows: the native receiver (NetFlow v5/v9 and IPFIX on UDP 2055) needs nothing else installed. A site that already collects with
+# nfcapd (the binary is there, or something already holds UDP 2055) keeps the nfdump based ingestor, so nothing is received twice.
+if command -v nfcapd > /dev/null || (command -v ss > /dev/null && ss -uln 2> /dev/null | grep -qE '[:.]2055[[:space:]]'); then
+    IPFIX_UNIT=mini-noc-ipfix.service
+    systemctl disable --now mini-noc-ipfix-udp.service 2> /dev/null || true
+    echo "Flows: nfcapd detected, using the nfdump ingestor (mini-noc-ipfix)."
+else
+    IPFIX_UNIT=mini-noc-ipfix-udp.service
+    systemctl disable --now mini-noc-ipfix.service 2> /dev/null || true
+    echo "Flows: listening on UDP 2055 with the native receiver (mini-noc-ipfix-udp)."
+fi
+
+systemctl enable --now mini-noc-snmp.service "$SYSLOG_UNIT"     "$IPFIX_UNIT" mini-noc-alerts.service mini-noc-api.service mini-noc-dns.service mini-noc-icmp.service mini-noc-proxmox.service mini-noc-retention.timer
 # enable --now does not restart a unit that is already running: without this, an update leaves the old code in memory.
-systemctl restart mini-noc-snmp.service "$SYSLOG_UNIT" mini-noc-ipfix.service     mini-noc-alerts.service mini-noc-api.service mini-noc-dns.service mini-noc-icmp.service mini-noc-proxmox.service
-systemctl --no-pager --lines=0 status mini-noc-snmp "$SYSLOG_UNIT" mini-noc-ipfix mini-noc-alerts mini-noc-api mini-noc-dns mini-noc-icmp mini-noc-proxmox mini-noc-retention.timer || true
+systemctl restart mini-noc-snmp.service "$SYSLOG_UNIT" "$IPFIX_UNIT"     mini-noc-alerts.service mini-noc-api.service mini-noc-dns.service mini-noc-icmp.service mini-noc-proxmox.service
+systemctl --no-pager --lines=0 status mini-noc-snmp "$SYSLOG_UNIT" "$IPFIX_UNIT" mini-noc-alerts mini-noc-api mini-noc-dns mini-noc-icmp mini-noc-proxmox mini-noc-retention.timer || true
 
 # ---- First run: let this machine report to the NOC too, and show how to add the others -----------------------------
 # Asked once (a re-run for an update does not ask again). Non-interactive installs follow MININOC_ONBOARD_SELF=yes|no

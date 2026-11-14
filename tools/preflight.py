@@ -32,7 +32,8 @@ from collectors.snmp.credentials import (
     load_v3_config,
 )
 
-SERVICES = ["mini-noc-api", "mini-noc-alerts", "mini-noc-snmp", "mini-noc-syslog", "mini-noc-ipfix", "mini-noc-icmp"]
+# "a|b" = either one: the installer runs the native receiver or the file/nfcapd based ingestor, never both
+SERVICES = ["mini-noc-api", "mini-noc-alerts", "mini-noc-snmp", "mini-noc-syslog|mini-noc-syslog-udp", "mini-noc-ipfix|mini-noc-ipfix-udp", "mini-noc-icmp"]
 
 # Settings a clean installation leaves at their defaults (docs/pruebas-laboratorio-real.md, row 0.6).
 DEFAULT_SETTINGS = {
@@ -459,12 +460,15 @@ def check_services(names, is_active_fn):
     if is_active_fn is None:
         return [make_result("Servicios", "WARN", "systemctl no disponible: comprobar a mano")]
     results = []
-    for name in names:
-        state = is_active_fn(name)
-        if state == "active":
-            results.append(make_result("Servicio %s" % name, "PASS", "active"))
+    for entry in names:
+        options = entry.split("|")
+        states = {option: is_active_fn(option) for option in options}
+        active = [option for option, state in states.items() if state == "active"]
+        if active:
+            results.append(make_result("Servicio %s" % entry.replace("|", " o "), "PASS", "%s: active" % active[0]))
         else:
-            results.append(make_result("Servicio %s" % name, "FAIL", "%s está %s" % (name, state)))
+            detail = ", ".join("%s está %s" % (option, state) for option, state in states.items())
+            results.append(make_result("Servicio %s" % entry.replace("|", " o "), "FAIL", detail))
     return results
 
 
