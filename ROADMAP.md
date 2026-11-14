@@ -147,7 +147,7 @@ installs; N: needs a decision or a real device first). Nothing here is done yet.
 | A1 | **A device without SNMP shows "down" because of an old SNMP timestamp.** Verified: a DNS device with `has_snmp=0`, working ICMP and DNS collectors, shows `source_status: down` (its old `last_ok_utc` is 8.8 h old) because `device_summary` tests `snmp_seen` before `has_snmp`; a leftover `snmp` collector row also remains. | Test: `has_snmp=0`, stale `last_ok_utc`, fresh ICMP: status `ok`. Leftover SNMP status row removed when SNMP is off for the device. | Low | S |
 | A2 | **Header badge says "All Systems Operational" while a device is down** (verified on mobile: badge green, "1 needs attention"). The badge counts alerts only. | Badge turns amber ("n need attention") when any device is down or stale without an alert; test for both states. | Low (wording) | S |
 | A3 | **`syslog_burst` names no cause.** Verified: the burst on a Proxmox host was mostly (122 of the last 300 lines) `apparmor="DENIED"` lines from a guest's `rsyslogd` (LXC profile, `/run/systemd/journal/dev-log`), the rest were SSH sessions. The alert only says "92 events". | Alert message and guidance quote the top repeated message pattern (digits normalised) and its share. Separately, find out whether `bootstrap.sh` makes `rsyslogd` in an LXC guest log those denials (needs a real container). | Low / Medium | S (message), N (bootstrap) |
-| A4 | **Empty Syslog view tells every user to send logs to `127.0.0.1:514`.** | The hint uses the collector address the NOC already offers elsewhere (`MININOC_NOC_IP` or the request host). | Low | S |
+| A4 | *Withdrawn.* The Syslog empty-state hint showed `127.0.0.1` only because the audit browsed through a local proxy: the text uses the address the browser used (`window.location.hostname`), which is correct. | n/a | n/a | n/a |
 | A5 | **First screen is empty for a ping-only default target.** The target selector starts on the first device (a router seen only by ping), so Bandwidth, Top Talkers and IPFIX panels are empty on the first visit. | Default target is the device with most recent data (or the last used, kept in `localStorage`); test with a ping-only device first in the list. | Low | S |
 
 ### P1: interface
@@ -227,7 +227,7 @@ LibreNMS and Zabbix feature pages, Uptime Kuma README. Netdata and Observium wer
 
 ### Order of work
 
-1. A1, A2, A4, A5, B2 (small, visible, safe).
+1. A1, A2, A5, B2 (small, visible, safe; A1 and A2 done 2026-11-14).
 2. B1, A3 (message part), D1, E1 to E3.
 3. C1 (disabled), C2, C4, C5, F3 step 1.
 4. C3, B3, D2, G1, G2, G7, G9, G11, G13, G14, G17.

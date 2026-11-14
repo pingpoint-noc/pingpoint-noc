@@ -1983,6 +1983,19 @@ async function loadGlobalNodesKpi() {
   }
 }
 
+// First target when nobody picked one: the first device (hierarchy order) that reports traffic or health data. A router watched
+// by ping only would leave the bandwidth and flow panels empty on the very first screen.
+function pickDefaultDevice(devices) {
+  var i = 0;
+  for (i = 0; i < devices.length; i += 1) {
+    var d = devices[i];
+    if (d.has_snmp || d.has_ipfix || d.has_telemetry) {
+      return d.id;
+    }
+  }
+  return devices.length > 0 ? devices[0].id : null;
+}
+
 async function loadOverviewAndDevice() {
   try {
     var overview = await fetchJson("/api/overview");
@@ -1990,7 +2003,7 @@ async function loadOverviewAndDevice() {
     var devSelect = document.getElementById("device-select");
 
     if (overview.devices.length > 0 && !STATE.deviceId) {
-      STATE.deviceId = overview.devices[0].id;
+      STATE.deviceId = pickDefaultDevice(overview.devices);
     }
 
     renderAvailability(overview.devices);

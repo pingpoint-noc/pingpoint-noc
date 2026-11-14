@@ -3,6 +3,9 @@
    Fully local, zero external fonts or CDN dependencies.
    ========================================================================== */
 
+/* Keep the page width the same on views that scroll and views that do not: the header controls must not move between tabs */
+html { scrollbar-gutter: stable; }
+
 :root {
   /* Type scale: the only font sizes the interface uses. */
   --fs-2xs: 0.68rem;
