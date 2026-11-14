@@ -298,10 +298,34 @@ function initAlertStrip() {
   });
 }
 
+// "All Systems Operational" counts alerts only: a device that is down without an alert (or before it fires) must not read as fine.
+// welcome.js sets STATE.devicesAttention (devices down or stale); only the green badge is ever changed here.
+function syncAttentionBadge() {
+  var badge = document.getElementById("global-status-badge");
+  var text = document.getElementById("global-status-text");
+  if (!badge || !text) {
+    return;
+  }
+  var n = STATE.devicesAttention || 0;
+  if (n > 0 && /(^|\s)ok(\s|$)/.test(badge.className)) {
+    badge.className = "global-status warn";
+    badge.setAttribute("data-attention", "1");
+    text.textContent = n + (n === 1 ? " device needs attention" : " devices need attention");
+  } else if (n > 0 && badge.getAttribute("data-attention") === "1") {
+    text.textContent = n + (n === 1 ? " device needs attention" : " devices need attention");
+  } else if (n === 0 && badge.getAttribute("data-attention") === "1") {
+    badge.className = "global-status ok";
+    badge.removeAttribute("data-attention");
+    text.textContent = "All Systems Operational";
+  }
+}
+
 async function loadAlerts() {
   try {
     var data = await fetchJson("/api/alerts");
     STATE.alertsDown = false;
+    var attentionBadge = document.getElementById("global-status-badge");
+    if (attentionBadge) attentionBadge.removeAttribute("data-attention");
     var section = document.getElementById("alerts-section");
     var title = document.getElementById("alerts-title");
     var freshness = document.getElementById("alerts-freshness");
@@ -475,6 +499,7 @@ async function loadAlerts() {
         globalStatusBadge.className = "global-status ok";
         if (globalStatusText) globalStatusText.textContent = "All Systems Operational";
       }
+      syncAttentionBadge();
     }
 
     if (listEl) {

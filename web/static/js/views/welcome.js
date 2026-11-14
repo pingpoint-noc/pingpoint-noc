@@ -46,6 +46,7 @@ function renderAvailability(devices) {
   }
   var stripHolder = beginRows(strip);
   var okCount = 0;
+  var attention = 0;
   var i = 0;
   for (i = 0; i < devices.length; i += 1) {
     var d = devices[i];
@@ -68,6 +69,8 @@ function renderAvailability(devices) {
     }
     if (state === "ok") {
       okCount += 1;
+    } else if (state !== "indeterminate") {
+      attention += 1;
     }
     var pill = document.createElement("button");
     pill.type = "button";
@@ -101,6 +104,10 @@ function renderAvailability(devices) {
     stripHolder.appendChild(pill);
   }
   commitRows(strip, stripHolder);
+  STATE.devicesAttention = attention;
+  if (typeof syncAttentionBadge === "function") {
+    syncAttentionBadge();
+  }
   // On a phone the summary replaces the pills that are fine (the Target menu in the header picks the device).
   var summary = document.getElementById("welcome-devices-summary");
   if (summary) {
