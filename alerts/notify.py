@@ -58,6 +58,7 @@ KNOWN_RULE_IDS = (
     "icmp_latency_high",
     "pve_storage_high",
     "syslog_burst",
+    "disk_full_forecast",
 )
 
 

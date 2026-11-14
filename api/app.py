@@ -397,7 +397,7 @@ def settings_view(repo):
             val_str = str(saved[r_key]).strip().lower()
             rule_toggles[r_key] = val_str not in ("false", "0", "no", "off")
         else:
-            rule_toggles[r_key] = True
+            rule_toggles[r_key] = r_key not in engine.DEFAULT_OFF_TOGGLES
 
     view = {
         "writable": bool(os.environ.get("MININOC_ADMIN_TOKEN", "")) or repo.has_admin_user(),

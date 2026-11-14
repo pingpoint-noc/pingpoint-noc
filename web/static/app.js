@@ -8083,6 +8083,7 @@ var RULE_TOGGLE_FIELDS = [
   { id: "toggle-rule-icmp-latency-high", key: "rule_icmp_latency_high_enabled" },
   { id: "toggle-rule-host-service-down", key: "rule_host_service_down_enabled" },
   { id: "toggle-rule-syslog-burst", key: "rule_syslog_burst_enabled" },
+  { id: "toggle-rule-disk-full-forecast", key: "rule_disk_full_forecast_enabled" },
   { id: "toggle-rule-pve-storage-high", key: "rule_pve_storage_high_enabled" }
 ];
 
@@ -8958,7 +8959,7 @@ var MAINTENANCE_RULES = [
   "high_bandwidth", "interface_down", "interface_flapping", "interface_errors", "failed_logins", "stale_source",
   "flow_port_scan", "flow_rare_connection", "flow_new_destination", "dns_service_down", "dns_blocklist_dropped",
   "host_cpu_high", "host_memory_high", "host_disk_high", "host_service_down", "icmp_loss_high", "icmp_latency_high",
-  "pve_storage_high", "syslog_burst"
+  "pve_storage_high", "syslog_burst", "disk_full_forecast"
 ];
 
 async function createMaintenanceWindow() {

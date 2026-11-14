@@ -132,7 +132,13 @@ RULE_TOGGLE_KEYS = (
     "rule_icmp_latency_high_enabled",
     "rule_pve_storage_high_enabled",
     "rule_syslog_burst_enabled",
+    "rule_disk_full_forecast_enabled",
 )
+# Rules that are off until someone turns them on: a new forecast rule must not wake anyone before its limits are reviewed.
+DEFAULT_OFF_TOGGLES = frozenset({"rule_disk_full_forecast_enabled"})
+# disk_full_forecast: warn when the forecast says the disk of the NOC host fills within this many days; critical within the second.
+DISK_FORECAST_WARN_DAYS = 14.0
+DISK_FORECAST_CRITICAL_DAYS = 3.0
 
 
 def load_effective_settings(repo, cli_defaults=None):
@@ -199,7 +205,7 @@ def load_effective_settings(repo, cli_defaults=None):
             else:
                 toggles[r_key] = True
         else:
-            toggles[r_key] = True
+            toggles[r_key] = r_key not in DEFAULT_OFF_TOGGLES
 
     learning_hours = get_val("alert_new_dest_learning_hours", 24.0, is_float=True)
     return {
@@ -1845,6 +1851,37 @@ def evaluate_proxmox_rules(
         )
 
 
+def evaluate_disk_forecast_rule(repo, now_ts, rule_toggles=None):
+    """disk_full_forecast: the disk that holds the NOC database will fill within DISK_FORECAST_WARN_DAYS.
+
+    Uses the same straight-line forecast as the capacity view (hourly samples of the last 7 days, at least a day of them).
+    A noisy forecast (the growth may be nil) never fires, and with too little data the rule stays quiet. Off by default."""
+    from api import services  # local: services imports this module
+
+    toggle = "rule_disk_full_forecast_enabled"
+    enabled = rule_toggles is not None and rule_toggles.get(toggle, False)
+    is_triggered = False
+    severity = "warning"
+    message = ""
+    if enabled:
+        try:
+            forecast = services.get_capacity_view(repo, now_ts)["disk"]["forecast"]
+        except Exception as exc:  # a failed read must not stop the other rules
+            LOGGER.warning("disk_full_forecast skipped: %s", exc)
+            return
+        days = forecast.get("days_to_target")
+        reached = forecast.get("reason") == "reached"
+        if forecast.get("available") and (reached or (days is not None and days < DISK_FORECAST_WARN_DAYS and forecast.get("confidence") != "noisy")):
+            is_triggered = True
+            if reached or days < DISK_FORECAST_CRITICAL_DAYS:
+                severity = "critical"
+            message = "The disk of the NOC host is full" if reached else "The disk of the NOC host fills in about %.0f days at the current growth" % days
+    reconcile_alert(
+        repo=repo, device_id=HOST_DEVICE_ID, rule_id="disk_full_forecast", target="disk", severity=severity,
+        is_triggered=is_triggered, now_ts=now_ts, hold_seconds=0, message=message,
+    )
+
+
 def evaluate_once(
     repo,
     now_ts=None,
@@ -2028,6 +2065,9 @@ def evaluate_all_devices(
                 window_seconds=new_dest_window_seconds,
                 rule_toggles=rule_toggles,
             )
+
+    # Host-wide: the disk of the machine that runs the NOC (not one device's)
+    evaluate_disk_forecast_rule(repo, now_ts, rule_toggles=rule_toggles)
 
 
 def evaluate_once_guarded(

@@ -1841,6 +1841,11 @@ ALERT_GUIDANCE = {
         "check": "Health & Inventory: the device health panel; then the device itself (which process or traffic load).",
         "links": [{"view": "health", "anchor": "host-health-panel"}],
     },
+    "disk_full_forecast": {
+        "why": "At the current growth the disk that holds the NOC database will be full soon (warning within 14 days, critical within 3). When it is full the NOC stops storing data.",
+        "check": "Health & Inventory > Capacity: the disk forecast and the space used by each source; then the host itself (logs, backups, the flow store).",
+        "links": [{"view": "health", "anchor": "capacity-panel"}],
+    },
     "host_memory_high": {
         "why": "The device RAM is almost full. A router that runs out of memory drops connections or restarts.",
         "check": "Health & Inventory: the device health panel; then the device itself (large tables, logs or a leak).",
