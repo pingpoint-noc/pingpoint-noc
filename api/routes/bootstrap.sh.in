@@ -125,6 +125,29 @@ else
     warn "Rsyslog configured but it could not be restarted: restart it by hand."
 fi
 
+# 1b. Does rsyslog really receive this host's own log lines? In an Ubuntu 24.04 LXC guest on Proxmox VE 9 it does not: the AppArmor
+# profile of rsyslogd (stacked under the container's) denies journald's messages, so neither /var/log/syslog nor the forwarding above gets
+# anything. Checked on a throw-away guest (apparmor 4.0.1, rsyslog 8.2312.0-3ubuntu9.4, kernel 6.17): with the profile disabled all 10 test
+# lines arrived and the denials stopped; local profile rules, other profile flags and container-level unix rules changed nothing.
+local_logging_reaches_rsyslog() {
+    [ -f /var/log/syslog ] && command -v logger >/dev/null 2>&1 || return 0
+    local marker="mininoc-probe-$$-$(date +%s)"
+    logger -t mininoc "$marker" >/dev/null 2>&1 || return 0
+    sleep 2
+    grep -q "$marker" /var/log/syslog 2>/dev/null
+}
+if ! local_logging_reaches_rsyslog; then
+    PROFILE="/etc/apparmor.d/usr.sbin.rsyslogd"
+    if [ -f "$PROFILE" ] && { grep -qa 'container=' /proc/1/environ 2>/dev/null || [ -s /run/systemd/container ]; }; then
+        mkdir -p /etc/apparmor.d/disable
+        ln -sf "$PROFILE" /etc/apparmor.d/disable/usr.sbin.rsyslogd
+        warn "rsyslog does not receive this container's own logs: its AppArmor profile blocks journald."
+        warn "The profile is now disabled for the next start. Restart this container once (on the Proxmox host: pct reboot <id>) and the logs will be forwarded."
+    else
+        warn "rsyslog is not receiving this host's own log lines (a test line never reached /var/log/syslog); forwarding may be empty."
+    fi
+fi
+
 # 2. Who am I: a name with only safe characters (it goes into JSON) and the source address towards the collector
 #    (the first address of `hostname -I` can be a Docker bridge).
 HOST_NAME="$( (hostname 2>/dev/null || uname -n) | tr -cd 'A-Za-z0-9._-')"

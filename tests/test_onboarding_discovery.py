@@ -100,6 +100,9 @@ class TestBootstrapAndRegistrationApi(unittest.TestCase):
         self.assertIn('*.* action(type="omfwd" target="$NOC_IP" port="514" protocol="udp"', script)
         self.assertIn('queue.type="LinkedList"', script)
         self.assertIn('queue.discardMark="4000"', script)
+        # H2: it checks that rsyslog receives the host's own logs and, in a container, disables the AppArmor profile that blocks them
+        self.assertIn("local_logging_reaches_rsyslog", script)
+        self.assertIn("/etc/apparmor.d/disable/usr.sbin.rsyslogd", script)
         self.assertIn("/api/nodes/register", script)
 
     def test_bootstrap_script_does_not_claim_success_when_registration_fails(self):
