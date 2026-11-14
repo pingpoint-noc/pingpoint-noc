@@ -103,6 +103,21 @@
 
       <details class="health-group" id="health-group-trends">
       <summary><h2 class="health-group-title">Capacity &amp; Trends</h2><span class="health-group-sub">Database growth, alert noise and availability over the retained days</span></summary>
+      <!-- Resources: CPU, memory and load history of the selected device -->
+      <section class="panel panel-wide" id="resources-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>Resources</h2>
+            <span class="panel-subtitle">CPU, memory and load of the selected device over the last 24 hours &middot; from SNMP or the Linux agent</span>
+          </div>
+          <div class="panel-actions">
+            <span id="resources-freshness" class="freshness-badge">Loading...</span>
+          </div>
+        </div>
+        <p id="resources-empty" class="empty-reason-card" hidden></p>
+        <div id="resources-cards" class="host-overview-stats"></div>
+      </section>
+
       <!-- Capacity: will the database and the disk last? -->
       <section class="panel panel-wide" id="capacity-panel">
         <div class="panel-header">

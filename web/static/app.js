@@ -5987,6 +5987,7 @@ async function loadHealth() {
   }
   await loadHostHealth();
   await loadIcmpHealth();
+  await loadResources();
   await loadCapacity();
   await loadAlertNoise();
   await loadAvailabilityReport();
@@ -6294,6 +6295,78 @@ function renderCapacitySources(data) {
       ". Growth is the last 24 hours; the projection stops at the steady state because older rows are deleted.";
   }
   wrap.hidden = false;
+}
+
+// Resources: history of CPU, memory and load of the selected device (/api/devices/{id}/resources), one card each with a sparkline.
+var RESOURCE_CARDS = [
+  { key: "cpu_pct", label: "CPU", unit: "%", digits: 0 },
+  { key: "memory_pct", label: "Memory", unit: "%", digits: 0 },
+  { key: "load_1m", label: "Load (1 min)", unit: "", digits: 2 }
+];
+
+function resourceCard(card, points, index) {
+  var values = [];
+  var i = 0;
+  for (i = 0; i < points.length; i += 1) {
+    values.push(points[i].value);
+  }
+  var html = "<div class='card-metric'><span class='label'>" + escapeHtml(card.label) + "</span>";
+  if (values.length === 0) {
+    return html + "<span class='value'>—</span><span class='sub'>no samples in the window</span></div>";
+  }
+  var min = Math.min.apply(null, values);
+  var max = Math.max.apply(null, values);
+  var now = values[values.length - 1];
+  html += "<span class='value'>" + escapeHtml(now.toFixed(card.digits) + card.unit) + "</span>" +
+    "<span class='sub'>24 h: " + escapeHtml(min.toFixed(card.digits) + card.unit + " – " + max.toFixed(card.digits) + card.unit) + "</span>" +
+    "<div id='resources-spark-" + index + "' class='kpi-sparkline-wrap' aria-hidden='true'></div></div>";
+  return html;
+}
+
+async function loadResources() {
+  var cards = document.getElementById("resources-cards");
+  var emptyEl = document.getElementById("resources-empty");
+  if (!cards) {
+    return;
+  }
+  if (!STATE.deviceId) {
+    return;
+  }
+  try {
+    var data = await fetchJson("/api/devices/" + encodeURIComponent(STATE.deviceId) + "/resources?range=24h");
+    setFreshnessBadge("resources-freshness", data.source_status === "ok" ? "ok" : (data.source_status === "not_collected" ? "na" : "stale"), data.as_of_utc);
+    if (data.source_status !== "ok") {
+      cards.innerHTML = "";
+      if (emptyEl) {
+        emptyEl.hidden = false;
+        emptyEl.textContent = data.source_status === "not_collected"
+          ? "This device reports no CPU, memory or load: it has no SNMP profile and no agent. The coverage table below says how to add one."
+          : "This device should report CPU, memory and load, but there are no samples in the last 24 hours.";
+      }
+      return;
+    }
+    if (emptyEl) {
+      emptyEl.hidden = true;
+    }
+    var html = "";
+    var c = 0;
+    for (c = 0; c < RESOURCE_CARDS.length; c += 1) {
+      html += resourceCard(RESOURCE_CARDS[c], data.series[RESOURCE_CARDS[c].key], c);
+    }
+    cards.innerHTML = html;
+    for (c = 0; c < RESOURCE_CARDS.length; c += 1) {
+      var pts = data.series[RESOURCE_CARDS[c].key];
+      var values = [];
+      var p = 0;
+      for (p = 0; p < pts.length; p += 1) {
+        values.push(pts[p].value);
+      }
+      renderSparkline("resources-spark-" + c, values, "var(--color-cyan)");
+    }
+  } catch (err) {
+    console.error("Failed to load the resources history:", err);
+    setFreshnessBadge("resources-freshness", "down", null);
+  }
 }
 
 async function loadCapacity() {

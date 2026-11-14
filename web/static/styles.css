@@ -4429,3 +4429,5 @@ body[data-absent-syslog="1"] #tab-syslog > .source-absent-note { display: block;
 
 /* Room for a two-line title next to its sparkline from the start: the cards do not grow when the sparkline arrives */
 @media (min-width: 1280px) { .kpi-row .kpi-header-row { min-height: 2.3rem; align-items: flex-start; } }
+
+.card-metric .sub { font-size: var(--fs-xs); color: var(--text-muted); }
