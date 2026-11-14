@@ -46,7 +46,7 @@ class PhoneLayoutTest(BrowserTestCase):
             self.assertGreaterEqual(box[0], 0, control)
             self.assertLessEqual(box[1], 390, control)
             self.assertGreater(box[2], 0, control)
-        self.assertEqual(page.evaluate("document.documentElement.scrollWidth"), 390)
+        self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth"), 0)
         self.assertTrue(page.is_visible(".clock-display"))
         self.assertTrue(page.is_visible("#range-select ~ *, .time-range-toggle"))
         self.assertIn("Refresh", page.inner_text("#refresh-btn") + page.text_content("#refresh-btn"))

@@ -65,7 +65,7 @@ class HealthGroupsTest(BrowserTestCase):
         self.assertLessEqual(page.evaluate(HEIGHT), 2300)
         phone = self.open_health(390)
         self.assertLessEqual(phone.evaluate(HEIGHT), 6500)
-        self.assertEqual(phone.evaluate("document.documentElement.scrollWidth"), 390)
+        self.assertLessEqual(phone.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth"), 0)
 
     def test_a_phone_gets_compact_rows_for_healthy_collectors_and_for_devices(self):
         # K120: with real data (11 devices, many collectors) the phone still needed ~10000 px; healthy collectors now take less room.

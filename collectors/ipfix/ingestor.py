@@ -43,8 +43,8 @@ OVERLAP_SECONDS = 900
 
 PROTOCOL_NAMES = {1: "ICMP", 6: "TCP", 17: "UDP", 47: "GRE", 58: "ICMPv6"}
 
-DEFAULT_INTERNAL_NETS = scenario.DEFAULTS["MININOC_INTERNAL_NETS"]
-DEFAULT_ROUTER_OWN_IPS = scenario.DEFAULTS["MININOC_ROUTER_OWN_IPS"]
+DEFAULT_INTERNAL_NETS = scenario.value("MININOC_INTERNAL_NETS")
+DEFAULT_ROUTER_OWN_IPS = scenario.value("MININOC_ROUTER_OWN_IPS")
 
 # MikroTik neighbour discovery (UDP 5678, broadcast/IPv6 multicast) was 92 % of
 # all flows measured in the lab (87,543 of 95,150 rows in one day) and none of

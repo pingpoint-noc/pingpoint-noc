@@ -155,7 +155,7 @@ class CapacityTest(BrowserTestCase):
             for width in VIEWPORTS:
                 page = self.open_bandwidth(FAST_IF, color_scheme=scheme, width=width)
                 page.check("#chk-show-p95")
-                self.assertEqual(
+                self.assertLessEqual(
                     page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth"), 0,
                     "bandwidth %s %d" % (scheme, width),
                 )
@@ -170,13 +170,13 @@ class CapacityTest(BrowserTestCase):
                 page.evaluate("document.activeElement.blur()")  # shortcuts are ignored while a field has focus
                 page.keyboard.press("7")
                 page.wait_for_function("document.getElementById('capacity-cards').textContent.indexOf('Days to the size cap') !== -1")
-                self.assertEqual(
+                self.assertLessEqual(
                     page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth"), 0,
                     "health %s %d" % (scheme, width),
                 )
                 page.keyboard.press("1")
                 page.wait_for_selector("#overview-top-if-tbody tr.top-if-row", state="attached")  # folded on a phone since K116
-                self.assertEqual(
+                self.assertLessEqual(
                     page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth"), 0,
                     "overview %s %d" % (scheme, width),
                 )

@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import scenario
 from storage import create_repository
 from tools.preflight import (
     check_db_schema,
@@ -112,15 +113,15 @@ class TestEnv(unittest.TestCase):
 class TestScenario(unittest.TestCase):
     def test_without_a_file_every_parameter_comes_from_the_defaults(self):
         results = check_scenario({}, {})
-        self.assertEqual(statuses(results), ["PASS"])
-        self.assertIn("ROUTER_IP=192.168.88.1 (valor por defecto)", joined_details(results))
+        self.assertEqual(statuses(results)[0], "PASS")  # the first result is the summary; a zone check may follow
+        self.assertIn("ROUTER_IP=%s (valor por defecto)" % scenario.DEFAULTS["MININOC_ROUTER_IP"], joined_details(results))
         self.assertNotIn("mini-noc.env)", joined_details(results))
 
     def test_a_value_from_the_file_is_named_as_such(self):
         file_values = {"MININOC_ROUTER_IP": "10.0.0.1"}
         results = check_scenario(dict(file_values), file_values)
         self.assertIn("ROUTER_IP=10.0.0.1 (mini-noc.env)", joined_details(results))
-        self.assertIn("NOC_IP=192.168.88.4 (valor por defecto)", joined_details(results))
+        self.assertIn("NOC_IP=%s (valor por defecto)" % scenario.DEFAULTS["MININOC_NOC_IP"], joined_details(results))
 
     def test_a_value_from_the_environment_only_is_not_attributed_to_the_file(self):
         results = check_scenario({"MININOC_ROUTER_OWN_IPS": "1.2.3.4"}, {})
@@ -130,7 +131,7 @@ class TestScenario(unittest.TestCase):
         results = check_scenario({"MININOC_TZ": "Asia/Kolkata"}, {"MININOC_TZ": "Asia/Kolkata"})
         self.assertEqual(statuses(results), ["PASS"])
         self.assertIn("TZ=Asia/Kolkata (mini-noc.env)", joined_details(results))
-        self.assertIn("TZ=Europe/Madrid (valor por defecto)", joined_details(check_scenario({}, {})))
+        self.assertIn("TZ=%s (valor por defecto)" % scenario.DEFAULTS["MININOC_TZ"], joined_details(check_scenario({}, {})))
 
     def test_an_invalid_time_zone_fails(self):
         results = check_scenario({"MININOC_TZ": "Mars/Olympus_Mons"}, {})

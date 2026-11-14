@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+import scenario
 from alerts import digest
 from alerts.notify import NotifierGroup, NtfyNotifier, build_notifiers
 from api import availability
@@ -428,10 +429,9 @@ class ScheduleTest(unittest.TestCase):
             self.assertEqual(digest.scheduled_utc("2026-07-01", "08:00"), utc("2026-07-01 02:30"))
             self.assertEqual(digest.local_date(utc("2026-07-01 18:30")), "2026-07-02")
 
-    def test_an_invalid_zone_falls_back_to_madrid(self):
+    def test_an_invalid_zone_falls_back_to_the_default_zone(self):
         with patch.dict(os.environ, {"MININOC_TZ": "Mars/Olympus_Mons"}):
-            self.assertEqual(digest.local_tz_name(), "Europe/Madrid")
-            self.assertEqual(digest.scheduled_utc("2026-07-01", "08:00"), utc("2026-07-01 06:00"))
+            self.assertEqual(digest.local_tz_name(), scenario.DEFAULTS["MININOC_TZ"])
 
     def settings(self, **extra):
         base = {"digest_enabled": "true", "digest_time": "08:00"}

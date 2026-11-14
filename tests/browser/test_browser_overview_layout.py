@@ -25,6 +25,7 @@ BOXES = """() => {
   }
   out.scrollWidth = document.documentElement.scrollWidth;
   out.innerWidth = innerWidth;
+  out.clientWidth = document.documentElement.clientWidth;
   return out;
 }"""
 
@@ -62,8 +63,8 @@ class OverviewFirstScreenTest(BrowserTestCase):
         noc, target = b[".noc-global-ribbon"], b[".target-device-ribbon"]
         self.assertLess(abs(noc["top"] - target["top"]), 3, "the two indicator strips must start on the same row")
         self.assertLess(noc["right"], target["left"] + 1)
-        self.assertLessEqual(target["right"], b["innerWidth"])
-        self.assertEqual(b["scrollWidth"], b["innerWidth"])
+        self.assertLessEqual(target["right"], b["clientWidth"])
+        self.assertLessEqual(b["scrollWidth"], b["clientWidth"])
         # every indicator of both strips sits on that row
         tops = page.evaluate(
             "[...document.querySelectorAll('.kpi-ribbon .kpi-card:not(.hidden)')]"
@@ -90,8 +91,8 @@ class OverviewFirstScreenTest(BrowserTestCase):
         for device_id in ids:
             page.select_option("#device-select", device_id)
             page.wait_for_timeout(700)
-            width = page.evaluate("[document.documentElement.scrollWidth, innerWidth]")
-            self.assertEqual(width[0], width[1], "horizontal overflow with target " + device_id)
+            width = page.evaluate("[document.documentElement.scrollWidth, document.documentElement.clientWidth]")
+            self.assertLessEqual(width[0], width[1], "horizontal overflow with target " + device_id)
             right = page.evaluate(
                 "Math.max(...[...document.querySelectorAll('.kpi-ribbon .kpi-card:not(.hidden)')]"
                 ".map(el => el.getBoundingClientRect().right))"
@@ -105,7 +106,7 @@ class OverviewFirstScreenTest(BrowserTestCase):
         page.set_default_timeout(10000)
         page.goto(self.server.base_url)
         b = self.boxes(page)
-        self.assertEqual(b["scrollWidth"], 390)
+        self.assertLessEqual(b["scrollWidth"], b["clientWidth"])
         noc, target = b[".noc-global-ribbon"], b[".target-device-ribbon"]
         self.assertLessEqual(noc["bottom"], target["top"])
         self.assertLessEqual(b["#welcome"]["bottom"], noc["top"])

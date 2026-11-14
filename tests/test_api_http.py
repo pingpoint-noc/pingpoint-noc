@@ -7,6 +7,7 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
+import scenario
 from api import __main__ as api_main
 from api.app import create_app
 from storage import create_repository
@@ -269,7 +270,7 @@ class TestHttpApi(unittest.TestCase):
         self.assertIn('<span class="clock-label" title="Asia/Kolkata">Asia/Kolkata</span>', html)
         self.assertNotIn("Europe/Madrid", html)
         with mock.patch.dict("os.environ", {"MININOC_TZ": "Mars/Olympus_Mons"}):
-            self.assertIn('content="Europe/Madrid"', self.client.get("/").text)
+            self.assertIn('content="%s"' % scenario.DEFAULTS["MININOC_TZ"], self.client.get("/").text)
 
     def test_dashboard_pro_features_and_accessibility(self):
         root_resp = self.client.get("/")

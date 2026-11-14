@@ -23,14 +23,19 @@ class AttentionBadgeTest(BrowserTestCase):
     def test_a_green_badge_turns_amber_when_a_device_needs_attention_and_back(self):
         page = self.open_page()
         self.set_green(page)
-        page.evaluate("() => { STATE.devicesAttention = 2; syncAttentionBadge(); }")
-        self.assertEqual(page.inner_text(TEXT), "2 devices need attention")
-        self.assertIn("warn", page.get_attribute(BADGE, "class"))
-        page.evaluate("() => { STATE.devicesAttention = 1; syncAttentionBadge(); }")
-        self.assertEqual(page.inner_text(TEXT), "1 device needs attention")
-        page.evaluate("() => { STATE.devicesAttention = 0; syncAttentionBadge(); }")
-        self.assertEqual(page.inner_text(TEXT), "All Systems Operational")
-        self.assertIn("ok", page.get_attribute(BADGE, "class"))
+        # Set, sync and read in one evaluation: the page refreshes itself every few seconds and would overwrite the count in between.
+        states = page.evaluate("""() => {
+          const out = [];
+          const b = document.getElementById('global-status-badge');
+          const t = document.getElementById('global-status-text');
+          for (const n of [2, 1, 0]) { STATE.devicesAttention = n; syncAttentionBadge(); out.push([t.textContent, b.className]); }
+          return out;
+        }""")
+        self.assertEqual(states[0][0], "2 devices need attention")
+        self.assertIn("warn", states[0][1])
+        self.assertEqual(states[1][0], "1 device needs attention")
+        self.assertEqual(states[2][0], "All Systems Operational")
+        self.assertIn("ok", states[2][1])
 
     def test_a_firing_badge_is_never_touched(self):
         page = self.open_page()
