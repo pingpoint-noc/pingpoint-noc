@@ -55,6 +55,20 @@ class IcmpViewTest(unittest.TestCase):
         self.assertEqual(data["as_of_utc"], NOW - 20)
         self.assertEqual(data["source_status"], "ok")
 
+    def test_the_p95_of_the_day_shows_a_peak_the_latest_sample_hides(self):
+        for i in range(100):  # a quiet 0.5 ms with 10 slow pings of 80 ms in the last day
+            self.record("pc", NOW - 20 - i * 60, avg=80.0 if i % 10 == 0 else 0.5)
+        self.record("pc", NOW - 5, avg=0.5)
+        _, by_id = self.get()
+        self.assertEqual(by_id["pc"]["rtt_avg_ms"], 0.5)
+        self.assertEqual(by_id["pc"]["rtt_p95_ms_24h"], 80.0)
+
+    def test_the_p95_needs_enough_samples(self):
+        for i in range(5):
+            self.record("pc", NOW - 5 - i * 60, avg=3.0)
+        _, by_id = self.get()
+        self.assertIsNone(by_id["pc"]["rtt_p95_ms_24h"])
+
     def test_a_device_without_data_says_why_and_is_never_shown_as_zero(self):
         self.record("pc", NOW - 5)
         _, by_id = self.get()

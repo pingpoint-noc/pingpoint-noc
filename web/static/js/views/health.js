@@ -228,7 +228,7 @@ async function loadIcmpHealth() {
       var tr = document.createElement("tr");
       var name = "<th>" + escapeHtml(dev.name) + " <span class='text-dim host-ip'>" + escapeHtml(dev.ip) + "</span></th>";
       if (!dev.reports_icmp) {
-        tr.innerHTML = name + "<td colspan='5' class='text-dim'>" + escapeHtml(dev.reason) + " (" + escapeHtml(healthSampleAge(dev)) + ")</td>";
+        tr.innerHTML = name + "<td colspan='6' class='text-dim'>" + escapeHtml(dev.reason) + " (" + escapeHtml(healthSampleAge(dev)) + ")</td>";
         holder.appendChild(tr);
         continue;
       }
@@ -245,6 +245,7 @@ async function loadIcmpHealth() {
           dev.rtt_avg_ms === null ? noRtt : "alert above " + limits.latency_ms + " ms") +
         icmpMsCell("Jitter", dev.jitter_ms, "", dev.jitter_ms === null ? noRtt : "spread of the round-trip time") +
         icmpMsCell("Slowest ping", dev.rtt_max_ms, "", dev.rtt_max_ms === null ? noRtt : "of the last five") +
+        icmpMsCell("RTT p95 (24 h)", dev.rtt_p95_ms_24h, "", dev.rtt_p95_ms_24h === null ? "Fewer than 20 samples in the last 24 hours." : "95 % of the pings in 24 h were faster than this") +
         "<td data-label='Sample' class='text-dim'>" + escapeHtml(healthSampleAge(dev)) + "</td>";
       holder.appendChild(tr);
     }

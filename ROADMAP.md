@@ -222,7 +222,7 @@ LibreNMS and Zabbix feature pages, Uptime Kuma README. Netdata and Observium wer
 | G8 | ARP/FDB tables: which MAC is on which port, duplicate IP | Configuration | M | Medium (legitimate moves) | N |
 | G9 | Top consumers per day/month from IPFIX as CSV; p95 billing-style report per port | Accounting | S-M | Nil | S |
 | G10 | Monthly volume trend per device with jump detection (not the discarded hourly baseline) | Accounting | S | Medium | N |
-| G11 | ICMP quality: RTT p95 and jitter chart | Performance | S | Low | S |
+| G11 (p95 done 2026-11-14, column "RTT p95 (24 h)" in Reachability & Latency; the jitter chart is still open) | ICMP quality: RTT p95 and jitter chart | Performance | S | Low | S |
 | G12 | Device profiles/templates ("router", "switch", "NAS") with thresholds and rules preloaded; links with F2 and D1 | Performance | M | Low | N |
 | G13 (done 2026-11-14 in the preflight: names devices polled with `public`/`private` and no profile; a web view of it is still open) | SNMP v1/v2c default-community or v3 `noAuth` audit of the inventory | Security | S | Low | S |
 | G14 | Management health report: failed web logins, tokens close to expiry | Security | S | Low | S |

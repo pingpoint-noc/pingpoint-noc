@@ -1079,6 +1079,22 @@ ICMP_METRICS = ("icmp_loss_pct", "icmp_rtt_avg_ms", "icmp_rtt_max_ms", "icmp_jit
 NO_ICMP_TEXT = "No ICMP data yet: the ICMP probe has not reported for this device"
 
 
+ICMP_P95_MIN_SAMPLES = 20
+
+
+def icmp_rtt_p95(repo, device_id, now_ts):
+    """95th percentile of the mean round-trip time over the last 24 hours, or None with fewer than ICMP_P95_MIN_SAMPLES samples
+    (a percentile of a handful of points is an anecdote). A peak the average hides shows up here."""
+    values = [
+        float(row["value"])
+        for row in repo.get_device_metrics_series(device_id, "icmp_rtt_avg_ms", int(now_ts) - 86400, int(now_ts))
+        if row["value"] is not None
+    ]
+    if len(values) < ICMP_P95_MIN_SAMPLES:
+        return None
+    return round(capacity.nearest_rank(values, 95), 2)
+
+
 def get_icmp_health_view(repo, now_ts, thresholds):
     """Packet loss, round-trip time and jitter of every active device (also those without SNMP), K80.
 
@@ -1106,6 +1122,7 @@ def get_icmp_health_view(repo, now_ts, thresholds):
             "rtt_avg_ms": None,
             "rtt_max_ms": None,
             "jitter_ms": None,
+            "rtt_p95_ms_24h": None,
             "as_of_utc": as_of,
             "age_seconds": None,
             "status": "down",
@@ -1118,6 +1135,7 @@ def get_icmp_health_view(repo, now_ts, thresholds):
                 row = values.get(name)
                 if row is not None and row["ts_utc"] == loss_row["ts_utc"]:
                     item[key] = row["value"]
+            item["rtt_p95_ms_24h"] = icmp_rtt_p95(repo, device["id"], now_ts)
             item["as_of_utc"] = loss_row["ts_utc"]
             item["age_seconds"] = now_ts - loss_row["ts_utc"]
             item["status"] = source_status("icmp", item["age_seconds"])
