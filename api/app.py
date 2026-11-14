@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import scenario
-from api import auth, availability, config_changes, flowstore, services
+from api import auth, availability, config_changes, flowstore, services, setup
 from api.netguard import require_local_for_bootstrap
 from alerts import digest, engine
 from alerts.notify import (
@@ -1036,6 +1036,11 @@ def create_app(db_path, clock=utc_now):
     @app.get("/api/health")
     def health():
         return services.get_health(repo, clock())
+
+    @app.get("/api/setup/suggestions")
+    def setup_suggestions():
+        """Networks, NOC address and time zone this machine suggests for the scenario (read-only; nothing is saved)."""
+        return setup.suggest()
 
     @app.get("/api/metrics")
     def prometheus_metrics():
