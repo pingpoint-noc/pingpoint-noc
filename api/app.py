@@ -16,7 +16,7 @@ import sqlite3
 from urllib.parse import urlparse
 
 from fastapi import Body, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -1036,6 +1036,16 @@ def create_app(db_path, clock=utc_now):
     @app.get("/api/health")
     def health():
         return services.get_health(repo, clock())
+
+    @app.get("/api/metrics")
+    def prometheus_metrics():
+        """Device state, CPU and memory, active alerts and database size in the Prometheus text format (read-only)."""
+        eff = engine.load_effective_settings(repo)
+        thresholds = {"cpu_pct": eff["host_cpu_pct"], "memory_pct": eff["host_memory_pct"], "disk_pct": eff["host_disk_pct"]}
+        return PlainTextResponse(
+            services.render_prometheus_metrics(repo, clock(), thresholds),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
     @app.get("/api/host-health")
     def host_health():

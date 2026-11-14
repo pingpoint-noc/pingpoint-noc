@@ -2841,6 +2841,42 @@ def thin_series(points, target=TARGET_POINTS):
     return thinned
 
 
+def prometheus_label(value):
+    """A label value as Prometheus wants it: backslash, double quote and new line escaped."""
+    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+def render_prometheus_metrics(repo, now_ts, thresholds):
+    """Device state, host health, active alerts and database size in the Prometheus text format (read-only, no new data)."""
+    lines = []
+
+    def family(name, help_text, samples):
+        lines.append("# HELP %s %s" % (name, help_text))
+        lines.append("# TYPE %s gauge" % name)
+        for labels, value in samples:
+            tag = ",".join('%s="%s"' % (key, prometheus_label(val)) for key, val in labels)
+            lines.append("%s%s %s" % (name, "{" + tag + "}" if tag else "", value))
+
+    overview = get_overview(repo, now_ts)
+    family("pingpoint_device_up", "1 when the device is reachable, 0 when it is down or silent", [
+        ((("device", d["id"]), ("name", d["name"]), ("type", d["device_type"])), 1 if d["reachable"] else 0)
+        for d in overview["devices"]])
+    health = get_host_health_view(repo, now_ts, thresholds)
+    for metric, key, text in (
+        ("pingpoint_device_cpu_percent", "cpu_pct", "CPU use of the device, percent"),
+        ("pingpoint_device_memory_percent", "memory_pct", "Memory use of the device, percent"),
+    ):
+        family(metric, text, [
+            ((("device", h["device_id"]),), round(h[key], 2)) for h in health["devices"] if h.get(key) is not None])
+    counts = {"critical": 0, "warning": 0}
+    for alert in repo.list_alerts(status="firing", limit=1000):
+        counts[alert["severity"]] = counts.get(alert["severity"], 0) + 1
+    family("pingpoint_alerts_active", "Alerts firing now, by severity", [((("severity", s),), n) for s, n in sorted(counts.items())])
+    usage = repo.get_storage_usage()
+    family("pingpoint_database_bytes", "Size of the SQLite database", [((), int(usage["db_bytes"]))])
+    return "\n".join(lines) + "\n"
+
+
 def get_device_resources_view(repo, device_id, now_ts, range_name="1h"):
     """CPU, memory and load history of one device (SNMP HOST-RESOURCES or agent telemetry), at most 300 points per series.
 

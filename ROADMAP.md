@@ -221,7 +221,7 @@ LibreNMS and Zabbix feature pages, Uptime Kuma README. Netdata and Observium wer
 | G14 | Management health report: failed web logins, tokens close to expiry | Security | S | Low | S |
 | G15 | New or vanished LAN device notice, **inventory only** (the SOC-style `new_term` stays discarded) | Security | S-M | Medium | N |
 | G16 | Read-only public status page (service names only, no IPs) | UX | M | Low | N (what to show) |
-| G17 | Prometheus `/metrics` (check first that it does not exist) | Operation | S | Nil | S |
+| G17 (done 2026-11-14: `GET /api/metrics`, under the same read gate as the rest of the API) | Prometheus metrics (device up, CPU and memory, active alerts, database size) | Operation | S | Nil | S |
 | G18 | Config backup (Oxidized/RANCID style): **not** in the NOC (it needs credentials); link to Oxidized in the docs | Configuration | n/a | n/a | n/a |
 | G19 | Simple anomaly detection on a 7-day moving average, informational only, no push by default | Performance | L | High | N |
 
