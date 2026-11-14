@@ -1425,6 +1425,7 @@ body.booting #main-content { opacity: 0; }
   gap: 0.35rem 1rem;
   font-size: var(--fs-sm);
   margin-top: 0.6rem;
+  margin-bottom: 1rem; /* room before whatever sits under the chart (cards, tables) */
   color: var(--text-muted);
 }
 
