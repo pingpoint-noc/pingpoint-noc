@@ -4446,3 +4446,13 @@ button.coverage-gap:focus-visible { outline: 2px solid var(--border-focus); outl
 /* Resources cards: the trend line uses the whole card, not the 80 px of a KPI tile */
 #resources-cards .kpi-sparkline-wrap { width: 100%; height: 36px; margin-top: 0.4rem; justify-content: stretch; }
 #resources-cards .kpi-sparkline-wrap .sparkline-svg { width: 100%; height: 100%; }
+
+/* Getting started (first-run guide in Settings) */
+.setup-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.setup-step { border: 1px solid var(--border-default); border-radius: 8px; padding: 0.7rem 0.9rem; }
+.setup-step.setup-attention { border-color: var(--accent-soft-border); background: var(--accent-soft); }
+.setup-step-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; justify-content: space-between; }
+.setup-step .dest-blurb { margin: 0.25rem 0 0.4rem; }
+.setup-badge { font-size: var(--fs-xs); color: var(--text-dim); border: 1px solid var(--border-default); border-radius: 999px; padding: 0 0.5rem; }
+.setup-done .setup-badge { color: var(--color-ok); border-color: var(--color-ok-border); }
+.setup-proposal { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.25rem 0; font-size: var(--fs-sm, 0.85rem); }

@@ -595,7 +595,140 @@ async function loadSetupEnvironment() {
   }
 }
 
+// "Getting started": the four first-run steps (/api/setup/status). It only reads; the buttons use the controls that already exist
+// (the inventory, the thresholds, the test message), so nothing here is a second way to change the configuration.
+var SETUP_STATE_LABEL = { done: "Done", attention: "To do now", waiting: "Waiting", todo: "Not started" };
+
+function setupGuideMessage(text, isError) {
+  var msg = document.getElementById("setup-guide-msg");
+  if (msg) {
+    msg.textContent = text;
+    msg.className = isError ? "settings-msg error" : "settings-msg";
+  }
+}
+
+function setupGoTo(id) {
+  var target = document.getElementById(id);
+  if (target && typeof target.scrollIntoView === "function") {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function setupButton(label, handler) {
+  var btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn btn-secondary btn-small";
+  btn.textContent = label;
+  btn.addEventListener("click", handler);
+  return btn;
+}
+
+async function setupApplyProposal(proposal) {
+  var body = {};
+  body[proposal.setting] = proposal.suggested;
+  try {
+    await sendSettingsRequest("PUT", "/api/settings", body);
+    rememberAdminToken();
+    setupGuideMessage(proposal.setting + " set to " + proposal.suggested + " " + proposal.unit + ".", false);
+    loadSetupGuide();
+  } catch (err) {
+    setupGuideMessage("Could not apply it: " + err.message, true);
+  }
+}
+
+async function setupSendTest() {
+  setupGuideMessage("Sending...", false);
+  try {
+    var result = await sendSettingsRequest("POST", "/api/settings/test-notification", null);
+    rememberAdminToken();
+    setupGuideMessage("Test: " + describeTestResults(result.results) + ".", !result.ok);
+    loadSetupGuide();
+  } catch (err) {
+    setupGuideMessage("Test failed: " + err.message, true);
+  }
+}
+
+function setupStepActions(step) {
+  var actions = [];
+  if (step.id === "networks" && step.state !== "done") {
+    actions.push(setupButton("Show the suggested values", function () { setupGoTo("setup-environment-bar"); }));
+  } else if (step.id === "devices") {
+    actions.push(setupButton(step.state === "todo" ? "Add a target" : "Set the roles", function () {
+      setupGoTo(step.state === "todo" ? "settings-add-node-ip" : "settings-devices-tbody");
+    }));
+  } else if (step.id === "notifications") {
+    if (step.state === "todo") {
+      actions.push(setupButton("Choose a destination", function () { setupGoTo("dest-ntfy"); }));
+    } else if (step.state === "attention") {
+      actions.push(setupButton("Send a test message", setupSendTest));
+    }
+  }
+  return actions;
+}
+
+async function loadSetupGuide() {
+  var box = document.getElementById("setup-guide");
+  var list = document.getElementById("setup-guide-steps");
+  if (!box || !list) {
+    return;
+  }
+  try {
+    var data = await fetchJson("/api/setup/status");
+    box.classList.toggle("hidden", data.complete);
+    var holder = beginRows(list);
+    var i = 0;
+    for (i = 0; i < data.steps.length; i += 1) {
+      var step = data.steps[i];
+      var li = document.createElement("li");
+      li.className = "setup-step setup-" + step.state;
+      var head = document.createElement("div");
+      head.className = "setup-step-head";
+      var title = document.createElement("strong");
+      title.textContent = step.title;
+      var badge = document.createElement("span");
+      badge.className = "setup-badge";
+      badge.textContent = SETUP_STATE_LABEL[step.state] || step.state;
+      head.appendChild(title);
+      head.appendChild(badge);
+      var detail = document.createElement("p");
+      detail.className = "dest-blurb";
+      detail.textContent = step.detail;
+      li.appendChild(head);
+      li.appendChild(detail);
+      if (step.id === "devices" && step.to_review.length > 0) {
+        var names = document.createElement("p");
+        names.className = "dest-blurb";
+        names.textContent = "Without a role: " + step.to_review.map(function (d) { return d.name + " (" + d.ip + ")"; }).join(", ");
+        li.appendChild(names);
+      }
+      if (step.id === "learning") {
+        step.proposals.forEach(function (proposal) {
+          var row = document.createElement("div");
+          row.className = "setup-proposal";
+          var text = document.createElement("span");
+          text.textContent = proposal.setting + ": " + proposal.current + " " + proposal.unit + " → " + proposal.suggested + " " + proposal.unit +
+            (proposal.note ? " (" + proposal.note + ")" : "");
+          row.appendChild(text);
+          if (canEditSettings()) {
+            row.appendChild(setupButton("Apply", function () { setupApplyProposal(proposal); }));
+          }
+          li.appendChild(row);
+        });
+      }
+      if (canEditSettings()) {
+        setupStepActions(step).forEach(function (btn) { li.appendChild(btn); });
+      }
+      holder.appendChild(li);
+    }
+    commitRows(list, holder);
+  } catch (err) {
+    console.error("Failed to load the setup guide:", err);
+    box.classList.add("hidden");
+  }
+}
+
 async function loadSettingsInventory() {
+  loadSetupGuide();
   loadSetupEnvironment();
   var tbody = document.getElementById("settings-devices-tbody");
   if (!tbody) {

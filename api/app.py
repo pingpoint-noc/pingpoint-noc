@@ -1042,6 +1042,19 @@ def create_app(db_path, clock=utc_now):
         """Networks, NOC address and time zone this machine suggests for the scenario (read-only; nothing is saved)."""
         return setup.suggest()
 
+    @app.get("/api/setup/status")
+    def setup_status():
+        """The first-run steps (network values, devices to review, learning, notifications) and where each one stands (read-only)."""
+        from tools import suggest_thresholds
+
+        try:
+            proposals = suggest_thresholds.suggest(db_path, now_ts=clock())
+        except (sqlite3.Error, OSError) as exc:
+            LOGGER.warning("Threshold proposals unavailable for the setup status: %s", exc)
+            proposals = []
+        group = build_notifiers(repo.get_settings(), os.environ)
+        return setup.status(repo, clock(), proposals=proposals, destinations=group.names() if group is not None else [])
+
     @app.get("/api/metrics")
     def prometheus_metrics():
         """Device state, CPU and memory, active alerts and database size in the Prometheus text format (read-only)."""
@@ -1453,6 +1466,7 @@ def create_app(db_path, clock=utc_now):
         if not any(results.values()):
             raise HTTPException(status_code=502, detail="no destination accepted the test message")
         record_audit(actor, "settings.test", [destination or "all"])
+        repo.set_settings({setup.KEY_NOTIFY_TESTED: str(int(clock()))}, clock())  # the setup guide shows that a test went through
         return {"ok": all(results.values()), "results": results}
 
     @app.post("/api/settings/test-digest")

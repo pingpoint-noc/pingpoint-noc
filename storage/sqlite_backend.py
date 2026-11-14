@@ -1449,6 +1449,22 @@ class SQLiteRepository(StorageRepository):
         finally:
             conn.close()
 
+    def first_sample_ts(self):
+        """Timestamp of the oldest stored metric or interface sample, or None when nothing was collected yet.
+
+        Rows are inserted in time order, so the first row by id is the oldest one (no scan of a big table).
+        """
+        conn = self.open_read()
+        try:
+            found = []
+            for table in ("device_metrics", "interface_samples"):
+                row = conn.execute("SELECT ts_utc FROM %s ORDER BY id LIMIT 1;" % table).fetchone()
+                if row is not None:
+                    found.append(row[0])
+            return min(found) if found else None
+        finally:
+            conn.close()
+
     def get_syslog_events(self, device_id, limit=50):
         """Return the newest events first (uses idx_syslog_dev_ts)."""
         return self.query_syslog_events(device_id, severity=None, query_text=None, limit=limit)

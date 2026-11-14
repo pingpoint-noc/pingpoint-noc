@@ -115,14 +115,14 @@ class TestScenario(unittest.TestCase):
     def test_without_a_file_every_parameter_comes_from_the_defaults(self):
         results = check_scenario({}, {})
         self.assertEqual(statuses(results)[0], "PASS")  # the first result is the summary; a zone check may follow
-        self.assertIn("ROUTER_IP=%s (valor por defecto)" % scenario.DEFAULTS["MININOC_ROUTER_IP"], joined_details(results))
+        self.assertIn("ROUTER_IP=(vacío) (valor por defecto)", joined_details(results))
         self.assertNotIn("mini-noc.env)", joined_details(results))
 
     def test_a_value_from_the_file_is_named_as_such(self):
         file_values = {"MININOC_ROUTER_IP": "10.0.0.1"}
         results = check_scenario(dict(file_values), file_values)
         self.assertIn("ROUTER_IP=10.0.0.1 (mini-noc.env)", joined_details(results))
-        self.assertIn("NOC_IP=%s (valor por defecto)" % scenario.DEFAULTS["MININOC_NOC_IP"], joined_details(results))
+        self.assertIn("NOC_IP=(vacío) (valor por defecto)", joined_details(results))
 
     def test_a_value_from_the_environment_only_is_not_attributed_to_the_file(self):
         results = check_scenario({"MININOC_ROUTER_OWN_IPS": "1.2.3.4"}, {})

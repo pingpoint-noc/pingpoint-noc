@@ -32,6 +32,10 @@ class StorageRepository(ABC):
         """Timestamp of the oldest stored syslog event of a device, or None when it has none."""
 
     @abstractmethod
+    def first_sample_ts(self):
+        """Timestamp of the oldest stored metric or interface sample, or None when nothing was collected yet."""
+
+    @abstractmethod
     def delete_settings(self, keys):
         """Remove the given settings keys (unknown keys are ignored)."""
 

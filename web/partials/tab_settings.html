@@ -144,6 +144,13 @@
               <button type="button" class="btn btn-secondary btn-small" id="btn-refresh-settings-devices">Refresh Inventory</button>
             </span>
           </div>
+          <div class="settings-add-node-bar hidden" id="setup-guide" aria-labelledby="setup-guide-title">
+            <h4 class="settings-subheading" id="setup-guide-title">Getting started</h4>
+            <p class="dest-blurb">Four steps to a NOC that fits your network. Each one points to the control that does it; nothing is changed until you press a button.</p>
+            <ol class="setup-steps" id="setup-guide-steps"></ol>
+            <p id="setup-guide-msg" class="settings-msg" role="status" aria-live="polite"></p>
+          </div>
+
           <p class="dest-blurb">Edit friendly display names, hostnames, and telemetry roles (<code>router</code>, <code>dns</code>, <code>linux</code>) for any discovered or registered target. Changing a target's role immediately adapts its dashboard charts and KPIs.
             <strong>Behind</strong> says which device this one sits behind (for example a host behind the router): while the parent is down or sends no telemetry, the &ldquo;down&rdquo; alerts of its children stay on screen but are not sent as notifications.</p>
 
@@ -172,7 +179,7 @@
             <div class="auth-form">
               <div class="settings-field">
                 <label for="settings-add-node-ip">IP Address</label>
-                <input id="settings-add-node-ip" class="form-input" type="text" placeholder="e.g. 192.168.88.50" spellcheck="false">
+                <input id="settings-add-node-ip" class="form-input" type="text" placeholder="e.g. 192.0.2.50" spellcheck="false">
               </div>
               <div class="settings-field">
                 <label for="settings-add-node-host">Display Name / Hostname</label>
