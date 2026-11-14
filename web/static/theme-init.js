@@ -23,4 +23,15 @@
     // storage blocked: folded
   }
   document.documentElement.setAttribute("data-welcome", welcome);
+  // The alert banner is the one block whose height is unknown until its data arrives (84 px when quiet, 500 px with a card open).
+  // Last visit's height and state are used for the first paint, so the content below does not jump when the alerts load.
+  try {
+    var height = parseInt(localStorage.getItem("mini-noc-alerts-h"), 10);
+    if (height > 0 && height < 2000) {
+      document.documentElement.style.setProperty("--alerts-min-h", height + "px");
+    }
+    document.documentElement.setAttribute("data-alerts", localStorage.getItem("mini-noc-alerts-n") > 0 ? "1" : "0");
+  } catch (e) {
+    // storage blocked: the first paint is as before
+  }
 })();

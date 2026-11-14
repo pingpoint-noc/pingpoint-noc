@@ -3109,6 +3109,9 @@ select option { background: var(--bg-surface); color: var(--text-main); }
 @media (max-width: 700px) { #alerts-section { scroll-margin-top: 44px; } }
 /* While the strip above is showing the alert state, the header badge would say it a second time (K112). */
 @media (max-width: 700px) { body:has(.alert-strip:not(.hidden)) .global-status { display: none; } }
+/* Before the first data: take the layout of the last visit (theme-init.js), so the header and the banner do not jump when the alerts arrive. */
+body.booting #alerts-section { min-height: var(--alerts-min-h, 0px); }
+@media (max-width: 700px) { html[data-alerts="1"] body.booting .global-status { display: none; } }
 
 /* Phone: a summary line and only the devices that are not fine; the header's Target menu selects the rest. */
 @media (max-width: 700px) {

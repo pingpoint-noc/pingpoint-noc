@@ -1504,10 +1504,26 @@ function syncAttentionBadge() {
   }
 }
 
+// Remember how tall the banner was and whether alerts were showing, for the next first paint (see theme-init.js).
+function rememberAlertsLayout(activeCount) {
+  window.requestAnimationFrame(function () {
+    try {
+      localStorage.setItem("mini-noc-alerts-n", String(activeCount));
+      var section = document.getElementById("alerts-section");
+      if (section && STATE.activeTab === "tab-overview" && section.offsetHeight > 0) {
+        localStorage.setItem("mini-noc-alerts-h", String(Math.round(section.offsetHeight)));
+      }
+    } catch (e) {
+      // storage blocked: nothing is remembered
+    }
+  });
+}
+
 async function loadAlerts() {
   try {
     var data = await fetchJson("/api/alerts");
     STATE.alertsDown = false;
+    rememberAlertsLayout(data.active_count);
     var attentionBadge = document.getElementById("global-status-badge");
     if (attentionBadge) attentionBadge.removeAttribute("data-attention");
     var section = document.getElementById("alerts-section");
