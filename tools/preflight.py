@@ -404,7 +404,7 @@ def check_journal_cap(config_texts):
     return [make_result(
         "Tope del journal", "WARN",
         "journald no tiene SystemMaxUse: los logs pueden llenar el disco. Arreglo: "
-        "printf '[Journal]\nSystemMaxUse=300M\nMaxRetentionSec=14day\n' | sudo tee /etc/systemd/journald.conf.d/mini-noc.conf "
+        "printf '[Journal]\\nSystemMaxUse=300M\\nMaxRetentionSec=14day\\n' | sudo tee /etc/systemd/journald.conf.d/mini-noc.conf "
         "&& sudo systemctl restart systemd-journald",
     )]
 
