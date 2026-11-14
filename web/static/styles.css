@@ -4440,3 +4440,7 @@ body[data-absent-syslog="1"] #tab-syslog > .source-absent-note { display: block;
 button.coverage-gap { cursor: pointer; font: inherit; }
 button.coverage-gap:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 #coverage-how code { overflow-wrap: anywhere; }
+
+/* Resources cards: the trend line uses the whole card, not the 80 px of a KPI tile */
+#resources-cards .kpi-sparkline-wrap { width: 100%; height: 36px; margin-top: 0.4rem; justify-content: stretch; }
+#resources-cards .kpi-sparkline-wrap .sparkline-svg { width: 100%; height: 100%; }
