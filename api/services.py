@@ -276,7 +276,10 @@ def device_summary(device, collectors, now_ts):
     if last_seen_utc is not None:
         telemetry_age = age_of(last_seen_utc, now_ts)
 
-    if snmp_seen:
+    # A device that SNMP no longer polls keeps its old last_ok_utc: that timestamp says nothing about now.
+    if not has_snmp:
+        collectors = {name: row for name, row in (collectors or {}).items() if name != "snmp"}
+    if snmp_seen and has_snmp:
         snmp_age = age_of(device["last_ok_utc"], now_ts)
         age = snmp_age
         source_st = source_status("snmp", snmp_age)
