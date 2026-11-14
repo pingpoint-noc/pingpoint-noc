@@ -922,6 +922,22 @@ def _syslog_baseline_per_window(repo, device_id, window_start_ts, window_seconds
 SYSLOG_BURST_LEARNING_SECONDS = 3600
 
 
+def top_syslog_pattern(events, min_count=3, min_share=0.25):
+    """The message most events repeat, with numbers replaced by N so "pid=123" and "pid=456" count as one: (text, count) or None.
+    Shown in a burst alert so the person reading it knows what is flooding without opening the log."""
+    counts = {}
+    for event in events:
+        text = re.sub(r"\d+", "N", " ".join(str(event.get("message") or "").split()))[:90]
+        if text:
+            counts[text] = counts.get(text, 0) + 1
+    if not counts:
+        return None
+    text, count = max(counts.items(), key=lambda item: item[1])
+    if count < min_count or count < min_share * len(events):
+        return None
+    return text, count
+
+
 def evaluate_syslog_burst_rule(
     repo,
     device_id,
@@ -958,6 +974,10 @@ def evaluate_syslog_burst_rule(
         burst_threshold,
         round(base * 60.0 / burst_window_seconds),
     )
+    if is_triggered:
+        top = top_syslog_pattern(events)
+        if top is not None:
+            msg += '. Most repeated (%d of %d, %d%%): "%s"' % (top[1], count, round(100.0 * top[1] / count), top[0])
     reconcile_alert(
         repo=repo,
         device_id=device_id,

@@ -32,6 +32,25 @@ class TestSyslogBurstAlert(unittest.TestCase):
     def test_syslog_burst_rule_is_in_known_rule_ids(self):
         self.assertIn("syslog_burst", KNOWN_RULE_IDS)
 
+    def burst(self, messages, now_ts=1700000000):
+        self.repo.insert_syslog_events([
+            {"device_id": self.device_id, "ts_utc": now_ts - (i % 50), "facility": "kern", "severity": "notice",
+             "program": "kernel", "msg": text} for i, text in enumerate(messages)])
+        evaluate_syslog_burst_rule(repo=self.repo, device_id=self.device_id, now_ts=now_ts, burst_threshold=50, burst_window_seconds=60)
+        return self.repo.list_alerts(device_id=self.device_id, status="firing")
+
+    def test_the_alert_names_the_message_that_floods_the_log(self):
+        flood = ['audit: type=1400 apparmor="DENIED" pid=%d comm="rsyslogd"' % (1000 + i) for i in range(45)]
+        other = ["Session %d logged out" % i for i in range(15)]
+        alerts = self.burst(flood + other)
+        self.assertEqual(len(alerts), 1)
+        self.assertIn('Most repeated (45 of 60, 75%): "audit: type=N apparmor="DENIED" pid=N comm="rsyslogd""', alerts[0]["message"])
+
+    def test_a_burst_of_many_different_messages_names_none(self):
+        alerts = self.burst(["unique line %s" % chr(97 + i % 26) * (i + 1) for i in range(60)])
+        self.assertEqual(len(alerts), 1)
+        self.assertNotIn("Most repeated", alerts[0]["message"])
+
     def test_syslog_burst_triggers_warning_when_threshold_reached(self):
         now_ts = 1700000000
         burst_threshold = 50
