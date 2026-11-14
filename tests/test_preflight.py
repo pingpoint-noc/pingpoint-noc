@@ -13,6 +13,7 @@ from tools.preflight import (
     check_env_settings,
     check_flow_expiry,
     check_health,
+    check_journal_cap,
     check_no_external_resources,
     check_scenario,
     check_services,
@@ -493,6 +494,20 @@ class TestNfexpireLimits(unittest.TestCase):
         self.assertEqual((text, error), (None, None))
         names = [r["name"] for r in check_flow_expiry(self.CONF, self.USAGE, text, error)]
         self.assertNotIn("Limites de nfexpire", names)
+
+
+class JournalCapTest(unittest.TestCase):
+    def test_a_cap_in_any_file_passes(self):
+        texts = ["[Journal]\n#SystemMaxUse=\n", "[Journal]\nSystemMaxUse=300M\n"]
+        self.assertEqual(statuses(check_journal_cap(texts)), ["PASS"])
+
+    def test_no_cap_warns_and_names_the_fix(self):
+        results = check_journal_cap(["[Journal]\n#SystemMaxUse=\nSystemMaxUse=\n"])
+        self.assertEqual(statuses(results), ["WARN"])
+        self.assertIn("journald.conf.d", results[0]["detail"])
+
+    def test_a_machine_without_journald_is_not_judged(self):
+        self.assertEqual(check_journal_cap(None), [])
 
 
 if __name__ == "__main__":

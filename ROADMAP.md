@@ -167,7 +167,7 @@ installs; N: needs a decision or a real device first). Nothing here is done yet.
 | C2 (done 2026-11-14) | **Per-source cap on stored syslog rows** (today only age and total size limit it). | `MININOC_SYSLOG_MAX_ROWS_PER_SOURCE`; retention trims the flooding source first; test: one source at 10x the cap cannot evict the others. | Low | S |
 | C3 | **rsyslog queue limits in `bootstrap.sh`.** Verified: it writes `*.* @host:514` with no queue or rate limit; it cannot fill a disk, but a flood costs bandwidth and a failing guest (see A3) multiplies it. | `action(type="omfwd" ... queue.type="LinkedList" queue.size=... queue.discardMark=...)` plus an `imuxsock` rate limit; `rsyslogd -N1` passes and rollback still works on Debian, Alpine and Rocky containers. | Medium (touches every enrolled host) | N |
 | C4 | **logrotate:** `bootstrap.sh` writes only the forwarding file, so a host's own rotation is not ours. Document it and make the preflight warn about a host whose `/var/log` has no rotation. | Section in `docs/montar-contenedor.md`; preflight check with a test. | Nil | S |
-| C5 | The installer sets a journald cap; a container installed by hand does not. | The preflight reports "journald has no size cap" with the one-line fix. | Nil | S |
+| C5 (done 2026-11-14) | The installer sets a journald cap; a container installed by hand does not. | The preflight reports "journald has no size cap" with the one-line fix. | Nil | S |
 
 ### P1: per-device bandwidth threshold
 

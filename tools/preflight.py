@@ -392,6 +392,37 @@ def check_no_external_resources(html):
     return [make_result("Sin recursos externos", "FAIL", "referencias absolutas: %s" % ", ".join(found[:3]))]
 
 
+def check_journal_cap(config_texts):
+    """The journal must have a size cap, or logs can fill the disk. `config_texts` are the contents of journald.conf and its
+    drop-ins; None means there is no journald here (no systemd), which is not a problem."""
+    if config_texts is None:
+        return []
+    for text in config_texts:
+        for line in text.splitlines():
+            if line.strip().startswith("SystemMaxUse=") and line.strip() != "SystemMaxUse=":
+                return [make_result("Tope del journal", "PASS", line.strip())]
+    return [make_result(
+        "Tope del journal", "WARN",
+        "journald no tiene SystemMaxUse: los logs pueden llenar el disco. Arreglo: "
+        "printf '[Journal]\nSystemMaxUse=300M\nMaxRetentionSec=14day\n' | sudo tee /etc/systemd/journald.conf.d/mini-noc.conf "
+        "&& sudo systemctl restart systemd-journald",
+    )]
+
+
+def read_journal_config():
+    """journald.conf and /etc/systemd/journald.conf.d/*.conf as a list of texts, or None when the machine has no journald."""
+    base = Path("/etc/systemd")
+    if not base.is_dir():
+        return None
+    texts = []
+    for path in [base / "journald.conf"] + sorted((base / "journald.conf.d").glob("*.conf")):
+        try:
+            texts.append(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+    return texts
+
+
 def check_services(names, is_active_fn):
     """Every service active (row 0.2). Without systemctl the check is skipped with a warning."""
     if is_active_fn is None:
@@ -509,6 +540,7 @@ def main(argv=None):
     results.extend(check_scenario(env, file_values))
     results.extend(check_db_size(args.db_path, max_mb))
     results.extend(check_snmp_security(env))
+    results.extend(check_journal_cap(read_journal_config()))
     results.extend(check_snmp_profiles(args.db_path, env))
     flow_dir = env.get("MININOC_FLOW_DIR", FLOW_DIR)
     conf_text = None
