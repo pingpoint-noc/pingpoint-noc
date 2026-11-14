@@ -550,7 +550,53 @@ function roleOptionsHtml(current) {
   return html;
 }
 
+// "Environment of this NOC": scenario variables in use, where each comes from and what this machine suggests (/api/setup/suggestions).
+// Read-only: the lines are for the person to copy into mini-noc.env; nothing is saved from here.
+async function loadSetupEnvironment() {
+  var tbody = document.getElementById("setup-env-tbody");
+  var lines = document.getElementById("setup-env-lines");
+  var note = document.getElementById("setup-env-note");
+  if (!tbody || !lines) {
+    return;
+  }
+  try {
+    var data = await fetchJson("/api/setup/suggestions");
+    var holder = beginRows(tbody);
+    var wanted = [];
+    var names = Object.keys(data.effective);
+    var i = 0;
+    for (i = 0; i < names.length; i += 1) {
+      var name = names[i];
+      var suggested = data.suggestions[name] || "";
+      var configured = Boolean(data.configured[name]);
+      var differs = suggested !== "" && suggested !== data.effective[name];
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<th title='" + escapeHtml(data.descriptions[name] || "") + "'><code>" + escapeHtml(name) + "</code></th>" +
+        "<td>" + escapeHtml(data.effective[name] || "(empty)") + "</td>" +
+        "<td>" + (configured ? "mini-noc.env" : "built-in default") + "</td>" +
+        "<td>" + (suggested === "" ? "<span class='text-dim'>nothing to suggest</span>" : escapeHtml(suggested)) + "</td>";
+      holder.appendChild(tr);
+      if (differs && !configured) {
+        wanted.push(name + "=" + suggested);
+      }
+    }
+    commitRows(tbody, holder);
+    lines.value = wanted.join("\n");
+    if (note) {
+      note.textContent = wanted.length === 0
+        ? "Nothing to add: every value with a suggestion is already set, or matches it."
+        : "Only the settings that still use a built-in default are listed. The router and device name are not guessed: they belong to the device you monitor.";
+    }
+  } catch (err) {
+    console.error("Failed to load the environment suggestions:", err);
+    if (note) {
+      note.textContent = "Could not load the suggestions: " + err.message;
+    }
+  }
+}
+
 async function loadSettingsInventory() {
+  loadSetupEnvironment();
   var tbody = document.getElementById("settings-devices-tbody");
   if (!tbody) {
     return;

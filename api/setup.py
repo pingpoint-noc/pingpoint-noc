@@ -103,6 +103,8 @@ def suggest(env=None, ip_output=None, primary=None, time_zone=None):
             "MININOC_TZ": zone,
         },
         "configured": {name: source == "env" for name, source in current.items()},
+        "effective": {name: scenario.value(name, env) for name in scenario.DEFAULTS},
+        "descriptions": dict(scenario.DESCRIPTIONS),
         "interfaces": addresses,
         "ignored_interfaces": [a["interface"] for a in addresses if a["plumbing"]],
     }

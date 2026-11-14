@@ -195,6 +195,20 @@
             <p id="settings-inventory-msg" class="settings-msg" role="status" aria-live="polite"></p>
           </div>
 
+          <div class="settings-add-node-bar" id="setup-environment-bar">
+            <h4 class="settings-subheading">Environment of this NOC</h4>
+            <p class="dest-blurb">The network values the NOC runs with and what this machine suggests for them. The NOC does not change its own configuration: copy the lines you accept into <code>mini-noc.env</code> and restart the services.</p>
+            <div class="table-container compact">
+              <table class="data-table" aria-label="Scenario variables: current value, source and suggestion">
+                <thead><tr><th>Setting</th><th>In use</th><th>Source</th><th>Suggested here</th></tr></thead>
+                <tbody id="setup-env-tbody"></tbody>
+              </table>
+            </div>
+            <label for="setup-env-lines" class="settings-subheading">Lines to add to mini-noc.env</label>
+            <textarea id="setup-env-lines" class="form-input" rows="4" readonly spellcheck="false" aria-describedby="setup-env-note"></textarea>
+            <p id="setup-env-note" class="dest-blurb"></p>
+          </div>
+
           <div class="settings-add-node-bar" id="device-tuning-bar">
             <h4 class="settings-subheading">Alert Tuning per Device</h4>
             <p class="dest-blurb">A device can have its own limits instead of the global ones: a LAN switch and a host overseas should not share one latency number. Leave a field empty to use the global value.</p>

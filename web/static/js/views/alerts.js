@@ -323,6 +323,8 @@ function syncAttentionBadge() {
 // Remember how tall the banner was and whether alerts were showing, for the next first paint (see theme-init.js).
 function rememberAlertsLayout(activeCount) {
   window.requestAnimationFrame(function () {
+    // The real banner is on screen now: stop reserving the height of the last visit (theme-init.js)
+    document.documentElement.classList.remove("alerts-pending");
     try {
       localStorage.setItem("mini-noc-alerts-n", String(activeCount));
       var section = document.getElementById("alerts-section");
