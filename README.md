@@ -66,6 +66,10 @@ docker compose up --build        # web on http://localhost:8080, ntfy on http://
 docker compose down -v           # stop and delete the data
 ```
 
+**Disks and logs.** The database keeps `MININOC_RETENTION_DAYS` (15) and never grows past `MININOC_MAX_DB_MB` (1024); the syslog receiver drops what one
+sender sends above `MININOC_SYSLOG_MAX_PER_SECOND` (200) and says so in its log; the API does not write an access line per request
+(`MININOC_API_ACCESS_LOG=1` brings them back); `deploy/install.sh` caps the NOC's own journal at 300 MB / 14 days unless you already set a limit.
+
 **First run.** At the end of `deploy/install.sh` it asks whether this machine should report to the NOC too (syslog forwarding and the
 health agent; non-interactive installs follow `MININOC_ONBOARD_SELF=yes|no`, default yes) and prints the one-line command for every other
 kind of machine: a Linux host or container, a Proxmox VE host, a MikroTik router.

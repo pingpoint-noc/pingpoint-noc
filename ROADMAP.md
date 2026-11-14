@@ -71,19 +71,23 @@ inglés) en `_notas/PINGPOINT-NOC-PROMPT-SIGUIENTE-CHAT.md` del autor.
 7. **Security**: TLS example (Caddy), per-IP limits on enrolment/bootstrap/telemetry, CSP and HSTS, server-side logout (token version per user),
    persistent login limiter, `MININOC_AUTH_READ` on by default in code (it is on in the systemd unit and off in the code default only for
    compatibility), ~~global JSON error handler with `sqlite3.OperationalError` as 503~~ (done).
-8. **Alert tuning left open**: `interface_down` only for interfaces that were once up; ASN or organisation grouping for new destinations (needs
+8. **Disk and log protection, next steps**: a "days until full" rule for the NOC host disk and the database (the capacity view forecasts it, no alert yet);
+   a per-source cap on stored syslog rows (today only age and total size limit it); rsyslog queue limits in the file written by `bootstrap.sh`
+   (it forwards `*.*` over UDP without a disk queue, so it cannot fill a disk, but a debug-level flood costs bandwidth); logrotate for hosts that keep
+   rsyslog files. Done: receiver rate limit per sender, no API access log by default, journal cap in the installer.
+9. **Alert tuning left open**: `interface_down` only for interfaces that were once up; ASN or organisation grouping for new destinations (needs
    external data); a "days until full" disk rule; the SNMP/ICMP checks of a device behind a failed parent.
-9. **Tests and CI**: the browser job in GitHub Actions ran for the first time on 2026-11-13 (225 of 227 passed, about 10 minutes). The topology search
+10. **Tests and CI**: the browser job in GitHub Actions ran for the first time on 2026-11-13 (225 of 227 passed, about 10 minutes). The topology search
    placeholder was really cut off (fixed by shortening it); `test_save_with_an_invalid_value_toasts_and_focuses_the_field` missed its 3.2 s toast on
    the slow runner (now it records toasts with an observer and waits for the persistent `aria-invalid`). Locally, several browser tests (capacity, time zone, digest, overview layout) fail now and then under heavy parallel load and
    pass alone: run the browser suite with fewer workers or mark it.
-10. **Interface follow-ups**: check Firefox and Safari (`text-box-trim` falls back to line-box centring), a real screen reader, hover descriptions
+11. **Interface follow-ups**: check Firefox and Safari (`text-box-trim` falls back to line-box centring), a real screen reader, hover descriptions
     for dynamic elements, the right-click menu for more targets (settings rows, history rows), undo for other editors, the optional
     "all healthy" banner as a three-way choice (full, compact, hidden).
-11. **Operations of the home deployment**: it was installed from `git archive` (no git inside the container), so it needs an update script
+12. **Operations of the home deployment**: it was installed from `git archive` (no git inside the container), so it needs an update script
     (`git pull` on a deploy key, or a pushed tarball); copy the daily database backup out of the container; confirm whether the deployment's public
     hostname is reachable from the internet (it asks for a sign-in now); move the install token, SNMP v3 keys and ntfy token to the password manager.
-12. **Plan phases still open** (see the prompt file): packaging (`pyproject.toml`, single version, lockfile, Renovate, screenshots, badges, issue
+13. **Plan phases still open** (see the prompt file): packaging (`pyproject.toml`, single version, lockfile, Renovate, screenshots, badges, issue
     templates, CHANGELOG, image on ghcr, which needs the owner's OK), the `PINGPOINT_*` naming layer with `MININOC_*` fallback, splitting
     `app.py`, `services.py` and `sqlite_backend.py`, and the English docs with a K-number correspondence table.
 
@@ -120,3 +124,11 @@ Descartados por criterio de diseño:
 - **Fuentes o iconos externos:** el producto no usa CDN; los iconos son SVG en línea.
 - **Indicador de «más pestañas» en móvil:** la barra no hace scroll lateral (envuelve y, por debajo de 1100 px, es un menú; K25).
 - **Fuente de títulos propia:** la pila del sistema basta (K37).
+
+14. **Pending from the 14-11-2026 session**: (a) a **Resources** panel with CPU, memory and load history per device (new endpoint over `get_device_metrics_series`, chart in the Overview) and a
+    **telemetry coverage** matrix per machine with the command that enables what is missing; (b) the remaining layout shift on reload (about 0.1: the side panel and the KPI
+    headers arrive late); (c) a native IPFIX receiver; (d) the web first-run wizard; (e) neutral `scenario.py` defaults; (f) tell a hypervisor guest from a plain host in the topology when the
+    Proxmox API is not configured; (g) the audit chat: visual, interaction and feature review, and ideas from the network-management course material
+    (<https://alesanco-es.github.io/teaching/nm/>: SNMP/MIBs, fault, configuration, accounting, performance and security management) and from other open NMS projects.
+    Also for the audit chat: whether to keep the page-load animation as it is (and why the top of the header and the part below it look different while loading), the NOT SEEN interface
+    label (fixed: it used the device's last contact of any kind instead of its last SNMP poll), and the remaining disk and log items in 8.

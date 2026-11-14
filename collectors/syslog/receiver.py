@@ -29,6 +29,10 @@ MAX_DATAGRAM = 8192
 QUEUE_LIMIT = 20000
 FLUSH_SECONDS = 1.0
 FLUSH_EVENTS = 500
+# One noisy sender must not fill the disk: past this rate (per source address) datagrams are dropped and counted.
+# A normal host stays far below; the burst allowance absorbs the startup flood of a service that was just restarted.
+DEFAULT_MAX_PER_SECOND = 200
+BURST_SECONDS = 5
 
 FACILITIES = (
     "kern", "user", "mail", "daemon", "auth", "syslog", "lpr", "news", "uucp", "cron", "authpriv", "ftp",
@@ -103,8 +107,11 @@ def parse_datagram(data, now_ts):
 class SyslogReceiver:
     """Socket thread + writer: datagrams are queued, then stored in batches per sending device."""
 
-    def __init__(self, repo, host="0.0.0.0", port=514, snmp_query_fn=None):
+    def __init__(self, repo, host="0.0.0.0", port=514, snmp_query_fn=None, max_per_second=None):
         self.repo = repo
+        self.max_per_second = int(os.environ.get("MININOC_SYSLOG_MAX_PER_SECOND", DEFAULT_MAX_PER_SECOND)) if max_per_second is None else int(max_per_second)
+        self._buckets = {}  # ip -> [tokens, last_monotonic]
+        self.limited = {}  # ip -> datagrams dropped since the last report
         self.host = host
         self.port = port
         self.snmp_query_fn = snmp_query_fn
@@ -113,6 +120,21 @@ class SyslogReceiver:
         self.dropped = 0
         self._stop = threading.Event()
         self._device_cache = {}  # ip -> device id
+
+    def allow(self, ip, now=None):
+        """Token bucket per sender: max_per_second sustained, BURST_SECONDS worth of burst. 0 disables the limit."""
+        if self.max_per_second <= 0:
+            return True
+        now = time.monotonic() if now is None else now
+        capacity = float(self.max_per_second * BURST_SECONDS)
+        tokens, last = self._buckets.get(ip, (capacity, now))
+        tokens = min(capacity, tokens + (now - last) * self.max_per_second)
+        if tokens < 1.0:
+            self._buckets[ip] = (tokens, now)
+            self.limited[ip] = self.limited.get(ip, 0) + 1
+            return False
+        self._buckets[ip] = (tokens - 1.0, now)
+        return True
 
     # -- socket side ---------------------------------------------------------------------------------------
     def bind(self):
@@ -136,6 +158,8 @@ class SyslogReceiver:
                 continue
             except OSError:
                 break
+            if not self.allow(addr[0]):
+                continue
             try:
                 self.queue.put_nowait((addr[0], data, int(time.time())))
             except queue.Full:
@@ -256,6 +280,9 @@ def main():
             for device in receiver.repo.list_monitored_devices():
                 if device.get("has_syslog"):
                     receiver.repo.record_collector_success(COLLECTOR_NAME, device["id"], int(time.time()))
+            for ip, count in list(receiver.limited.items()):
+                LOGGER.warning("%s is sending too much syslog: %d datagrams dropped (limit %d/s)", ip, count, receiver.max_per_second)
+                receiver.limited.pop(ip, None)
             if receiver.dropped:
                 LOGGER.warning("%d syslog datagrams dropped (queue full)", receiver.dropped)
                 receiver.dropped = 0

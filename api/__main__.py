@@ -35,7 +35,8 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
     app = create_app(args.db_path)
-    uvicorn.run(app, host=args.host, port=args.port)
+    # One access line per request (the web refreshes every few seconds) fills the journal for nothing: off unless asked for
+    uvicorn.run(app, host=args.host, port=args.port, access_log=os.environ.get("MININOC_API_ACCESS_LOG", "0") == "1")
 
 
 if __name__ == "__main__":

@@ -658,11 +658,13 @@ def evaluate_interface_rules(
             ts = int(row["updated_utc"])
             if latest_poll_utc is None or ts > latest_poll_utc:
                 latest_poll_utc = ts
-    device = repo.get_device_status(device_id)
-    if device is not None and device.get("last_ok_utc") is not None:
-        dev_ok = int(device["last_ok_utc"])
-        if latest_poll_utc is None or dev_ok > latest_poll_utc:
-            latest_poll_utc = dev_ok
+    # The last SNMP poll, not the device's last contact of any other kind (an agent or ICMP probe would make every
+    # interface look "not seen" and silence the interface rules)
+    for status_row in repo.get_collector_statuses(device_id):
+        if status_row["collector_name"] == "snmp" and status_row["last_success_utc"] is not None:
+            snmp_ok = int(status_row["last_success_utc"])
+            if latest_poll_utc is None or snmp_ok > latest_poll_utc:
+                latest_poll_utc = snmp_ok
 
     device_ignore = device_ignored_interfaces(repo, device_id)
     for row in interfaces:

@@ -149,6 +149,7 @@ class TopologyTest(BrowserTestCase):
         page = self.open_page()
         open_topology(page)
         nid = first_host_id(page)
+        self.assertTrue(page.is_disabled("#topo-zoom-reset"))  # nothing dragged yet: Reset layout has nothing to do
         b = card_box(page, nid)
         page.mouse.move(b["x"] + b["width"] / 2, b["y"] + b["height"] / 2)
         page.mouse.down()
@@ -156,7 +157,9 @@ class TopologyTest(BrowserTestCase):
         page.mouse.up()
         page.wait_for_timeout(200)
         self.assertIn(nid, page.evaluate("JSON.parse(localStorage.getItem('%s'))" % OFFSETS_KEY))
+        self.assertFalse(page.is_disabled("#topo-zoom-reset"))
         page.click("#topo-zoom-reset")
+        self.assertTrue(page.is_disabled("#topo-zoom-reset"))
         self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('%s'))" % OFFSETS_KEY), {})
         self.assertEqual(state(page, "Object.keys(STATE.nodeOffsets).length"), 0)
 

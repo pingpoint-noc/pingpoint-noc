@@ -420,10 +420,12 @@ def get_device_detail(repo, device_id, now_ts, p95_range="1h"):
             ts = int(row["updated_utc"])
             if latest_poll_utc is None or ts > latest_poll_utc:
                 latest_poll_utc = ts
-    if device.get("last_ok_utc") is not None:
-        dev_ok = int(device["last_ok_utc"])
-        if latest_poll_utc is None or dev_ok > latest_poll_utc:
-            latest_poll_utc = dev_ok
+    # The last SNMP poll, not the device's last contact of any kind: an agent or ICMP probe touching the device every few
+    # seconds would otherwise make every interface look older than "the latest poll" and show it as not seen.
+    snmp_last = (collectors.get("snmp") or {}).get("last_success_utc")
+    if snmp_last is not None:
+        if latest_poll_utc is None or int(snmp_last) > latest_poll_utc:
+            latest_poll_utc = int(snmp_last)
 
     interfaces = []
     newest = None

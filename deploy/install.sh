@@ -34,6 +34,19 @@ for unit in "$INSTALL_DIR"/deploy/systemd/mini-noc-*; do
         "$unit" > "/etc/systemd/system/$(basename "$unit")"
 done
 
+# Journal: it keeps what the services log (and, with the syslog receiver, nothing else). Cap its size so logs can never
+# fill the disk of the NOC; an existing setting of the administrator is left alone.
+JOURNAL_CONF=/etc/systemd/journald.conf.d/mini-noc.conf
+if [ ! -e "$JOURNAL_CONF" ] && ! grep -rqE '^\s*SystemMaxUse=' /etc/systemd/journald.conf /etc/systemd/journald.conf.d 2> /dev/null; then
+    mkdir -p /etc/systemd/journald.conf.d
+    printf '[Journal]
+SystemMaxUse=300M
+MaxRetentionSec=14day
+' > "$JOURNAL_CONF"
+    systemctl try-restart systemd-journald 2> /dev/null || true
+    echo "Journal limited to 300M / 14 days ($JOURNAL_CONF)."
+fi
+
 systemctl daemon-reload
 
 # Syslog: the native receiver needs nothing else installed. A site that already collects with rsyslog (files under

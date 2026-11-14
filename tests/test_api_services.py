@@ -190,6 +190,19 @@ class TestDeviceDetail(ApiTestCase):
     def test_unknown_device_returns_none(self):
         self.assertIsNone(services.get_device_detail(self.repo, "nope", NOW))
 
+
+    def test_an_agent_touching_the_device_does_not_make_polled_interfaces_not_seen(self):
+        self.repo.record_snmp_poll(
+            DEVICE, NOW - 15, 370_000,
+            {3: {"descr": "lan88", "admin": "up", "oper": "up", "speed_bps": 0, "in_octets": 1000, "out_octets": 1000}},
+        )
+        self.mark_collector_ok("snmp", NOW - 15)
+        self.repo.update_device_reachability(DEVICE, True, NOW - 2)  # an agent, an ICMP probe or syslog: not SNMP
+        detail = services.get_device_detail(self.repo, DEVICE, NOW)
+        iface = [i for i in detail["interfaces"] if i["if_index"] == 3][0]
+        self.assertTrue(iface["seen"])
+        self.assertEqual(iface["oper_status"], "up")
+
     def test_disappeared_interface_preserves_history_and_is_distinguished_from_down(self):
         # if:10 (test-down) had traffic and then went down 1 hour ago
         self.repo.record_snmp_poll(

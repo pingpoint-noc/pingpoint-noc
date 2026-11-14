@@ -4423,3 +4423,6 @@ body[data-absent-syslog="1"] #tab-syslog > :not(.source-absent-note) { display: 
 body[data-absent-traffic="1"] #tab-bandwidth > .source-absent-note,
 body[data-absent-flows="1"] #tab-flows > .source-absent-note,
 body[data-absent-syslog="1"] #tab-syslog > .source-absent-note { display: block; }
+
+/* Room for a two-line title next to its sparkline from the start: the cards do not grow when the sparkline arrives */
+.kpi-row .kpi-header-row { min-height: 2.3rem; align-items: flex-start; }

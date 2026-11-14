@@ -79,5 +79,32 @@ class ReceiverTest(unittest.TestCase):
         self.assertTrue(self.wait_for(1, device["id"]))
 
 
+class RateLimitTest(unittest.TestCase):
+    def make(self, limit):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        repo = create_repository("sqlite", Path(tmp.name) / "t.db")
+        repo.init_storage()
+        return SyslogReceiver(repo, host="127.0.0.1", port=0, max_per_second=limit)
+
+    def test_a_flooding_sender_is_cut_after_its_burst_and_counted(self):
+        receiver = self.make(10)  # 10/s sustained, 50 of burst
+        allowed = sum(1 for _ in range(500) if receiver.allow("192.0.2.9", now=100.0))
+        self.assertEqual(allowed, 50)
+        self.assertEqual(receiver.limited["192.0.2.9"], 450)
+
+    def test_the_bucket_refills_over_time_and_senders_are_independent(self):
+        receiver = self.make(10)
+        for _ in range(50):
+            receiver.allow("192.0.2.9", now=100.0)
+        self.assertFalse(receiver.allow("192.0.2.9", now=100.0))
+        self.assertTrue(receiver.allow("192.0.2.9", now=101.0))  # one second later: 10 tokens back
+        self.assertTrue(receiver.allow("192.0.2.10", now=100.0))
+
+    def test_zero_disables_the_limit(self):
+        receiver = self.make(0)
+        self.assertTrue(all(receiver.allow("192.0.2.9", now=1.0) for _ in range(5000)))
+
+
 if __name__ == "__main__":
     unittest.main()

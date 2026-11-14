@@ -34,6 +34,9 @@ function loadTopologyOffsets() {
   }
 }
 function saveTopologyOffsets() {
+  if (typeof updateTopologyResetButton === "function") {
+    updateTopologyResetButton();
+  }
   try {
     window.localStorage.setItem(TOPOLOGY_OFFSETS_KEY, JSON.stringify(TOPOLOGY_STATE.nodeOffsets));
   } catch (err) {
@@ -86,7 +89,16 @@ function redoTopologyLayout() {
   return true;
 }
 
+// "Reset layout" only has something to do once a card was dragged; "Fit View" is the one that refits zoom and position
+function updateTopologyResetButton() {
+  var resetBtn = document.getElementById("topo-zoom-reset");
+  if (resetBtn) {
+    resetBtn.disabled = Object.keys(TOPOLOGY_STATE.nodeOffsets || {}).length === 0;
+  }
+}
+
 function updateTopologyUndoButtons() {
+  updateTopologyResetButton();
   var undoBtn = document.getElementById("topo-undo");
   var redoBtn = document.getElementById("topo-redo");
   if (undoBtn) {
