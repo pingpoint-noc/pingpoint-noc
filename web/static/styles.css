@@ -7,6 +7,7 @@
 html { scrollbar-gutter: stable; }
 
 :root {
+  --alerts-min-h: 0px; /* theme-init.js replaces it with the banner height of the last visit */
   /* Type scale: the only font sizes the interface uses. */
   --fs-2xs: 0.68rem;
   --fs-xs: 0.74rem;
