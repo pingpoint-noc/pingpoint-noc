@@ -60,6 +60,7 @@ class NodeMetricsPayload(BaseModel):
 class NodeTelemetryPayload(BaseModel):
     device_id: str
     hostname: str = ""
+    virt: str = ""
     ts_utc: int | None = None
     metrics: NodeMetricsPayload = NodeMetricsPayload()
     services: list[ServiceTelemetryItem] = []

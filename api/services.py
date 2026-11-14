@@ -14,6 +14,7 @@ import json
 import re
 import time
 
+import scenario
 from api import capacity
 from alerts.holds import HoldContext
 from alerts.notify import KNOWN_RULE_IDS
@@ -2236,6 +2237,32 @@ def verify_node_telemetry_token(secret, device_id, ip, token, global_token=None)
     return hmac.compare_digest(clean_token, expected)
 
 
+VIRT_RE = re.compile(r"^[a-z0-9_-]{1,24}$")
+# What systemd-detect-virt calls a container (it shares the kernel of its host); everything else that is not "none" is a virtual machine.
+CONTAINER_VIRT = frozenset({"lxc", "lxc-libvirt", "openvz", "systemd-nspawn", "docker", "podman", "rkt", "wsl", "proot", "pouch", "container-other"})
+GUEST_OVERRIDES = ("guest", "host")
+
+
+def infer_guest(device_settings, parent_type):
+    """Is this device a guest of a hypervisor, when the hypervisor's API did not say so?
+
+    Returns (kind, source) with kind "vm" or "ct", or None for a plain host. In order: the person's correction ("guest_override" =
+    guest or host), what the host itself reported ("virt", from the agent's systemd-detect-virt), and the person's own statement that
+    it sits behind a hypervisor. A guess only changes how the device is drawn; it never attaches a guest to a hypervisor by itself.
+    """
+    override = device_settings.get("guest_override", "")
+    virt = device_settings.get("virt", "")
+    if override == "host":
+        return None
+    if override == "guest":
+        return ("ct" if virt in CONTAINER_VIRT else "vm", "manual")
+    if virt and virt != "none":
+        return ("ct" if virt in CONTAINER_VIRT else "vm", "agent")
+    if parent_type == "proxmox":
+        return ("vm", "parent")
+    return None
+
+
 def record_node_telemetry(
     repo,
     payload_dict,
@@ -2313,6 +2340,11 @@ def record_node_telemetry(
 
     if metrics_to_record:
         repo.record_device_metrics(device["id"], int(now_ts), metrics_to_record)
+
+    # What the host says it is (bare metal or a guest): kept to tell a hypervisor guest from a plain host in the topology.
+    virt = str(payload_dict.get("virt") or "").strip().lower()
+    if VIRT_RE.match(virt) and repo.get_device_settings(device["id"]).get("virt") != virt:
+        repo.set_device_settings(device["id"], {"virt": virt}, int(now_ts))
 
     # Touch device reachability & telemetry flag
     repo.touch_device_telemetry(device["id"], int(now_ts))
@@ -2417,7 +2449,7 @@ def validate_dependency(repo, device_id, parent_id):
     return parent_id
 
 
-DEVICE_SETTING_KEYS = ("icmp_latency_ms", "ignored_interfaces", "bw_threshold_bps", "syslog_burst_ignore")
+DEVICE_SETTING_KEYS = ("icmp_latency_ms", "ignored_interfaces", "bw_threshold_bps", "syslog_burst_ignore", "guest_override")
 
 
 def get_device_settings_view(repo, device_id):
@@ -2431,6 +2463,7 @@ def get_device_settings_view(repo, device_id):
     return {
         "device_id": device_id,
         "overrides": {key: stored[key] for key in DEVICE_SETTING_KEYS if key in stored},
+        "detected": {"virt": stored.get("virt", "")},
         "global": {
             "icmp_latency_ms": globals_.get("alert_icmp_latency_ms", DEFAULT_ICMP_LATENCY_MS),
             "bw_threshold_bps": globals_.get("alert_bw_threshold_bps"),
@@ -2468,6 +2501,11 @@ def update_device_settings(repo, device_id, payload, now_ts):
             if isinstance(raw, bool) or not 1_000 <= number <= 1_000_000_000_000:
                 raise ValueError("bw_threshold_bps must be between 1000 and 1000000000000")
             values[key] = ("%d" % number)
+        elif key == "guest_override":
+            choice = str(raw).strip().lower()
+            if choice not in GUEST_OVERRIDES:
+                raise ValueError("guest_override must be guest or host")
+            values[key] = choice
         else:
             pattern = str(raw).strip()
             if len(pattern) > 200:
@@ -3061,6 +3099,7 @@ def get_network_topology(repo, now_ts):
     links = []
     subnets_map = {}
     node_by_id = {}
+    device_settings = repo.get_device_settings()
 
     for dev in devices:
         dev_id = dev["id"]
@@ -3181,6 +3220,17 @@ def get_network_topology(repo, now_ts):
             if not parent_id:
                 node_data["parent_device_id"] = guest_match["hypervisor_id"]
                 node_data["parent_id"] = guest_match["hypervisor_id"]
+            node_data["meta"]["guest_source"] = "proxmox_api"
+        else:
+            # No answer from a hypervisor API: the host's own report, the person's correction or the parent they chose.
+            behind = parent_id or depends_on
+            parent_row = next((d for d in devices if d["id"] == behind), None) if behind else None
+            verdict = infer_guest(device_settings.get(dev_id, {}), (parent_row or {}).get("device_type"))
+            if verdict is not None and dev_type not in ("router", "proxmox"):
+                kind, source = verdict
+                node_data["type"] = "guest"
+                node_data["meta"]["guest_type"] = kind
+                node_data["meta"]["guest_source"] = source
 
         nodes.append(node_data)
         node_by_id[dev_id] = node_data
@@ -3242,7 +3292,7 @@ def get_network_topology(repo, now_ts):
                 "source": parent_hyp,
                 "target": node["id"],
                 "link_type": "hypervisor_host",
-                "label": f"Guest (VMID: {node.get('guest_info', {}).get('vmid', '')})",
+                "label": f"Guest (VMID: {node['guest_info']['vmid']})" if node.get("guest_info") else "Guest",
             })
 
         # Link Dependencies if specified
@@ -3258,7 +3308,7 @@ def get_network_topology(repo, now_ts):
     return {
         "ok": True,
         "generated_at_utc": now_ts,
-        "tz": "Europe/Madrid",
+        "tz": scenario.tz_name(),
         "nodes": nodes,
         "links": links,
         "subnets": list(subnets_map.values()),

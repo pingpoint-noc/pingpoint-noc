@@ -865,6 +865,16 @@ async function loadDeviceTuning(keepMessage) {
     ignored.value = view.overrides.ignored_interfaces || "";
     bwLimit.value = view.overrides.bw_threshold_bps || "";
     syslogIgnore.value = view.overrides.syslog_burst_ignore || "";
+    var guestSelect = document.getElementById("tune-guest");
+    if (guestSelect) {
+      guestSelect.value = view.overrides.guest_override || "";
+    }
+    var detected = document.getElementById("tune-guest-detected");
+    var virt = view.detected && view.detected.virt;
+    if (detected && virt) {
+      detected.textContent = "The host reports: " + (virt === "none" ? "bare metal (no virtualisation)" : virt) +
+        ". Automatic follows that; a hypervisor's own API, when configured, always wins.";
+    }
     var globalBw = view.global && view.global.bw_threshold_bps;
     bwLimit.placeholder = globalBw ? "global: " + globalBw : "global";
     var globalMs = view.global && view.global.icmp_latency_ms;
@@ -890,7 +900,8 @@ async function saveDeviceTuning() {
     icmp_latency_ms: latency.value.trim(),
     ignored_interfaces: ignored.value.trim(),
     bw_threshold_bps: bwLimit ? bwLimit.value.trim() : "",
-    syslog_burst_ignore: syslogIgnoreField ? syslogIgnoreField.value.trim() : ""
+    syslog_burst_ignore: syslogIgnoreField ? syslogIgnoreField.value.trim() : "",
+    guest_override: document.getElementById("tune-guest") ? document.getElementById("tune-guest").value : ""
   };
   try {
     await sendSettingsRequest("PUT", "/api/devices/" + encodeURIComponent(select.value) + "/settings", payload);

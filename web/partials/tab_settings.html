@@ -242,6 +242,15 @@
                 <input id="tune-syslog-ignore" class="form-input" type="text" maxlength="200" spellcheck="false" placeholder="regular expression, e.g. apparmor=&quot;DENIED&quot;">
                 <p class="dest-blurb">For a device that always logs a known, harmless message in large numbers. The lines are still stored and searchable; only the burst alert stops counting them.</p>
               </div>
+              <div class="settings-field">
+                <label for="tune-guest">In the topology, this machine is</label>
+                <select id="tune-guest" class="form-select">
+                  <option value="">Automatic</option>
+                  <option value="guest">A virtual machine or container</option>
+                  <option value="host">A plain host</option>
+                </select>
+                <p class="dest-blurb" id="tune-guest-detected">Automatic uses what the host reports about itself (its agent runs <code>systemd-detect-virt</code>) or the hypervisor it is set to sit behind. A hypervisor's own API, when configured, always wins.</p>
+              </div>
               <button type="button" id="btn-tune-save" class="btn btn-secondary">Save Tuning</button>
             </div>
             <p id="tune-msg" class="settings-msg" role="status" aria-live="polite"></p>

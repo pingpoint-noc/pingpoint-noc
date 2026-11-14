@@ -140,10 +140,27 @@ for svc in $SERVICES_TO_CHECK; do
     fi
 done
 
+# 7. Virtualisation: "none" on bare metal, else what this machine is (kvm, qemu, lxc, vmware...). It tells the NOC whether the
+# host is a guest of a hypervisor even when the hypervisor's API is not configured.
+VIRT=""
+if command -v systemd-detect-virt >/dev/null 2>&1; then
+    VIRT=$(systemd-detect-virt 2>/dev/null || true)
+fi
+if [ -z "$VIRT" ]; then
+    if grep -qa 'container=lxc' /proc/1/environ 2>/dev/null; then
+        VIRT="lxc"
+    elif grep -qw hypervisor /proc/cpuinfo 2>/dev/null; then
+        VIRT="vm"
+    else
+        VIRT="none"
+    fi
+fi
+VIRT=$(printf '%s' "$VIRT" | tr -cd 'a-z0-9_-' | cut -c1-24)
+
 TS_NOW=$(date +%s)
 
-PAYLOAD=$(printf '{"device_id":"%s","hostname":"%s","ts_utc":%s,"metrics":{"cpu_load_pct":%s,"loadavg_1m":%s,"loadavg_5m":%s,"loadavg_15m":%s,"memory_used_pct":%s,"mem_total_bytes":%s,"mem_used_bytes":%s,"mem_free_bytes":%s,"uptime_seconds":%s,"disks":[%s]},"services":[%s]}' \
-    "$DEVICE_ID" "$HOSTNAME" "$TS_NOW" \
+PAYLOAD=$(printf '{"device_id":"%s","hostname":"%s","virt":"%s","ts_utc":%s,"metrics":{"cpu_load_pct":%s,"loadavg_1m":%s,"loadavg_5m":%s,"loadavg_15m":%s,"memory_used_pct":%s,"mem_total_bytes":%s,"mem_used_bytes":%s,"mem_free_bytes":%s,"uptime_seconds":%s,"disks":[%s]},"services":[%s]}' \
+    "$DEVICE_ID" "$HOSTNAME" "$VIRT" "$TS_NOW" \
     "$CPU_PCT" "$LOAD1" "$LOAD5" "$LOAD15" \
     "$MEM_USED_PCT" "$MEM_TOTAL" "$MEM_USED" "$MEM_FREE" \
     "$UPTIME_SEC" "$DISKS_CONTENT" "$SERVICES_JSON")

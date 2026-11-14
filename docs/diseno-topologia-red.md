@@ -215,7 +215,17 @@ flowchart TD
 
 ---
 
-## 6. Interactividad y Ficha de Detalle
+### Invitado o equipo físico sin la API del hipervisor
+
+Con la API de Proxmox configurada, los invitados salen de ella (`proxmox_api`) y esa fuente manda siempre. Sin ella, un equipo se dibuja
+como invitado (VM o CT, con `meta.guest_source` diciendo por qué) según, en este orden:
+
+1. **Corrección de la persona** (`guest_override` en Settings > Targets > «In the topology, this machine is»): `guest`, `host` o automático. Es la última palabra salvo frente a la API del hipervisor.
+2. **Lo que el propio equipo dice de sí** (`agent`): el agente (`tools/mininoc-agent.sh`) envía `virt`, de `systemd-detect-virt` (o, sin systemd, `container=lxc` en `/proc/1/environ` y el indicador `hypervisor` de `/proc/cpuinfo`). `none` es equipo físico; `lxc`, `docker`, `podman`, `openvz`, `systemd-nspawn`, `wsl` son contenedores (CT); lo demás (`kvm`, `qemu`, `vmware`, `microsoft`, `xen`...) es una VM.
+3. **Estar «detrás» de un hipervisor** (`parent`): si la persona marcó que depende de un equipo de tipo `proxmox`.
+
+Un equipo sin agente ni corrección ni padre sigue siendo un equipo normal: no se adivina por la IP ni por el nombre. La conjetura **solo cambia el dibujo**; nunca cuelga un invitado de un hipervisor por su cuenta (sin padre aparece entre los invitados sin anfitrión).
+
 
 1. **Pan, zoom y tarjetas movibles** (eventos de puntero: ratón, lápiz y táctil; implementado el 11-11, K108/K110):
    - Un dedo o el botón izquierdo sobre el fondo arrastra el lienzo; dos dedos hacen zoom (pinch) alrededor de su punto medio.
