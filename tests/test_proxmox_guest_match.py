@@ -37,6 +37,11 @@ class GuestMatchTest(unittest.TestCase):
         record = self.repo.upsert_discovered_device(ip="192.0.2.30", source="telemetry", ts_utc=1_800_000_000)
         self.assertEqual(record["device_id"], "zz-host")
 
+    def test_looking_a_device_up_by_ip_prefers_the_host_over_a_service_on_the_same_address(self):
+        self.repo.ensure_device("zz-host2", "Host", "192.0.2.31", device_type="linux")
+        self.repo.ensure_device("aa-dns2", "DNS", "192.0.2.31", device_type="dns")
+        self.assertEqual(self.repo.get_device_by_ip("192.0.2.31")["id"], "zz-host2")
+
 
 if __name__ == "__main__":
     unittest.main()

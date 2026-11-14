@@ -868,7 +868,7 @@ class SQLiteRepository(StorageRepository):
                 FROM devices
                 WHERE (ip = ? OR id IN (SELECT device_id FROM device_aliases WHERE ip = ?))
                   AND device_type != 'platform' AND status != 'merged'
-                ORDER BY (ip = ?) DESC, id ASC
+                ORDER BY (ip = ?) DESC, (device_type = 'dns') ASC, id ASC
                 LIMIT 1;
                 """,
                 (ip, ip, ip, ip),
