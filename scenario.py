@@ -1,9 +1,10 @@
-"""The lab-specific parameters of the Mini-NOC, in one place.
+"""The site-specific parameters of the Mini-NOC, in one place.
 
-Today's defaults are those of a lab lab. To adapt the NOC to another network, set the MININOC_*
-variables below in `mini-noc.env` (see `mini-noc.env.example` and `docs/adaptar-a-otro-escenario.md`); no code
-has to change. Without the file or the variables the behaviour is exactly the lab one.
-An empty variable counts as unset (it falls back to the default).
+A fresh install has none: every address is empty and the time zone is UTC, so nothing of anybody's network is built in. The first-run
+questions (Settings > Targets, "Environment of this NOC", fed by GET /api/setup/suggestions) propose the values, and the person copies them
+into `mini-noc.env` (see `mini-noc.env.example` and `docs/adaptar-a-otro-escenario.md`). An empty variable counts as unset.
+What an empty value means: no default router (the SNMP, syslog and flow collectors then work from the inventory only), no internal
+networks to attribute flows to, and the collector address taken from the address the web was opened with.
 """
 
 import logging
@@ -15,13 +16,13 @@ LOGGER = logging.getLogger("mini_noc.scenario")
 _reported_invalid = set()
 
 DEFAULTS = {
-    "MININOC_ROUTER_IP": "192.168.88.1",
-    "MININOC_DEVICE_ID": "edge-router-1",
-    "MININOC_DEVICE_NAME": "edge-router",
-    "MININOC_INTERNAL_NETS": "192.168.88.0/24,192.168.89.0/24",
-    "MININOC_ROUTER_OWN_IPS": "192.168.100.2",
-    "MININOC_NOC_IP": "192.168.88.4",
-    "MININOC_TZ": "Europe/Madrid",
+    "MININOC_ROUTER_IP": "",
+    "MININOC_DEVICE_ID": "",
+    "MININOC_DEVICE_NAME": "",
+    "MININOC_INTERNAL_NETS": "",
+    "MININOC_ROUTER_OWN_IPS": "",
+    "MININOC_NOC_IP": "",
+    "MININOC_TZ": "UTC",
 }
 
 DESCRIPTIONS = {

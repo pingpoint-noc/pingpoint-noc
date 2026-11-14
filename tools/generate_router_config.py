@@ -219,6 +219,9 @@ def main(argv=None, env=None):
     elif args.noc_ip_pos is not None and args.noc_ip_pos.strip() != "":
         noc_ip = args.noc_ip_pos.strip()
 
+    if noc_ip.strip() == "":
+        parser.error("the collector address is needed: pass it as an argument, with --noc-ip, or set MININOC_NOC_IP")
+
     v3 = None
     if args.snmp_v3:
         v3 = load_v3_for_router(env)

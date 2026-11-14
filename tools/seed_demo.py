@@ -11,8 +11,6 @@ import time
 
 from alerts.engine import evaluate_once
 from collectors.ipfix.ingestor import (
-    DEFAULT_INTERNAL_NETS,
-    DEFAULT_ROUTER_OWN_IPS,
     discover_batch_hosts,
     parse_addresses,
     parse_flow,
@@ -27,6 +25,9 @@ SAMPLES_DIR = Path(__file__).resolve().parent.parent / "samples"
 DEFAULT_DEVICE_ID = "edge-router-1"
 DEFAULT_DEVICE_NAME = "edge-router"
 DEFAULT_DEVICE_IP = "192.168.88.1"
+# The addresses of the sample captures in samples/ (not a setting: the demo data is fixed).
+DEMO_INTERNAL_NETS = "192.168.88.0/24,192.168.89.0/24"
+DEMO_ROUTER_OWN_IPS = "192.168.100.2"
 HOST_DEVICE_ID = "mini-noc-host"
 
 
@@ -100,8 +101,8 @@ def seed_demo_database(db_path="data/demo.db", samples_dir=SAMPLES_DIR, now_ts=N
             events.append(parsed_event)
     repo.record_syslog_batch(DEFAULT_DEVICE_ID, events, "{}", now_ts)
 
-    internal_nets = parse_networks(DEFAULT_INTERNAL_NETS)
-    own_ips = parse_addresses(DEFAULT_ROUTER_OWN_IPS)
+    internal_nets = parse_networks(DEMO_INTERNAL_NETS)
+    own_ips = parse_addresses(DEMO_ROUTER_OWN_IPS)
     flows = []
     flows_file = samples_path / "flows_t1.csv"
     with flows_file.open("r", encoding="utf-8", newline="") as handle:

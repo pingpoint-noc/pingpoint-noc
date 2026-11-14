@@ -23,7 +23,7 @@ out-of-the-box value should neither flood a small network nor stay silent on a l
 | `alert_syslog_burst_*` | 50 messages / 60 s, factor 3 | keep | The factor against the sender's own usual rate is what makes it general. |
 | `alert_flap_*` | 3 changes / 300 s | keep | |
 | `alert_err_*` | 10 errors, 3 intervals / 300 s | keep | Counted by growth, not by the counter value. |
-| `scenario.py` (`MININOC_ROUTER_IP`, internal nets, NOC IP, `MININOC_TZ`) | the original lab's addresses and Europe/Madrid | open (phase 5) | Defaults must be empty or neutral and first run must ask for them. Behaviour change, so it needs a release note. |
+| `scenario.py` (`MININOC_ROUTER_IP`, internal nets, NOC IP, `MININOC_TZ`) | the original lab's addresses and Europe/Madrid | done (F3 step 2, 2026-11-14): empty addresses, UTC | Defaults must be empty or neutral and first run must ask for them. Behaviour change, so it needs a release note. |
 
 ## `flow_new_destination` (changed on 2026-11-13)
 

@@ -58,7 +58,7 @@ como caída **solo en la parte que lo supera**, igual que la web (SNMP: 300 s; s
 | Clave | Valor | Por defecto |
 |---|---|---|
 | `digest_enabled` | `true`/`false` | `false` |
-| `digest_time` | `HH:MM`, hora de la zona `MININOC_TZ` (por defecto Europe/Madrid) | `08:00` |
+| `digest_time` | `HH:MM`, hora de la zona `MININOC_TZ` (por defecto UTC) | `08:00` |
 | `<destino>_digest` | `true`/`false` por destino (`ntfy_digest`, `discord_digest`...) | ntfy `true`, los demás `false` |
 
 Se guardan con el mismo `PUT /api/settings` (admin), se validan (hora `HH:MM` 00:00-23:59, booleanos reales; si no, 400) y
@@ -87,7 +87,7 @@ El bucle del motor (`alerts/engine.py`, cada 30 s) llama a `digest.maybe_send` t
 - La entrega va en segundo plano con los reintentos de los avisos (5, 30 y 120 s). Si se agotan, se registra «dropped» sin
   direcciones y se descarta (no se reintenta al día siguiente).
 
-**Zona horaria.** El servidor trabaja en UTC. La hora configurada es de la zona `MININOC_TZ` (por defecto Europe/Madrid, ver
+**Zona horaria.** El servidor trabaja en UTC. La hora configurada es de la zona `MININOC_TZ` (por defecto UTC, ver
 `adaptar-a-otro-escenario.md`) y se convierte con `zoneinfo`; `tzdata` (en `requirements.txt`) aporta la base de zonas donde el
 sistema no la tiene, p. ej. Windows. En Madrid, 08:00 son 07:00 UTC en invierno y 06:00 UTC en verano; el día del cambio de hora hay
 un único instante en cualquier zona (una hora que no existe, como 02:30 el último domingo de marzo en Madrid, se lee con el desfase

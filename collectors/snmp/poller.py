@@ -433,7 +433,7 @@ def register_device_in_catalog(repo, device_id, device_name, router_ip, communit
         name=device_name,
         ip=router_ip,
         device_type="router",
-        tz="Europe/Madrid",
+        tz=scenario.tz_name(),
         has_snmp=1,
         snmp_community=community,
         status="active",
@@ -570,22 +570,28 @@ async def run_poller_loop(
     (MININOC_SNMP_CRED_<NAME>_*) are read from; the process environment by default (K83).
     """
     repo.init_storage()
+    # A fresh install has no default router (MININOC_ROUTER_IP and MININOC_DEVICE_ID are empty): the loop then only polls the
+    # devices the inventory marks with SNMP, and waits when there are none.
+    has_primary = bool(device_id) and bool(router_ip)
     # Once at start, retrying: if the database is busy the service waits instead of dying.
-    while True:
+    while has_primary:
         try:
             register_device_in_catalog(repo, device_id, device_name, router_ip, community=community)
             break
         except Exception as exc:
             LOGGER.error("Cannot register %s yet (%s); retrying in 5 s", device_id, exc)
             await asyncio.sleep(5)
-    LOGGER.info(
-        "Starting SNMP poller loop for %s (%s:%d) every %.1f s over %s",
-        device_id,
-        router_ip,
-        port,
-        interval_seconds,
-        describe_security(v3_config),
-    )
+    if has_primary:
+        LOGGER.info(
+            "Starting SNMP poller loop for %s (%s:%d) every %.1f s over %s",
+            device_id,
+            router_ip,
+            port,
+            interval_seconds,
+            describe_security(v3_config),
+        )
+    else:
+        LOGGER.info("Starting SNMP poller loop without a default router: only inventory devices with SNMP are polled")
 
     if cred_env is None:
         cred_env = os.environ
@@ -608,7 +614,7 @@ async def run_poller_loop(
     # name, so a device whose profile changes never reuses the session of the old one.
     primary_key = (device_id, router_ip, port, community, "")
     # Without a profile only the main router uses the service-wide SNMPv3; the others keep their own v2c community.
-    sessions = {primary_key: SnmpSession(router_ip, port, community, v3_config=v3_config)}
+    sessions = {primary_key: SnmpSession(router_ip, port, community, v3_config=v3_config)} if has_primary else {}
     cycles = 0
     try:
         while max_cycles is None or cycles < max_cycles:
@@ -624,9 +630,9 @@ async def run_poller_loop(
                         "ip": router_ip,
                         "snmp_community": community,
                     }
-                ]
+                ] if has_primary else []
 
-            if len(active_devices) == 0:
+            if len(active_devices) == 0 and has_primary:
                 active_devices = [
                     {
                         "id": device_id,

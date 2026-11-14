@@ -1,22 +1,23 @@
 # Adaptar el PingPoint NOC a otro escenario
 
-El escenario del laboratorio (router `192.168.88.1`, redes `192.168.88.0/24` y `192.168.89.0/24`, WAN
-`192.168.100.2`, colector `192.168.88.4`) vive en un solo sitio del código, [`scenario.py`](../scenario.py), como
-valores por defecto. Para otra red **no se edita código**: se escribe un `mini-noc.env`.
+Los parámetros de tu red (router, redes internas, direcciones propias del router, colector y zona horaria) viven en un solo sitio
+del código, [`scenario.py`](../scenario.py), y **vienen vacíos**: una instalación nueva no trae ninguna dirección de nadie y la zona
+horaria es UTC. Para tu red **no se edita código**: se escribe un `mini-noc.env`. En Settings > Targets, el bloque «Environment of this
+NOC» propone los valores a partir de la máquina (redes, dirección del NOC, zona) con las líneas listas para copiar.
 
 ## Pasos
 
 1. `cp mini-noc.env.example mini-noc.env` en la raíz del repo (está en `.gitignore`) y deja solo lo que cambie.
 2. Variables del escenario (todas opcionales; una vacía equivale a no ponerla):
 
-   | Variable | Qué es | Por defecto (despliegue de referencia) |
+   | Variable | Qué es | Si está vacía |
    |---|---|---|
-   | `MININOC_ROUTER_IP` | router que se monitoriza por SNMP, syslog e IPFIX | `192.168.88.1` |
-   | `MININOC_DEVICE_ID` / `MININOC_DEVICE_NAME` | id y nombre del router en la BD | `edge-router-1` / `edge-router` |
-   | `MININOC_INTERNAL_NETS` | redes internas (separadas por coma): los flujos se atribuyen a hosts de ellas | `192.168.88.0/24,192.168.89.0/24` |
-   | `MININOC_ROUTER_OWN_IPS` | direcciones (WAN) del router que nunca son un host | `192.168.100.2` |
-   | `MININOC_NOC_IP` | IP del colector tal como la ve el router; la usan `/api/bootstrap.sh`, `/api/router-config.rsc` y `tools.generate_router_config` | `192.168.88.4` |
-   | `MININOC_TZ` | zona horaria IANA en la que se **muestra** todo (web, resumen diario, formulario de mantenimiento); lo guardado sigue en UTC | `Europe/Madrid` |
+   | `MININOC_ROUTER_IP` | router que se monitoriza por SNMP, syslog e IPFIX | no hay router por defecto: los colectores trabajan solo con el inventario |
+   | `MININOC_DEVICE_ID` / `MININOC_DEVICE_NAME` | id y nombre del router en la BD | (solo hacen falta con `MININOC_ROUTER_IP`) |
+   | `MININOC_INTERNAL_NETS` | redes internas (separadas por coma): los flujos se atribuyen a hosts de ellas | ningún flujo se atribuye a un host interno |
+   | `MININOC_ROUTER_OWN_IPS` | direcciones (WAN) del router que nunca son un host | ninguna |
+   | `MININOC_NOC_IP` | IP del colector tal como la ve el router; la usan `/api/bootstrap.sh`, `/api/router-config.rsc` y `tools.generate_router_config` | se usa la dirección con la que se abrió la web; sin ella (y sin `?noc_ip=`) los endpoints responden 400 |
+   | `MININOC_TZ` | zona horaria IANA en la que se **muestra** todo (web, resumen diario, formulario de mantenimiento); lo guardado sigue en UTC | `UTC` |
 
    La comunidad o las claves SNMPv3, la retención y las alertas se ajustan en el mismo fichero (ver comentarios del ejemplo).
 3. `sudo deploy/install.sh <usuario>` (primera vez) o `sudo systemctl restart mini-noc-snmp mini-noc-syslog mini-noc-ipfix mini-noc-api`.
@@ -24,12 +25,17 @@ valores por defecto. Para otra red **no se edita código**: se escribe un `mini-
 4. `python -m tools.preflight`: la línea «Escenario» muestra los valores efectivos y de dónde sale cada uno
    (`mini-noc.env`, entorno o valor por defecto).
 
-Si falta el fichero, todo se comporta como en el laboratorio.
+Si falta el fichero, el NOC arranca igual: monitoriza lo que des de alta en el inventario y no supone ninguna red.
+
+> **Cambio de versión (F3):** hasta ahora los valores por defecto eran los del laboratorio original (router `192.168.88.1`, redes
+> `192.168.88.0/24` y `192.168.89.0/24`, colector `192.168.88.4`, zona `Europe/Madrid`). Una instalación **existente sin `mini-noc.env`**
+> que dependiera de ellos debe escribirlos en `mini-noc.env` antes de actualizar; si no, la zona pasa a UTC, el router por defecto deja
+> de darse de alta y los flujos no se atribuyen a hosts internos.
 
 ## Zona horaria (`MININOC_TZ`)
 
 La regla no cambia: todo timestamp se guarda en UTC y solo se muestra en la zona local. Esa zona es la de
-`MININOC_TZ` (nombre IANA, p. ej. `America/New_York`, `Asia/Kolkata`, `Australia/Lord_Howe`, `UTC`), con `Europe/Madrid` por defecto.
+`MININOC_TZ` (nombre IANA, p. ej. `America/New_York`, `Asia/Kolkata`, `Australia/Lord_Howe`, `UTC`), con `UTC` por defecto.
 
 - **Web:** el servidor escribe la zona en `<meta name="mini-noc-tz">` y en las etiquetas de las tablas («Start (…)», «Send at (…)»,
   el reloj de la cabecera); el JS la lee una vez al cargar. El formulario de mantenimiento lee la hora escrita en esa zona y la
@@ -39,7 +45,7 @@ La regla no cambia: todo timestamp se guarda en UTC y solo se muestra en la zona
 - **Resumen diario:** la hora `digest_time` y el «día» del resumen son de esa zona (`alerts/digest.py`, con `zoneinfo`).
 - **Base de zonas:** `tzdata` está en `requirements.txt` (Windows y los contenedores mínimos no la traen); tras
   `pip install -r requirements.txt` no hace falta nada más.
-- **Zona inválida:** el servicio registra un error claro («MININOC_TZ=... is not a known IANA time zone») y usa `Europe/Madrid`;
+- **Zona inválida:** el servicio registra un error claro («MININOC_TZ=... is not a known IANA time zone») y usa `UTC`;
   `python -m tools.preflight` da **FAIL** en la línea «Zona horaria». Sin `tzdata` y sin base del sistema, tampoco se puede usar
   la de por defecto y el resumen diario lo dice (`pip install tzdata`).
 - **`devices.tz`** (columna por equipo, `Europe/Madrid` por defecto) **no se usa todavía para mostrar**: queda para una versión

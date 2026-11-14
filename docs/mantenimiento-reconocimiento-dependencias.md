@@ -58,7 +58,7 @@ Tabla `maintenance_windows` (`id`, `device_id` o NULL = todos, `rule_id` o NULL 
 - `GET /api/alerts` añade a cada alerta activa `in_maintenance`, `maintenance_reason`, `maintenance_until_utc` y un bloque
   `maintenance: {active_count, active[]}` que alimenta el banner **«Maintenance active: N windows»**.
 - Web: Settings > **Maintenance** (lista con estado, formulario con equipo «All devices», regla «All rules», inicio, duración rápida
-  30 min / 1 h / 4 h / 24 h o «Until a set time…», razón). Las horas se escriben y se muestran en la zona `MININOC_TZ` (por defecto `Europe/Madrid`, K82) y se guardan en UTC
+  30 min / 1 h / 4 h / 24 h o «Until a set time…», razón). Las horas se escriben y se muestran en la zona `MININOC_TZ` (por defecto `UTC`, K82) y se guardan en UTC
   (`localToUtc` / `utcToLocalInput` en `app.js` y `formatters.js`). Con el cambio de hora, una hora repetida de octubre vale su **primera** aparición y una hora inexistente de marzo se mueve hacia delante (K81).
 
 ## 3. Dependencias entre equipos (K65)

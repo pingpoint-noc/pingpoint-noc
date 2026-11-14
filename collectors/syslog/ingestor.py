@@ -457,21 +457,23 @@ def main():
 
     repo = create_repository("sqlite", args.db_path)
     repo.init_storage()
-    if repo.get_device_status(args.device_id) is None:  # never overwrite what the operator already set
+    # A fresh install has no default router (MININOC_ROUTER_IP / MININOC_DEVICE_ID empty): sources are then only discovered.
+    has_primary = bool(args.device_id) and bool(args.router_ip)
+    if has_primary and repo.get_device_status(args.device_id) is None:  # never overwrite what the operator already set
         repo.ensure_device(
             device_id=args.device_id,
-            name=args.device_name,
+            name=args.device_name or args.device_id,
             ip=args.router_ip,
             device_type="router",
-            tz="Europe/Madrid",
+            tz=scenario.tz_name(),
         )
 
     while True:
         result = scan_syslog_directory(
             repo=repo,
             log_dir=args.log_dir,
-            primary_ip=args.router_ip,
-            primary_device_id=args.device_id,
+            primary_ip=args.router_ip if has_primary else None,
+            primary_device_id=args.device_id if has_primary else None,
         )
         if result["events_stored"] > 0:
             LOGGER.info("Stored %d syslog events across monitored sources", result["events_stored"])

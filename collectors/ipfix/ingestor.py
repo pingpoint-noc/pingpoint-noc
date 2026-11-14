@@ -243,9 +243,9 @@ def build_exporter_resolver(repo, primary_device_id):
             if exporter_ip not in warned:
                 warned.add(exporter_ip)
                 LOGGER.warning(
-                    "IPFIX exporter %s is not in the inventory: its flows are stored under %s",
+                    "IPFIX exporter %s is not in the inventory: %s",
                     exporter_ip,
-                    primary_device_id,
+                    ("its flows are stored under %s" % primary_device_id) if primary_device_id else "its flows are ignored (no default router set)",
                 )
             cache[exporter_ip] = primary_device_id
         else:
@@ -266,6 +266,8 @@ def store_batch(repo, device_id, batch, cursor_json, now_ts, exporter_device_fn)
         target = device_id
         if exporter_device_fn is not None:
             target = exporter_device_fn(flow.get("exporter_ip", ""))
+        if not target:  # no default router and an exporter that is not in the inventory: there is nobody to attribute it to
+            continue
         if target not in groups:
             groups[target] = []
             order.append(target)
@@ -276,7 +278,8 @@ def store_batch(repo, device_id, batch, cursor_json, now_ts, exporter_device_fn)
         if target == device_id:
             continue
         stored += repo.record_flows_batch(target, groups[target], None, now_ts)
-    stored += repo.record_flows_batch(device_id, groups.get(device_id, []), cursor_json, now_ts)
+    if device_id:
+        stored += repo.record_flows_batch(device_id, groups.get(device_id, []), cursor_json, now_ts)
     return stored
 
 
@@ -408,13 +411,14 @@ def main():
 
     repo = create_repository("sqlite", args.db_path)
     repo.init_storage()
-    if repo.get_device_status(args.device_id) is None:  # never overwrite what the operator already set
+    # A fresh install has no default router: only flows from exporters already in the inventory are stored.
+    if args.device_id and args.router_ip and repo.get_device_status(args.device_id) is None:  # never overwrite what the operator set
         repo.ensure_device(
             device_id=args.device_id,
-            name=args.device_name,
+            name=args.device_name or args.device_id,
             ip=args.router_ip,
             device_type="router",
-            tz="Europe/Madrid",
+            tz=scenario.tz_name(),
         )
     internal_nets = parse_networks(args.internal_nets)
     own_ips = parse_addresses(args.router_own_ips)

@@ -99,8 +99,24 @@ class ProxmoxRegistrationPayload(BaseModel):
 
 
 def default_noc_ip():
-    """Collector address offered when the request names none and has no usable host (MININOC_NOC_IP)."""
+    """Collector address offered when the request names none and has no usable host (MININOC_NOC_IP; empty on a fresh install)."""
     return scenario.value("MININOC_NOC_IP")
+
+
+def resolve_noc_address(request, noc_ip):
+    """The address a script offers as the collector: the explicit `noc_ip`, else the address the web was opened with, else MININOC_NOC_IP.
+
+    Raises HTTPException(400) when none of them is known (a test client has no real host, and a fresh install sets no MININOC_NOC_IP).
+    """
+    if noc_ip is not None and noc_ip.strip() != "":
+        return noc_ip.strip()
+    host = request.base_url.hostname
+    if host and host != "testserver":
+        return host
+    configured = default_noc_ip()
+    if configured:
+        return configured
+    raise HTTPException(status_code=400, detail="noc_ip is needed: pass ?noc_ip=<address of this NOC> or set MININOC_NOC_IP")
 
 
 def create_bootstrap_router(repo, clock):
@@ -113,11 +129,7 @@ def create_bootstrap_router(repo, clock):
         noc_ip: str | None = None,
         noc_port: int | None = None,
     ):
-        resolved_ip = default_noc_ip()
-        if noc_ip is not None and noc_ip.strip() != "":
-            resolved_ip = noc_ip.strip()
-        elif request.base_url.hostname:
-            resolved_ip = request.base_url.hostname
+        resolved_ip = resolve_noc_address(request, noc_ip)
 
         resolved_port = 8080
         if noc_port is not None:
@@ -136,11 +148,7 @@ def create_bootstrap_router(repo, clock):
         noc_ip: str | None = None,
         noc_port: int | None = None,
     ):
-        resolved_ip = default_noc_ip()
-        if noc_ip is not None and noc_ip.strip() != "":
-            resolved_ip = noc_ip.strip()
-        elif request.base_url.hostname:
-            resolved_ip = request.base_url.hostname
+        resolved_ip = resolve_noc_address(request, noc_ip)
 
         resolved_port = 8080
         if noc_port is not None:
@@ -167,11 +175,7 @@ def create_bootstrap_router(repo, clock):
         noc_ip: str | None = None,
         community: str = "mininoc",
     ):
-        resolved_ip = default_noc_ip()
-        if noc_ip is not None and noc_ip.strip() != "":
-            resolved_ip = noc_ip.strip()
-        elif request.base_url.hostname and request.base_url.hostname != "testserver":
-            resolved_ip = request.base_url.hostname
+        resolved_ip = resolve_noc_address(request, noc_ip)
 
         try:
             rsc_text = build_rsc_content(noc_ip=resolved_ip, community=community)

@@ -168,7 +168,7 @@ def check_scenario(env, file_values):
             origin = "entorno"
         else:
             origin = "valor por defecto"
-        parts.append("%s=%s (%s)" % (name.replace("MININOC_", ""), scenario.value(name, env), origin))
+        parts.append("%s=%s (%s)" % (name.replace("MININOC_", ""), scenario.value(name, env) or "(vacío)", origin))
     results = [make_result("Escenario", "PASS", "; ".join(parts))]
     tz = scenario.value("MININOC_TZ", env)
     if not scenario.is_valid_tz(tz):

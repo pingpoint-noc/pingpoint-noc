@@ -22,7 +22,7 @@ Project status: early open-source release. Maintainers: Nacho Pola and Martin Lo
   dark themes, an interactive topology map and dependency tree (native SVG), a command palette (`Ctrl+K`), deep links (the
   URL stores view, device, time range and filters), p95 traffic and capacity forecasts, an availability report with MTTR and
   MTBF (CSV included), and an incident report (Markdown/JSON) generated without AI. Timestamps are stored in UTC and shown
-  in the zone set with `MININOC_TZ` (`Europe/Madrid` by default). Every panel shows how fresh its data is.
+  in the zone set with `MININOC_TZ` (`UTC` by default). Every panel shows how fresh its data is.
 - **Alert** with a rule engine (`pending -> firing -> resolved`): interface down or flapping, errors and discards,
   bandwidth, failed logins, port scans, new external destination, Proxmox storage, host service down, syslog bursts, ICMP
   loss/latency, DNS down and stale data sources. Notifications go to ntfy, Discord, Slack, Telegram, webhook or email, with

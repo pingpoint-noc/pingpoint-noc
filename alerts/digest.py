@@ -1,7 +1,7 @@
 """Daily summary (K66): one short message a day with the last 24 hours, sent to the destinations that opted in.
 
 The engine loop calls maybe_send() every cycle; it is cheap when nothing is due. The schedule is a local time of
-day in the zone set by MININOC_TZ (Europe/Madrid by default; the server runs in UTC), so the summary follows summer time. The day already sent is stored in
+day in the zone set by MININOC_TZ (UTC by default; the server runs in UTC), so the summary follows summer time. The day already sent is stored in
 the settings table (`digest_last_sent`), which makes a restart at 08:01 harmless, and a service that was stopped at
 the hour still sends when it comes back, but only inside CATCH_UP_SECONDS: after that the day is skipped, never a
 stale summary and never a backlog of days.
@@ -64,7 +64,7 @@ def parse_time(text):
     return hour, minute
 
 
-# ---- The configured time zone (MININOC_TZ, Europe/Madrid by default) --------------------------------------------
+# ---- The configured time zone (MININOC_TZ, UTC by default) --------------------------------------------
 
 def local_tz_name():
     """Name of the zone the summary follows: MININOC_TZ when valid, else the default (an invalid one is logged once)."""
