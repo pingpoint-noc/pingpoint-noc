@@ -4260,6 +4260,8 @@ body:not([data-active-tab="tab-overview"]) .active-alerts-list { max-height: min
 /* Device Health / Reachability: one row per device */
 .health-disk { display: inline-block; margin-right: 0.75rem; white-space: nowrap; }
 .table-host-health td, .table-icmp-health td { font-variant-numeric: tabular-nums; }
+/* The 24 h percentile is for the desktop; on a phone the row stays as compact as before it existed (K120) */
+@media (max-width: 700px) { .table-icmp-health td[data-label="RTT p95 (24 h)"] { display: none; } }
 .host-ip { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 400; }
 @media (max-width: 700px) {
   .table-stack .health-disks { flex-wrap: wrap; }
