@@ -146,6 +146,17 @@ Si las muestras de `samples/` no se parecen a lo que ves (otra versión de Route
 5. **Desplegar un cambio** en tu contenedor: `git pull`, tests, `sudo systemctl restart mini-noc-<servicio>` (si
    cambia una unidad: `sudo deploy/install.sh <usuario>` otra vez), y mira el log un par de minutos.
 
+### Que los logs no llenen el disco
+
+PingPoint NOC solo limita lo suyo: la base de datos (`MININOC_MAX_DB_MB`, `MININOC_RETENTION_DAYS`) y las filas de syslog por equipo
+(`MININOC_SYSLOG_MAX_ROWS_PER_SOURCE`, 500000 por defecto, las más recientes). Lo demás es del sistema, y conviene comprobarlo una vez:
+
+| Qué | Comprobar | Arreglo |
+|---|---|---|
+| El journal de systemd | `journalctl --disk-usage`; `python -m tools.preflight` avisa si falta `SystemMaxUse` | `deploy/install.sh` lo pone solo en instalaciones nuevas; en una a mano: `printf '[Journal]\nSystemMaxUse=300M\nMaxRetentionSec=14day\n' \| sudo tee /etc/systemd/journald.conf.d/mini-noc.conf` y `sudo systemctl restart systemd-journald` |
+| Ficheros de syslog que mantenga el equipo (`/var/log/remote`, `/var/log/syslog`) | `ls -lh /var/log/remote /var/log/syslog*` | Una regla de `logrotate` por fichero, p. ej. `/etc/logrotate.d/remote-logs` con `daily`, `rotate 7`, `compress`, `missingok`, `notifempty`. El instalador de referencia ya la crea; `logrotate -d /etc/logrotate.d/remote-logs` la prueba sin ejecutar nada |
+| Un equipo que inunda de logs (un bucle de errores) | La alerta `syslog_burst` cita el mensaje que más se repite | Arregla el origen; mientras tanto el tope por equipo evita que desaloje los logs de los demás |
+
 ## 7. Problemas típicos
 
 | Síntoma | Causa probable | Qué hacer |
