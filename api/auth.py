@@ -85,9 +85,14 @@ def verify_password(password, stored):
 DUMMY_HASH = hash_password("mini-noc-dummy-password")
 
 
-def password_fingerprint(stored_hash):
-    """Short public fingerprint of a stored hash, used to invalidate tokens when the password changes."""
-    return hashlib.sha256(stored_hash.encode("utf-8")).hexdigest()[:16]
+def password_fingerprint(stored_hash, token_version=0):
+    """Short public fingerprint of a stored hash, used to invalidate tokens when the password changes.
+
+    A server-side logout raises the user's token_version, which changes the fingerprint too. Version 0 hashes the password
+    alone, so sessions issued before that column existed stay valid.
+    """
+    material = stored_hash if not token_version else "%s:%d" % (stored_hash, token_version)
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
 
 
 def b64_encode(raw):

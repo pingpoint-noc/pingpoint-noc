@@ -53,6 +53,26 @@ class SchemaMigrationsTest(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_version_5_adds_the_token_version_to_existing_users(self):
+        repo = make_repo(self._tmp.name)
+        conn = repo.open_write()
+        try:
+            conn.execute("DROP TABLE IF EXISTS users;")
+            conn.execute(
+                "CREATE TABLE users (username TEXT PRIMARY KEY, password_hash TEXT NOT NULL, "
+                "role TEXT NOT NULL CHECK (role IN ('admin', 'viewer')), "
+                "created_utc INTEGER NOT NULL, last_login_utc INTEGER) STRICT;"
+            )
+            conn.execute("INSERT INTO users VALUES ('old', 'h', 'admin', 1, NULL);")
+            conn.execute("PRAGMA user_version = 4;")
+        finally:
+            conn.close()
+        repo.init_storage()
+        self.assertEqual(repo.get_user("old")["token_version"], 0)
+        self.assertTrue(repo.bump_token_version("old"))
+        self.assertEqual(repo.get_user("old")["token_version"], 1)
+        self.assertFalse(repo.bump_token_version("nobody"))
+
     def test_steps_run_once_in_order_and_a_failed_step_rolls_back(self):
         repo = make_repo(self._tmp.name)
         seen = []

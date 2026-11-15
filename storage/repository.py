@@ -68,6 +68,10 @@ class StorageRepository(ABC):
         """Replace a user's password hash; False when the user does not exist."""
 
     @abstractmethod
+    def bump_token_version(self, username):
+        """Invalidate all session tokens of a user (server-side logout); False when the user does not exist."""
+
+    @abstractmethod
     def delete_user(self, username):
         """Remove a user; False when the user does not exist."""
 

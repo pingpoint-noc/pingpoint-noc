@@ -84,7 +84,7 @@ python -m tools.manage_users list | passwd NOMBRE | delete NOMBRE
 | Endpoint | Auth | Qué hace |
 |---|---|---|
 | `POST /api/login` | no | `{"username","password"}` devuelve `token`, `username`, `role`, `expires_utc` |
-| `POST /api/logout` | no | Responde ok; el navegador descarta el token |
+| `POST /api/logout` | no | Responde ok; con una sesión válida invalida en el servidor todos los tokens de ese usuario (cierra sesión en todas partes) |
 | `GET /api/me` | sesión o token | Usuario y rol actuales |
 | `GET /api/settings/audit[?limit=100]` | admin | Entradas del registro, las más nuevas primero |
 

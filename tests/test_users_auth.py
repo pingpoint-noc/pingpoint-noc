@@ -274,6 +274,23 @@ class SessionApiTest(ApiBase):
         self.assertEqual(self.client.post("/api/logout", headers=self.bearer()).status_code, 200)
         self.assertEqual(self.client.post("/api/logout").status_code, 200)
 
+    def test_logout_ends_the_session_on_the_server(self):
+        """F6-06/07: a copy of the token (stolen before the logout) stops working, and so does the cookie."""
+        headers = self.bearer()
+        other = self.bearer()
+        self.assertEqual(self.client.get("/api/me", headers=headers).status_code, 200)
+        self.assertEqual(self.client.post("/api/logout", headers=headers).status_code, 200)
+        self.assertEqual(self.client.get("/api/me", headers=headers).status_code, 401)
+        self.assertEqual(self.client.get("/api/me", headers=other).status_code, 401)
+        # signing in again gives a working session
+        self.assertEqual(self.client.get("/api/me", headers=self.bearer()).status_code, 200)
+
+    def test_logout_without_a_session_changes_nothing(self):
+        headers = self.bearer()
+        self.client.cookies.clear()
+        self.assertEqual(self.client.post("/api/logout", headers={"Authorization": "Bearer junk"}).status_code, 200)
+        self.assertEqual(self.client.get("/api/me", headers=headers).status_code, 200)
+
     def test_writable_flag_follows_admin_users(self):
         with mock.patch.dict(os.environ, {"MININOC_ADMIN_TOKEN": ""}):
             self.assertTrue(self.client.get("/api/settings").json()["writable"])

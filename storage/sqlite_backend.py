@@ -572,7 +572,7 @@ class SQLiteRepository(StorageRepository):
         "CREATE TABLE IF NOT EXISTS users ("
         "username TEXT PRIMARY KEY, password_hash TEXT NOT NULL, "
         "role TEXT NOT NULL CHECK (role IN ('admin', 'viewer')), "
-        "created_utc INTEGER NOT NULL, last_login_utc INTEGER) STRICT;"
+        "created_utc INTEGER NOT NULL, last_login_utc INTEGER, token_version INTEGER NOT NULL DEFAULT 0) STRICT;"
     )
     AUTH_META_DDL = "CREATE TABLE IF NOT EXISTS auth_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;"
     AUDIT_DDL = (
@@ -605,7 +605,7 @@ class SQLiteRepository(StorageRepository):
         try:
             try:
                 row = conn.execute(
-                    "SELECT username, password_hash, role, created_utc, last_login_utc FROM users "
+                    "SELECT username, password_hash, role, created_utc, last_login_utc, token_version FROM users "
                     "WHERE username = ?;",
                     (username,),
                 ).fetchone()
@@ -677,6 +677,17 @@ class SQLiteRepository(StorageRepository):
                 cursor = conn.execute(
                     "UPDATE users SET password_hash = ? WHERE username = ?;", (password_hash, username)
                 )
+                return cursor.rowcount > 0
+        finally:
+            conn.close()
+
+    def bump_token_version(self, username):
+        """Invalidate every session token of this user (server-side logout); False when the user does not exist."""
+        conn = self.open_write()
+        try:
+            conn.execute(self.USERS_DDL)
+            with write_transaction(conn):
+                cursor = conn.execute("UPDATE users SET token_version = token_version + 1 WHERE username = ?;", (username,))
                 return cursor.rowcount > 0
         finally:
             conn.close()

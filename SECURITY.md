@@ -23,6 +23,11 @@ PingPoint NOC is an early release meant for **trusted networks**. Report vulnera
   peer may send `X-Forwarded-For` / `X-Forwarded-Proto`, so visitors are told apart (login rate limit) and the session
   cookie gets `Secure` under https. The application itself never reads `X-Forwarded-For`; `MININOC_TRUST_PROXY` was
   removed (it trusted any peer) and is ignored with a warning in the log.
+- **Limits per address and minute** (in memory, a restart clears them; 429 with `Retry-After`): 10 enrolments, 30 downloads
+  of the bootstrap, agent and router scripts, 20 telemetry posts (an agent sends 4). Behind a proxy they count the real
+  address only if `FORWARDED_ALLOW_IPS` lists the proxy; otherwise every host looks like the proxy.
+- **Sessions.** `POST /api/logout` with a valid session raises the user's `token_version` (schema version 5), so every token
+  of that user issued before, a stolen copy included, stops working: a logout signs the user out everywhere.
 - **First-admin bootstrap.** `POST /api/bootstrap-admin` works until the first admin exists, only from a local
   (loopback or private) address and only with `MININOC_ADMIN_TOKEN` (sent as `X-Admin-Token`). Without that variable the web
   cannot create the admin at all: it says to run `python -m tools.manage_users add NAME` on the server (the installer prints

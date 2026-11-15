@@ -540,7 +540,7 @@ def create_app(db_path, clock=utc_now):
         user = repo.get_user(claims["u"])
         if user is None:
             return None
-        fingerprint = auth.password_fingerprint(user["password_hash"])
+        fingerprint = auth.password_fingerprint(user["password_hash"], user.get("token_version", 0))
         if not hmac.compare_digest(fingerprint.encode("utf-8"), claims["pv"].encode("utf-8")):
             return None
         return user
@@ -681,7 +681,7 @@ def create_app(db_path, clock=utc_now):
             raise HTTPException(status_code=401, detail="wrong username or password")
         limiter.clear(key)
         repo.touch_login(username, now_ts)
-        fingerprint = auth.password_fingerprint(user["password_hash"])
+        fingerprint = auth.password_fingerprint(user["password_hash"], user.get("token_version", 0))
         token = auth.make_token(session_secret(), username, fingerprint, now_ts, auth.SESSION_SECONDS)
         response = JSONResponse(
             {
@@ -695,8 +695,14 @@ def create_app(db_path, clock=utc_now):
         return response
 
     @app.post("/api/logout")
-    def logout():
-        # Tokens are stateless: the browser drops its copy. See K27 for the limit.
+    def logout(request: Request, authorization: str | None = Header(default=None)):
+        # A valid session is also ended on the server: its user's token_version goes up, so a copy of the token that was
+        # stolen stops working (this signs the user out everywhere).
+        user = session_user(authorization)
+        if user is None and request.cookies.get(SESSION_COOKIE):
+            user = session_user("Bearer " + request.cookies[SESSION_COOKIE])
+        if user is not None:
+            repo.bump_token_version(user["username"])
         response = JSONResponse({"ok": True})
         response.delete_cookie(SESSION_COOKIE, path="/")
         return response

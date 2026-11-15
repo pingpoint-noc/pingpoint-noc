@@ -26,6 +26,45 @@ def is_local_client(host: str) -> bool:
     return ip.is_loopback or ip.is_private or ip.is_link_local
 
 
+class RateLimiter:
+    """Requests allowed per client address inside a sliding window, in memory (a restart clears it).
+
+    Every call counts, valid or not: these endpoints have no login, so guessing and flooding are what it is for.
+    """
+
+    TRACKED_LIMIT = 5000
+
+    def __init__(self, max_requests: int, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window = window_seconds
+        self.hits: dict[str, list[float]] = {}
+
+    def check(self, key: str, now_ts: float) -> int:
+        """Record a request and return 0 when it may go on, else the seconds to wait."""
+        if len(self.hits) >= self.TRACKED_LIMIT and key not in self.hits:
+            self.hits = {k: v for k, v in self.hits.items() if v and now_ts - v[-1] < self.window}
+            if len(self.hits) >= self.TRACKED_LIMIT:
+                self.hits.clear()
+        recent = [ts for ts in self.hits.get(key, []) if now_ts - ts < self.window]
+        if len(recent) >= self.max_requests:
+            self.hits[key] = recent
+            return max(1, int(recent[0] + self.window - now_ts) + 1)
+        recent.append(now_ts)
+        self.hits[key] = recent
+        return 0
+
+    def enforce(self, request: Request, now_ts: float) -> None:
+        wait = self.check(client_host(request) or "unknown", now_ts)
+        if wait:
+            raise HTTPException(status_code=429, detail="too many requests, slow down", headers={"Retry-After": str(wait)})
+
+
+# Per address and minute: enrolments, downloads of the bootstrap scripts, node telemetry (an agent sends 4 a minute).
+ENROLL_PER_MINUTE = 10
+SCRIPT_PER_MINUTE = 30
+TELEMETRY_PER_MINUTE = 20
+
+
 def enrolment_token() -> str:
     """The enrolment token configured on the server ("" when there is none)."""
     return os.environ.get("MININOC_ENROLL_TOKEN", "").strip()

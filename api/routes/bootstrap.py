@@ -9,6 +9,7 @@ Exposes:
 
 import os
 import re
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response
@@ -17,7 +18,15 @@ from pydantic import BaseModel, Field
 
 import scenario
 from api import services
-from api.netguard import client_host, enrolment_token, require_enrolment
+from api.netguard import (
+    ENROLL_PER_MINUTE,
+    SCRIPT_PER_MINUTE,
+    TELEMETRY_PER_MINUTE,
+    RateLimiter,
+    client_host,
+    enrolment_token,
+    require_enrolment,
+)
 from tools.generate_router_config import build_rsc_content
 
 # Only characters that are safe inside the double quotes of the generated bash script.
@@ -146,6 +155,9 @@ def resolve_noc_address(request, noc_ip):
 def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None):
     """Create the FastAPI APIRouter for onboarding and node discovery."""
     router = APIRouter(tags=["Provisioning"])
+    enroll_limit = RateLimiter(ENROLL_PER_MINUTE)
+    script_limit = RateLimiter(SCRIPT_PER_MINUTE)
+    telemetry_limit = RateLimiter(TELEMETRY_PER_MINUTE)
 
     @router.get("/api/enroll-token")
     def get_enroll_token(
@@ -167,6 +179,7 @@ def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None
         noc_ip: str | None = None,
         noc_port: int | None = None,
     ):
+        script_limit.enforce(request, time.monotonic())
         resolved_ip, resolved_port = resolve_noc_endpoint(request, noc_ip, noc_port)
 
         if not HOST_RE.match(resolved_ip):
@@ -180,6 +193,7 @@ def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None
         noc_ip: str | None = None,
         noc_port: int | None = None,
     ):
+        script_limit.enforce(request, time.monotonic())
         resolved_ip, resolved_port = resolve_noc_endpoint(request, noc_ip, noc_port)
 
         if not HOST_RE.match(resolved_ip):
@@ -188,7 +202,8 @@ def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None
         return Response(content=script, media_type="text/x-shellscript; charset=utf-8")
 
     @router.get("/api/mininoc-agent.sh")
-    def get_agent_script():
+    def get_agent_script(request: Request):
+        script_limit.enforce(request, time.monotonic())
         agent_path = Path(__file__).resolve().parent.parent.parent / "tools" / "mininoc-agent.sh"
         if not agent_path.is_file():
             raise HTTPException(status_code=404, detail="Agent script not found")
@@ -201,6 +216,7 @@ def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None
         noc_ip: str | None = None,
         community: str = "mininoc",
     ):
+        script_limit.enforce(request, time.monotonic())
         resolved_ip = resolve_noc_address(request, noc_ip)
 
         try:
@@ -220,6 +236,7 @@ def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None
         request: Request,
         x_enroll_token: str | None = Header(default=None),
     ):
+        enroll_limit.enforce(request, time.monotonic())
         require_enrolment(request, x_enroll_token)
         try:
             record = services.register_node_in_inventory(
@@ -241,6 +258,7 @@ def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None
         request: Request,
         x_enroll_token: str | None = Header(default=None),
     ):
+        enroll_limit.enforce(request, time.monotonic())
         require_enrolment(request, x_enroll_token)
         try:
             record = services.register_proxmox_node_in_inventory(
@@ -263,6 +281,7 @@ def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None
         x_node_token: str | None = Header(default=None),
         authorization: str | None = Header(default=None),
     ):
+        telemetry_limit.enforce(request, time.monotonic())
         token = x_node_token
         if not token and authorization:
             parts = authorization.split()

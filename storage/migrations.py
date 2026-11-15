@@ -43,12 +43,28 @@ def _interface_speed_change(conn):
                 raise
 
 
+def _token_version(conn):
+    """Version 5: per-user counter that a server-side logout raises, so tokens issued before it stop working."""
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS users ("
+        "username TEXT PRIMARY KEY, password_hash TEXT NOT NULL, "
+        "role TEXT NOT NULL CHECK (role IN ('admin', 'viewer')), "
+        "created_utc INTEGER NOT NULL, last_login_utc INTEGER) STRICT;"
+    )
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;")
+    except Exception as exc:
+        if "duplicate column" not in str(exc).lower():
+            raise
+
+
 # (version, description, function(conn)); versions are 1, 2, 3, ... without gaps.
 MIGRATIONS = [
     (1, "baseline schema", _baseline),
     (2, "per-device settings", _device_settings),
     (3, "proxmox guest usage", _guest_usage),
     (4, "interface speed change", _interface_speed_change),
+    (5, "user token version (server-side logout)", _token_version),
 ]
 
 
