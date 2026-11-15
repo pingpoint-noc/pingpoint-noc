@@ -2587,6 +2587,7 @@ def delete_node_from_inventory(repo, device_id):
 def get_nodes_view(repo, now_ts):
     """Return discovered and registered nodes with capability flags and freshness."""
     raw_nodes = order_by_hierarchy(repo.list_inventory_devices())
+    protected_ids = scenario.protected_device_ids()
     nodes = []
     newest = None
     snmp_count = 0
@@ -2615,6 +2616,7 @@ def get_nodes_view(repo, now_ts):
                 "hostname": row.get("hostname", ""),
                 "ip": row["ip"],
                 "device_type": row["device_type"],
+                "protected": row["id"] in protected_ids,
                 "has_snmp": int(row.get("has_snmp", 0)),
                 "has_syslog": int(row.get("has_syslog", 0)),
                 "has_ipfix": int(row.get("has_ipfix", 0)),

@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 import sqlite3
 
+import scenario
 from storage.migrations import check_not_newer as check_schema_not_newer, run_migrations
 from storage.repository import StorageRepository
 
@@ -770,7 +771,7 @@ class SQLiteRepository(StorageRepository):
         name,
         ip,
         device_type="router",
-        tz="Europe/Madrid",
+        tz=None,
         parent_device_id=None,
         poll_config_json=None,
         has_snmp=1,
@@ -784,6 +785,7 @@ class SQLiteRepository(StorageRepository):
         snmp_cred="",
     ):
         """Insert or update a monitored device in the catalog (the profile name is only set on insert)."""
+        tz = tz or scenario.tz_name()
         effective_snmp = int(has_snmp)
         effective_status = status
         if device_type == "platform":
@@ -977,7 +979,7 @@ class SQLiteRepository(StorageRepository):
                             has_snmp, has_syslog, has_ipfix, has_telemetry, snmp_community,
                             first_seen_utc, last_seen_utc, status, probe_status, reachable
                         )
-                        VALUES (?, ?, ?, ?, ?, 'Europe/Madrid', ?, ?, ?, ?, ?, ?, ?, 'active', 'pending', 1)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 'pending', 1)
                         ON CONFLICT(id) DO UPDATE SET
                             last_seen_utc = excluded.last_seen_utc,
                             reachable = 1,
@@ -991,6 +993,7 @@ class SQLiteRepository(StorageRepository):
                             clean_ip,
                             clean_host,
                             device_type,
+                            scenario.tz_name(),
                             add_snmp,
                             add_syslog,
                             add_ipfix,
@@ -2105,7 +2108,7 @@ class SQLiteRepository(StorageRepository):
 
     def delete_discovered_device(self, device_id):
         """Delete a non-core discovered device and its child telemetry rows; return True if deleted."""
-        if device_id in ("edge-router-1", "mini-noc-host"):
+        if device_id in scenario.protected_device_ids():
             raise ValueError("Cannot delete core platform or primary router device")
         conn = self.open_write()
         try:

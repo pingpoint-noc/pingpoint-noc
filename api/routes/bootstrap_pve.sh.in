@@ -93,10 +93,31 @@ if [ -z "$TOKEN_SECRET" ]; then
 fi
 
 # 4. Configure rsyslog forwarding
+# The new file is checked before rsyslog reads it; a bad one is rolled back. Forwarding goes through its own bounded in-memory queue
+# (about 5 MB at most): when the collector is slow or a guest floods the log, the queue drops the least important lines (info and debug)
+# instead of using the host's memory or the link.
 mkdir -p "$(dirname "$CONF")"
-cat > "$CONF" <<EOF
-*.* @${NOC_HOST}:514
-EOF
+BACKUP=""
+if [ -f "$CONF" ]; then
+    BACKUP="$(mktemp)"
+    cp "$CONF" "$BACKUP"
+fi
+cat > "$CONF" <<RSYSLOG_EOF
+# Written by the Mini-NOC bootstrap script; remove it with: bootstrap-pve.sh --uninstall
+*.* action(type="omfwd" target="$NOC_IP" port="514" protocol="udp"
+    queue.type="LinkedList" queue.size="5000" queue.discardMark="4000" queue.discardSeverity="6"
+    queue.dequeueSlowdown="30000")
+RSYSLOG_EOF
+if command -v rsyslogd >/dev/null 2>&1 && ! rsyslogd -N1 >/dev/null 2>&1; then
+    warn "rsyslog rejected the new configuration; restoring the previous state."
+    if [ -n "$BACKUP" ]; then
+        cp "$BACKUP" "$CONF"
+    else
+        rm -f "$CONF"
+    fi
+    exit 1
+fi
+[ -z "$BACKUP" ] || rm -f "$BACKUP"
 
 if restart_rsyslog; then
     ok "Syslog forwarding active -> ${NOC_HOST}:514"
@@ -105,8 +126,11 @@ else
 fi
 
 # 5. Resolve host identity
-HOST_NAME="$(hostname -f 2>/dev/null || hostname)"
-NODE_NAME="$(hostname -s 2>/dev/null || hostname)"
+# Only safe characters: both names go into JSON.
+HOST_NAME="$( (hostname -f 2>/dev/null || hostname) | tr -cd 'A-Za-z0-9._-')"
+NODE_NAME="$( (hostname -s 2>/dev/null || hostname) | tr -cd 'A-Za-z0-9._-')"
+[ -n "$HOST_NAME" ] || HOST_NAME="unknown"
+[ -n "$NODE_NAME" ] || NODE_NAME="proxmox"
 HOST_IP=""
 
 # Try finding IP that reaches NOC

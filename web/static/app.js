@@ -8950,7 +8950,7 @@ async function loadSettingsInventory() {
       }
 
       var delBtnHtml = "";
-      if (node.id !== "edge-router-1") {
+      if (!node.protected) {
         delBtnHtml =
           "<button type='button' class='btn btn-secondary btn-small inv-del-btn' data-id='" +
           escapeHtml(node.id) + "'" + disAttr + ">Remove</button>";

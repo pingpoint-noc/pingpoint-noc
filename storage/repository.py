@@ -98,7 +98,7 @@ class StorageRepository(ABC):
         name,
         ip,
         device_type="router",
-        tz="Europe/Madrid",
+        tz=None,
         parent_device_id=None,
         poll_config_json=None,
         has_snmp=1,

@@ -84,6 +84,15 @@ def is_valid_tz(name):
     return True
 
 
+def protected_device_ids(env=None):
+    """Devices that cannot be removed: the NOC itself, the shipped demo router and the default router of this site."""
+    ids = {"edge-router-1", "mini-noc-host"}
+    configured = value("MININOC_DEVICE_ID", env).strip()
+    if configured:
+        ids.add(configured)
+    return ids
+
+
 def tz_name(env=None):
     """The time zone to display: MININOC_TZ when it is a valid zone, else the default (with an error in the log)."""
     name = value("MININOC_TZ", env)
