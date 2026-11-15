@@ -42,6 +42,27 @@ LOGGER = logging.getLogger("mini_noc.api")
 # Address of the client of the request being served (set by the read_gate middleware), for the security log lines.
 CURRENT_CLIENT = contextvars.ContextVar("mininoc_current_client", default="unknown")
 MAX_LOGGED_NAME = 64
+# No inline scripts or on...= handlers exist in web/; styles need 'unsafe-inline' (style= attributes); the only data: image is in styles.css.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; "
+    "connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+)
+DOCS_CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+    "img-src 'self' data: https://fastapi.tiangolo.com https://cdn.redoc.ly; font-src 'self' https://fonts.gstatic.com; "
+    "connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+)
+SECURITY_HEADERS = (
+    ("Content-Security-Policy", CONTENT_SECURITY_POLICY),
+    ("X-Content-Type-Options", "nosniff"),
+    ("X-Frame-Options", "DENY"),
+    ("Referrer-Policy", "no-referrer"),
+    ("Cross-Origin-Opener-Policy", "same-origin"),
+    ("Permissions-Policy", "geolocation=(), microphone=(), camera=()"),
+)
+# Only over https (a browser ignores it on http anyway); no includeSubDomains: the NOC may share a domain with other sites.
+HSTS_VALUE = "max-age=31536000"
 
 # Silencing an alert only skips its notifications; the cap stops a silence from being forgotten.
 DEFAULT_SILENCE_MINUTES = 60
@@ -125,6 +146,8 @@ class LoginLimiter:
 SESSION_COOKIE = "mn_session"
 # GET paths that stay open when reads need a login: the login flow itself, and what booting hosts and routers fetch
 # (they carry no data and the enrolment endpoints have their own token).
+# Served only with MININOC_API_DOCS=1; they sit outside /api/ but are read-gated like it.
+DOCS_PATHS = ("/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect")
 READ_GATE_OPEN_PATHS = (
     "/api/auth-status",
     "/api/me",
@@ -133,6 +156,11 @@ READ_GATE_OPEN_PATHS = (
     "/api/mininoc-agent.sh",
     "/api/router-config.rsc",
 )
+
+
+def docs_enabled():
+    """MININOC_API_DOCS=1 serves /docs, /redoc and /openapi.json (behind the same sign-in as the API when reads need one)."""
+    return os.environ.get("MININOC_API_DOCS", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def read_auth_required():
@@ -471,7 +499,14 @@ CAPACITY_SOURCES_MAX_AGE_SECONDS = 60
 
 def create_app(db_path, clock=utc_now):
     """Build the app. `clock` returns the current UTC epoch seconds (replaced in tests)."""
-    app = FastAPI(title="Mini-NOC API")
+    # The interactive documentation lists every endpoint and loads Swagger UI from a CDN: off unless asked for (MININOC_API_DOCS=1).
+    docs_on = docs_enabled()
+    app = FastAPI(
+        title="PingPoint NOC API",
+        docs_url="/docs" if docs_on else None,
+        redoc_url="/redoc" if docs_on else None,
+        openapi_url="/openapi.json" if docs_on else None,
+    )
     repo = create_repository("sqlite", db_path)
 
     @app.exception_handler(sqlite3.OperationalError)
@@ -557,7 +592,7 @@ def create_app(db_path, clock=utc_now):
         if (
             read_auth_required()
             and request.method in ("GET", "HEAD")
-            and path.startswith("/api/")
+            and (path.startswith("/api/") or (docs_on and path in DOCS_PATHS))
             and path not in READ_GATE_OPEN_PATHS
         ):
             authorization = request.headers.get("authorization")
@@ -570,6 +605,19 @@ def create_app(db_path, clock=utc_now):
             if not allowed:
                 return JSONResponse(status_code=401, content={"detail": "sign in to read this"})
         return await call_next(request)
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        """Security headers on every response, the 401 of the read gate included (this middleware wraps it)."""
+        response = await call_next(request)
+        for name, value in SECURITY_HEADERS:
+            response.headers.setdefault(name, value)
+        if request.url.path in DOCS_PATHS:
+            # Swagger UI and ReDoc load their scripts, styles and fonts from a CDN: allowed on these pages only.
+            response.headers["Content-Security-Policy"] = DOCS_CONTENT_SECURITY_POLICY
+        if request.url.scheme == "https":
+            response.headers.setdefault("Strict-Transport-Security", HSTS_VALUE)
+        return response
 
     def set_session_cookie(response, request, token):
         response.set_cookie(

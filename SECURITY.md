@@ -23,6 +23,13 @@ PingPoint NOC is an early release meant for **trusted networks**. Report vulnera
 - **First-admin bootstrap.** `POST /api/bootstrap-admin` is open until the first admin exists, but only from a local
   (loopback or private) address and, when `MININOC_ADMIN_TOKEN` is set, only with that token. Create the admin right
   after installing. Behind a reverse proxy every visitor looks local, so set the token.
+- **Security headers.** Every response carries a strict `Content-Security-Policy` (no inline scripts, no CDN, no framing),
+  `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Cross-Origin-Opener-Policy` and `Permissions-Policy`;
+  `Strict-Transport-Security` (one year, no subdomains) is added when the request arrived over https (behind a proxy: see
+  `FORWARDED_ALLOW_IPS`). Interactive API documentation (`/docs`, `/redoc`, `/openapi.json`) is off; `MININOC_API_DOCS=1`
+  turns it on, behind the same sign-in as the API (its pages may load Swagger UI from a CDN, only they).
+- **Failed sign-ins are logged** (`mini_noc.api` warnings in the journal: user name and address, a lock-out, a wrong
+  `X-Admin-Token`; never the password or the token), so a log collector can alert on them.
 - **No TLS.** The API speaks plain HTTP; put it behind a TLS-terminating reverse proxy. The `bootstrap.sh` one-liner
   downloads the agent over the same channel.
 - **Unpinned dependencies.** `requirements.txt` uses lower bounds without a lockfile.

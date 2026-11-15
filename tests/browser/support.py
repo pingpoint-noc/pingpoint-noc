@@ -137,6 +137,9 @@ class BrowserTestCase(unittest.TestCase):
     SERVER_PER_TEST = False
     # Extra environment for the API process (for example MININOC_AUTH_READ=1).
     SERVER_ENV = {}
+    # Playwright polls with eval(), which the server's Content-Security-Policy forbids; the tests drive the page with it, so
+    # contexts bypass the policy. tests/browser/test_browser_csp.py sets this to False to test the policy itself.
+    BYPASS_CSP = True
 
     server = None
     playwright = None
@@ -153,6 +156,14 @@ class BrowserTestCase(unittest.TestCase):
             cls.playwright.stop()
             cls.playwright = None
             raise unittest.SkipTest("Chromium is not installed: " + str(err).splitlines()[0])
+        real_new_context = cls.browser.new_context
+        bypass = cls.BYPASS_CSP
+
+        def new_context(*args, **kwargs):
+            kwargs.setdefault("bypass_csp", bypass)
+            return real_new_context(*args, **kwargs)
+
+        cls.browser.new_context = new_context
         if not cls.SERVER_PER_TEST:
             cls.server = ApiServer(cls.WITH_USER, cls.SERVER_ENV)
             try:
