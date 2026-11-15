@@ -8,6 +8,7 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
+from api import auth
 from api.app import create_app
 from storage import create_repository
 
@@ -26,6 +27,7 @@ class EnrolmentTokenTests(unittest.TestCase):
         repo.init_storage()
         self.env = mock.patch.dict(os.environ, {"MININOC_ENROLL_TOKEN": TOKEN, "MININOC_ADMIN_TOKEN": ADMIN})
         self.env.start()
+        self.repo = repo
         self.client = TestClient(create_app(db, clock=lambda: 1000))
 
     def tearDown(self):
@@ -61,6 +63,77 @@ class EnrolmentTokenTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json(), {"configured": True, "token": TOKEN})
         self.assertEqual(res.headers["cache-control"], "no-store")
+
+    def test_enroll_token_endpoint_refuses_a_viewer_session(self):
+        self.repo.create_user("guest", auth.hash_password("pass-guest-1"), "viewer", 1000)
+        login = self.client.post("/api/login", json={"username": "guest", "password": "pass-guest-1"})
+        self.assertEqual(login.status_code, 200)
+        res = self.client.get("/api/enroll-token", headers={"Authorization": "Bearer " + login.json()["token"]})
+        self.assertEqual(res.status_code, 403)
+        self.assertNotIn(TOKEN, res.text)
+
+    def test_enroll_token_view_is_audited_and_the_token_is_not_in_the_audit(self):
+        self.client.get("/api/enroll-token", headers={"X-Admin-Token": ADMIN})
+        entries = self.repo.list_settings_audit(10)
+        self.assertEqual([e["action"] for e in entries], ["enroll_token.view"])
+        self.assertEqual(entries[0]["username"], "token")
+        self.assertNotIn(TOKEN, str(entries))
+
+    def test_refused_enroll_token_read_is_not_audited(self):
+        self.client.get("/api/enroll-token", headers={"X-Admin-Token": "wrong"})
+        self.assertEqual(self.repo.list_settings_audit(10), [])
+
+    def test_header_must_match_exactly_apart_from_surrounding_whitespace(self):
+        for bad in (TOKEN[:-1], TOKEN + "x", TOKEN.upper()):
+            res = self.client.post(REGISTER, json={"ip": "192.168.89.5"}, headers={"X-Enroll-Token": bad})
+            self.assertEqual(res.status_code, 401, bad)
+
+    def test_register_proxmox_with_wrong_token_is_401(self):
+        res = self.client.post(REGISTER_PVE, json=PVE_BODY, headers={"X-Enroll-Token": "nope"})
+        self.assertEqual(res.status_code, 401)
+
+    def test_register_with_an_invalid_ip_is_rejected_not_a_500(self):
+        res = self.client.post(REGISTER, json={"ip": "not-an-ip"}, headers={"X-Enroll-Token": TOKEN})
+        self.assertIn(res.status_code, (400, 422))
+
+    def test_register_with_blank_device_type_defaults_to_linux(self):
+        res = self.client.post(
+            REGISTER, json={"ip": "192.168.89.5", "device_type": "  "}, headers={"X-Enroll-Token": TOKEN}
+        )
+        self.assertEqual(res.status_code, 200)
+
+
+class EnrolmentTokenEnvTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        db = str(Path(self.tmp.name) / "noc.db")
+        create_repository("sqlite", db).init_storage()
+        self.env = mock.patch.dict(os.environ, {"MININOC_ADMIN_TOKEN": ADMIN})
+        self.env.start()
+        self.client = TestClient(create_app(db, clock=lambda: 1000))
+
+    def tearDown(self):
+        self.client.close()
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def post(self, header):
+        return self.client.post(REGISTER, json={"ip": "192.168.89.5"}, headers={"X-Enroll-Token": header})
+
+    def test_blank_env_token_counts_as_unset(self):
+        for blank in ("", "   "):
+            with mock.patch.dict(os.environ, {"MININOC_ENROLL_TOKEN": blank}):
+                self.assertEqual(self.post(blank).status_code, 403, repr(blank))
+                self.assertEqual(self.post("x").status_code, 403, repr(blank))
+                res = self.client.get("/api/enroll-token", headers={"X-Admin-Token": ADMIN})
+                self.assertEqual(res.json(), {"configured": False, "token": ""})
+
+    def test_whitespace_around_the_env_token_and_the_header_is_ignored(self):
+        with mock.patch.dict(os.environ, {"MININOC_ENROLL_TOKEN": "  " + TOKEN + "\t "}):
+            self.assertEqual(self.post(TOKEN).status_code, 200)
+            self.assertEqual(self.post(" " + TOKEN + " ").status_code, 200)
+            res = self.client.get("/api/enroll-token", headers={"X-Admin-Token": ADMIN})
+            self.assertEqual(res.json()["token"], TOKEN)
 
 
 class EnrolmentDisabledTests(unittest.TestCase):
