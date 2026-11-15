@@ -25,9 +25,10 @@ class NetguardTests(unittest.TestCase):
             os.environ.pop("MININOC_TRUST_PROXY", None)
             self.assertEqual(netguard.client_host(FakeRequest("8.8.8.8", forwarded="192.168.1.5")), "8.8.8.8")
 
-    def test_forwarded_for_used_with_trusted_proxy(self):
+    def test_forwarded_for_is_not_read_even_with_the_removed_trust_variable(self):
+        # Trusting the header is uvicorn's job (FORWARDED_ALLOW_IPS), never the application's.
         with mock.patch.dict(os.environ, {"MININOC_TRUST_PROXY": "1"}):
-            self.assertEqual(netguard.client_host(FakeRequest("10.0.0.1", forwarded="1.1.1.1")), "1.1.1.1")
+            self.assertEqual(netguard.client_host(FakeRequest("10.0.0.1", forwarded="1.1.1.1")), "10.0.0.1")
 
     def test_enrolment_is_off_without_a_configured_token(self):
         with mock.patch.dict(os.environ, {}, clear=False):

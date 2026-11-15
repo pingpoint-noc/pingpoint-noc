@@ -10,11 +10,8 @@ _TEST_CLIENTS = ("testclient", "testserver")
 
 
 def client_host(request: Request) -> str:
-    """Peer address of the TCP connection. X-Forwarded-For counts only when MININOC_TRUST_PROXY=1."""
-    if os.environ.get("MININOC_TRUST_PROXY", "") == "1":
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+    """Address of the client. Behind a reverse proxy uvicorn already put the real one here, but only for a peer listed in
+    FORWARDED_ALLOW_IPS; this code never reads X-Forwarded-For itself, so a direct client cannot choose its address."""
     return request.client.host if request.client else ""
 
 

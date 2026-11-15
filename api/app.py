@@ -22,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 
 import scenario
 from api import auth, availability, config_changes, flowstore, services, setup
-from api.netguard import require_local_for_bootstrap
+from api.netguard import client_host, require_local_for_bootstrap
 from alerts import digest, engine
 from alerts.notify import (
     DESTINATION_NAMES,
@@ -589,10 +589,7 @@ def create_app(db_path, clock=utc_now):
             username = auth.normalize_username(raw_name)
         except ValueError:
             username = ""
-        client_host = "unknown"
-        if request.client is not None:
-            client_host = request.client.host
-        key = (client_host, username)
+        key = (client_host(request) or "unknown", username)
         wait = limiter.retry_after(key, now_ts)
         if wait > 0:
             return JSONResponse(

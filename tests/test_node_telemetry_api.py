@@ -174,15 +174,14 @@ class TestNodeTelemetryApi(unittest.TestCase):
             "device_id": "web1-nginx",
             "metrics": {"cpu_load_pct": 12.0},
         }
-        with mock.patch.dict(os.environ, {"MININOC_TRUST_PROXY": "1"}):
-            res = self.client.post(
-                "/api/nodes/telemetry",
-                json=payload,
-                headers={
-                    "X-Node-Token": self.token,
-                    "X-Forwarded-For": "192.168.88.200",
-                },
-            )
+        # A peer whose real address is not the device's (a spoofed X-Forwarded-For does not change it, see SEC-02).
+        other = TestClient(create_app(self.tmp.name, clock=lambda: 2000), client=("192.168.88.200", 50000))
+        self.addCleanup(other.close)
+        res = other.post(
+            "/api/nodes/telemetry",
+            json=payload,
+            headers={"X-Node-Token": self.token, "X-Forwarded-For": "192.168.88.98"},
+        )
         self.assertEqual(res.status_code, 403)
         self.assertIn("IP mismatch", res.json()["detail"])
 
