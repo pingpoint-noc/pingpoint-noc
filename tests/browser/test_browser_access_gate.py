@@ -8,7 +8,7 @@ STRONG = "Correct-Horse-Battery-9"
 class FirstRunTest(BrowserTestCase):
     WITH_USER = False
     SERVER_PER_TEST = True
-    SERVER_ENV = {"MININOC_AUTH_READ": "1"}
+    SERVER_ENV = {"MININOC_AUTH_READ": "1", "MININOC_ADMIN_TOKEN": "browser-setup-token"}
 
     def test_the_first_visit_creates_the_administrator_and_the_session_survives_a_reload(self):
         requested = []
@@ -24,6 +24,7 @@ class FirstRunTest(BrowserTestCase):
         # nothing of the NOC is asked for before the visitor is in
         self.assertEqual([u for u in requested if "/api/overview" in u or "/api/alerts" in u], [])
 
+        page.fill("#gate-setup", "browser-setup-token")
         page.fill("#gate-username", "owner")
         page.fill("#gate-password", "short-9ch")
         page.fill("#gate-confirm", "short-9ch")
@@ -42,6 +43,21 @@ class FirstRunTest(BrowserTestCase):
         page.reload()
         page.wait_for_function("document.getElementById('kpi-alerts-count').textContent.trim() !== ''")
         self.assertTrue(page.locator("#access-gate").is_hidden())
+
+
+class FirstRunWithoutSetupTokenTest(BrowserTestCase):
+    """No MININOC_ADMIN_TOKEN on the server: the page cannot create the administrator and says how it is done there."""
+
+    WITH_USER = False
+    SERVER_PER_TEST = True
+    SERVER_ENV = {"MININOC_AUTH_READ": "1"}
+
+    def test_the_gate_explains_that_the_first_admin_is_created_on_the_server(self):
+        page = self.open_page()
+        page.locator("#access-gate").wait_for()
+        self.assertIn("python -m tools.manage_users add", page.locator("#gate-intro").inner_text())
+        for hidden in ("#gate-submit", "#gate-username", "#gate-password", "#gate-confirm-wrap"):
+            self.assertTrue(page.locator(hidden).is_hidden(), hidden)
 
 
 class SignInTest(BrowserTestCase):

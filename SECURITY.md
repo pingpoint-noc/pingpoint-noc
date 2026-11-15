@@ -20,9 +20,10 @@ PingPoint NOC is an early release meant for **trusted networks**. Report vulnera
   *Release note:* an install made before this change must run `deploy/install.sh` again or set the variable, otherwise
   new hosts get 403.
   `X-Forwarded-For` is ignored unless `MININOC_TRUST_PROXY=1` (set it only behind a proxy you control).
-- **First-admin bootstrap.** `POST /api/bootstrap-admin` is open until the first admin exists, but only from a local
-  (loopback or private) address and, when `MININOC_ADMIN_TOKEN` is set, only with that token. Create the admin right
-  after installing. Behind a reverse proxy every visitor looks local, so set the token.
+- **First-admin bootstrap.** `POST /api/bootstrap-admin` works until the first admin exists, only from a local
+  (loopback or private) address and only with `MININOC_ADMIN_TOKEN` (sent as `X-Admin-Token`). Without that variable the web
+  cannot create the admin at all: it says to run `python -m tools.manage_users add NAME` on the server (the installer prints
+  the command). *Release note:* before this change the web created the admin without a token when none was configured. Behind a reverse proxy every visitor looks local, so set the token.
 - **Security headers.** Every response carries a strict `Content-Security-Policy` (no inline scripts, no CDN, no framing),
   `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Cross-Origin-Opener-Policy` and `Permissions-Policy`;
   `Strict-Transport-Security` (one year, no subdomains) is added when the request arrived over https (behind a proxy: see

@@ -140,6 +140,8 @@ fi
 cat <<MSG
 
 PingPoint NOC is running: http://$MY_IP:$API_PORT
+First administrator (needed before the web asks for a sign-in), on this machine:
+  sudo -u $RUN_USER $INSTALL_DIR/.venv/bin/python -m tools.manage_users add admin
 Add other machines (run on each, as root):
   Linux host or container:  curl -fsS "http://$MY_IP:$API_PORT/api/bootstrap.sh" | sudo MININOC_ENROLL_TOKEN=<token> bash
   Proxmox VE host:          curl -fsS "http://$MY_IP:$API_PORT/api/bootstrap-pve.sh" | sudo MININOC_ENROLL_TOKEN=<token> bash

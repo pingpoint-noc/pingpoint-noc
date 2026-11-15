@@ -11,10 +11,14 @@ from api.app import create_app
 from storage import create_repository
 
 STRONG = "Correct-Horse-Battery-9"
+SETUP = {"X-Admin-Token": "setup-token-for-the-race-test"}
 
 
 class TestBootstrapAdminRace(unittest.TestCase):
     def setUp(self):
+        env = patch.dict("os.environ", {"MININOC_ADMIN_TOKEN": SETUP["X-Admin-Token"]})
+        env.start()
+        self.addCleanup(env.stop)
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = Path(self.temp_dir.name) / "t.db"
         self.repo = create_repository("sqlite", self.db_path)
@@ -34,15 +38,15 @@ class TestBootstrapAdminRace(unittest.TestCase):
     def test_two_requests_in_the_race_window_create_only_one_admin(self):
         # Simulate the window: both requests have already passed the "no admin yet" check.
         with patch("storage.sqlite_backend.SQLiteRepository.has_admin_user", return_value=False):
-            first = self.client.post("/api/bootstrap-admin", json={"username": "alice", "password": STRONG})
-            second = self.client.post("/api/bootstrap-admin", json={"username": "mallory", "password": STRONG})
+            first = self.client.post("/api/bootstrap-admin", json={"username": "alice", "password": STRONG}, headers=SETUP)
+            second = self.client.post("/api/bootstrap-admin", json={"username": "mallory", "password": STRONG}, headers=SETUP)
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 403)
         self.assertEqual(self.admin_count(), 1)
 
     def test_the_normal_path_still_works_once(self):
-        first = self.client.post("/api/bootstrap-admin", json={"username": "alice", "password": STRONG})
-        second = self.client.post("/api/bootstrap-admin", json={"username": "bob", "password": STRONG})
+        first = self.client.post("/api/bootstrap-admin", json={"username": "alice", "password": STRONG}, headers=SETUP)
+        second = self.client.post("/api/bootstrap-admin", json={"username": "bob", "password": STRONG}, headers=SETUP)
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 403)
         self.assertEqual(self.admin_count(), 1)

@@ -15,6 +15,7 @@ from storage import create_repository
 
 NOW = 1_800_000_000
 DEVICE = "edge-router-1"
+SETUP_TOKEN = "setup-token-for-the-first-admin"
 
 
 class TestHttpApi(unittest.TestCase):
@@ -540,13 +541,15 @@ class TestHttpApi(unittest.TestCase):
         self.assertEqual(exp_json.status_code, 200)
         self.assertIn("attachment; filename=", exp_json.headers.get("content-disposition", ""))
 
+    @mock.patch.dict("os.environ", {"MININOC_ADMIN_TOKEN": SETUP_TOKEN})
     def test_bootstrap_admin_and_device_metadata_update(self):
         app = create_app(self.db_path, clock=lambda: NOW)
         client = TestClient(app)
-        # Initially no admin user exists -> bootstrap creates the first admin and returns a session token
+        # Initially no admin user exists -> bootstrap (with the setup token) creates the first admin and returns a session token
         boot = client.post(
             "/api/bootstrap-admin",
             json={"username": "admin", "password": "strong-admin-password"},
+            headers={"X-Admin-Token": SETUP_TOKEN},
         )
         self.assertEqual(boot.status_code, 200)
         token = boot.json()["token"]
@@ -556,6 +559,7 @@ class TestHttpApi(unittest.TestCase):
         boot_again = client.post(
             "/api/bootstrap-admin",
             json={"username": "other", "password": "strong-admin-password"},
+            headers={"X-Admin-Token": SETUP_TOKEN},
         )
         self.assertEqual(boot_again.status_code, 403)
 
@@ -568,12 +572,14 @@ class TestHttpApi(unittest.TestCase):
         self.assertEqual(upd.status_code, 200)
         self.assertEqual(upd.json()["name"], "Core Firewall 1")
 
+    @mock.patch.dict("os.environ", {"MININOC_ADMIN_TOKEN": SETUP_TOKEN})
     def test_device_update_never_returns_snmp_secrets(self):
         app = create_app(self.db_path, clock=lambda: NOW)
         client = TestClient(app)
         token = client.post(
             "/api/bootstrap-admin",
             json={"username": "admin", "password": "strong-admin-password"},
+            headers={"X-Admin-Token": SETUP_TOKEN},
         ).json()["token"]
         upd = client.put(
             f"/api/devices/{DEVICE}",

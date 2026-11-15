@@ -642,6 +642,8 @@ def create_app(db_path, clock=utc_now):
             "read_auth": read_auth_required(),
             "needs_admin": not repo.has_admin_user(),
             "setup_token_required": bool(os.environ.get("MININOC_ADMIN_TOKEN", "")),
+            # False: the page cannot create the first admin (no setup token on the server); it says how to do it there.
+            "setup_via_web": bool(os.environ.get("MININOC_ADMIN_TOKEN", "")),
             "min_password_length": auth.MIN_PASSWORD_LENGTH,
         }
 
@@ -706,17 +708,22 @@ def create_app(db_path, clock=utc_now):
         x_admin_token: str | None = Header(default=None),
     ):
         require_local_for_bootstrap(request)
-        # Behind a proxy every visitor looks local. When the server has an admin token, creating the first admin
-        # needs it too, so only whoever installed the server can claim the account.
-        setup_token = os.environ.get("MININOC_ADMIN_TOKEN", "")
-        if setup_token and not repo.has_admin_user():
-            if not x_admin_token or not hmac.compare_digest(x_admin_token.encode("utf-8"), setup_token.encode("utf-8")):
-                raise HTTPException(status_code=403, detail="the setup token (MININOC_ADMIN_TOKEN) is required to create the first admin")
         if repo.has_admin_user():
             raise HTTPException(
                 status_code=403,
                 detail="an admin user already exists; sign in or use python -m tools.manage_users",
             )
+        # Whoever can reach the page must not be able to claim the account (behind a proxy every visitor may look local):
+        # over HTTP the first admin needs the setup token, and without one it is created on the server.
+        setup_token = os.environ.get("MININOC_ADMIN_TOKEN", "")
+        if not setup_token:
+            raise HTTPException(
+                status_code=403,
+                detail="the first admin is created on the server: run python -m tools.manage_users add NAME "
+                "(or set MININOC_ADMIN_TOKEN to create it from the web)",
+            )
+        if not x_admin_token or not hmac.compare_digest(x_admin_token.encode("utf-8"), setup_token.encode("utf-8")):
+            raise HTTPException(status_code=403, detail="the setup token (MININOC_ADMIN_TOKEN) is required to create the first admin")
         now_ts = clock()
         raw_name = payload.get("username", "admin")
         password = payload.get("password", "")

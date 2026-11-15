@@ -39,6 +39,13 @@ class TestReadGateOff(ReadAuthBase):
 
 
 class TestReadGateOn(ReadAuthBase):
+    # The first admin needs the setup token over HTTP (see tests/test_first_admin.py); these tests are about the read gate.
+    ENV = {"MININOC_AUTH_READ": "1", "MININOC_ADMIN_TOKEN": "install-token"}
+
+    def create_admin(self, **kwargs):
+        kwargs.setdefault("headers", {"X-Admin-Token": "install-token"})
+        return super().create_admin(**kwargs)
+
     def test_reads_need_a_sign_in_but_the_login_flow_and_host_scripts_do_not(self):
         self.assertEqual(self.client.get("/api/overview").status_code, 401)
         self.assertEqual(self.client.get("/api/alerts").status_code, 401)
@@ -53,13 +60,19 @@ class TestReadGateOn(ReadAuthBase):
         status = self.client.get("/api/auth-status").json()
         self.assertEqual(
             status,
-            {"read_auth": True, "needs_admin": True, "setup_token_required": False, "min_password_length": 10},
+            {
+                "read_auth": True,
+                "needs_admin": True,
+                "setup_token_required": True,
+                "setup_via_web": True,
+                "min_password_length": 10,
+            },
         )
         self.assertEqual(self.create_admin().status_code, 200)
         self.assertFalse(self.client.get("/api/auth-status").json()["needs_admin"])
 
     def test_a_short_password_is_refused_with_the_minimum_the_page_shows(self):
-        response = self.client.post("/api/bootstrap-admin", json={"username": "alice", "password": "123456789"})
+        response = self.client.post("/api/bootstrap-admin", json={"username": "alice", "password": "123456789"}, headers={"X-Admin-Token": "install-token"})
         self.assertEqual(response.status_code, 400)
         self.assertIn("10", response.json()["detail"])
         self.assertTrue(self.client.get("/api/auth-status").json()["needs_admin"])

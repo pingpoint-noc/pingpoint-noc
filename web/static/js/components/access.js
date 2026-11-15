@@ -28,6 +28,20 @@ function showAccessGate(status) {
     : "This NOC asks for a sign-in before it shows anything.";
   gateEl("gate-confirm-wrap").classList.toggle("hidden", !creating);
   gateEl("gate-setup-wrap").classList.toggle("hidden", !(creating && status.setup_token_required));
+  // No setup token on the server: the first admin cannot be made from the page, so say how it is made.
+  var noWebSetup = creating && status.setup_via_web === false;
+  if (noWebSetup) {
+    gateEl("gate-intro").textContent =
+      "There is no administrator yet. Create it on the server: python -m tools.manage_users add NAME " +
+      "(or set MININOC_ADMIN_TOKEN there and reload this page).";
+  }
+  gateEl("gate-submit").classList.toggle("hidden", noWebSetup);
+  gateEl("gate-username").parentElement.classList.toggle("hidden", noWebSetup);
+  gateEl("gate-password").parentElement.classList.toggle("hidden", noWebSetup);
+  if (noWebSetup) {
+    gateEl("gate-confirm-wrap").classList.add("hidden");
+    gateEl("gate-setup-wrap").classList.add("hidden");
+  }
   gateEl("gate-submit").textContent = creating ? "Create administrator" : "Sign in";
   gateEl("gate-password").setAttribute("autocomplete", creating ? "new-password" : "current-password");
   if (creating && !gateEl("gate-username").value) {
