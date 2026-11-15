@@ -21,6 +21,20 @@ ProtectSystem=strict
 ReadWritePaths=@INSTALL_DIR@/data
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
+ProtectHome=yes
+PrivateDevices=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target
