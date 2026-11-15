@@ -759,9 +759,7 @@ button.btn { font-family: "NOC Button", var(--font-sans); }
   gap: 0.5rem;
 }
 
-/* First paint: the main area waits (at most 1.5 s) for the first data and then fades in over 0.15 s */
-#main-content { transition: opacity 0.15s ease-out; }
-body.booting #main-content { opacity: 0; }
+/* First paint: no fade. The main area is painted at once; the alert banner keeps the height the last visit stored (theme-init.js). */
 
 /* Right-click menu */
 .context-menu {
@@ -952,7 +950,11 @@ body.booting #main-content { opacity: 0; }
 
 .tab-pane.active {
   display: block;
-  /* Opacity only: moving a whole page (translateY) makes the browser composite a huge layer and blurs the text for a moment */
+}
+
+/* Only a view that was switched to fades in (main.js adds the class); the one shown on load does not.
+   Opacity only: moving a whole page (translateY) makes the browser composite a huge layer and blurs the text for a moment */
+.tab-pane.pane-in {
   animation: paneIn 0.14s var(--ease-out);
 }
 

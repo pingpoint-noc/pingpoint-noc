@@ -185,12 +185,13 @@ function routeKnownDevice(id) {
   return false;
 }
 
-// Make the page show what the hash says. Anything missing or invalid falls back to the default for that field.
+// Make the page show what the hash says. Anything missing or invalid falls back to the default for that field (on the first load the
+// machine remembered in this browser counts as the default; walking through history does not, so each entry keeps its own target).
 async function applyRoute(hash, initial) {
   ROUTE.applying += 1;
   try {
     var route = parseRoute(hash);
-    var device = route.device !== null && routeKnownDevice(route.device) ? route.device : routeDefaultDevice();
+    var device = route.device !== null && routeKnownDevice(route.device) ? route.device : (initial ? rememberedDevice(STATE.cacheDevices) : null) || routeDefaultDevice();
     var range = route.range !== null ? route.range : ROUTE_DEFAULT_RANGE;
     var tabId = ROUTE_VIEWS[route.view];
 

@@ -48,6 +48,36 @@ var LOCAL_TIME_ONLY = new Intl.DateTimeFormat("es-ES", {
   hour12: false
 });
 
+// The machine picked last, kept in this browser so a reload, a bookmark or a link without a device opens on it again.
+var DEVICE_KEY = "mini-noc-device";
+
+function rememberDevice(id) {
+  try {
+    if (id) {
+      window.localStorage.setItem(DEVICE_KEY, String(id));
+    }
+  } catch (e) {
+    // storage blocked: the choice just is not kept
+  }
+}
+
+// The remembered id when it is still in `devices` (a list of {id}), else null.
+function rememberedDevice(devices) {
+  var stored = null;
+  try {
+    stored = window.localStorage.getItem(DEVICE_KEY);
+  } catch (e) {
+    return null;
+  }
+  var i = 0;
+  for (i = 0; stored && i < (devices || []).length; i += 1) {
+    if (devices[i].id === stored) {
+      return stored;
+    }
+  }
+  return null;
+}
+
 var STATE = {
   activeTab: "tab-overview",
   deviceId: null,
@@ -2014,9 +2044,13 @@ async function loadGlobalNodesKpi() {
   }
 }
 
-// First target when nobody picked one: the first device (hierarchy order) that reports traffic or health data. A router watched
+// First target when nobody picked one (the last one picked in this browser wins while it still exists): the first device (hierarchy order) that reports traffic or health data. A router watched
 // by ping only would leave the bandwidth and flow panels empty on the very first screen.
 function pickDefaultDevice(devices) {
+  var remembered = rememberedDevice(devices);
+  if (remembered !== null) {
+    return remembered;
+  }
   var i = 0;
   for (i = 0; i < devices.length; i += 1) {
     var d = devices[i];
@@ -7567,12 +7601,13 @@ function routeKnownDevice(id) {
   return false;
 }
 
-// Make the page show what the hash says. Anything missing or invalid falls back to the default for that field.
+// Make the page show what the hash says. Anything missing or invalid falls back to the default for that field (on the first load the
+// machine remembered in this browser counts as the default; walking through history does not, so each entry keeps its own target).
 async function applyRoute(hash, initial) {
   ROUTE.applying += 1;
   try {
     var route = parseRoute(hash);
-    var device = route.device !== null && routeKnownDevice(route.device) ? route.device : routeDefaultDevice();
+    var device = route.device !== null && routeKnownDevice(route.device) ? route.device : (initial ? rememberedDevice(STATE.cacheDevices) : null) || routeDefaultDevice();
     var range = route.range !== null ? route.range : ROUTE_DEFAULT_RANGE;
     var tabId = ROUTE_VIEWS[route.view];
 
@@ -10905,6 +10940,20 @@ function selectDevice(deviceId) {
   return true;
 }
 
+// The short fade of a view that was switched to: the class goes away with the animation, so the next switch can replay it.
+function playPaneIn(pane) {
+  if (pane.classList.contains("active") || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+  pane.classList.remove("pane-in");
+  void pane.offsetWidth;
+  pane.classList.add("pane-in");
+  pane.addEventListener("animationend", function done() {
+    pane.classList.remove("pane-in");
+    pane.removeEventListener("animationend", done);
+  });
+}
+
 function switchTab(targetTabId) {
   var previousTab = STATE.activeTab;
   if (previousTab && previousTab !== targetTabId) {
@@ -10933,6 +10982,7 @@ function switchTab(targetTabId) {
   var p = 0;
   for (p = 0; p < panes.length; p += 1) {
     if (panes[p].id === targetTabId) {
+      playPaneIn(panes[p]);
       panes[p].classList.add("active");
     } else {
       panes[p].classList.remove("active");
@@ -10980,6 +11030,7 @@ async function reloadView(tabId) {
     var keptY = window.scrollY;
     pane.classList.remove("active");
     void pane.offsetWidth;
+    playPaneIn(pane);
     pane.classList.add("active");
     scrollWindowTo(keptY);
   }
@@ -11071,9 +11122,6 @@ function initNavMenu() {
 }
 
 function initDashboard() {
-  // The panels start hidden and fade in once the first data has arrived, so a reload does not flash empty placeholders.
-  document.body.classList.add("booting");
-  window.setTimeout(function () { document.body.classList.remove("booting"); }, 1500);
   initTheme();
   applyHints();
   initContextMenu();
@@ -11146,6 +11194,7 @@ function initDashboard() {
   if (devSel) {
     devSel.addEventListener("change", function (e) {
       STATE.deviceId = e.target.value;
+      rememberDevice(STATE.deviceId);
       STATE.selectedIfIndex = null;
       STATE.selectedIfName = "";
       // Replace, not push: Back and Forward (Alt+arrows) walk through the views, not through every device that was picked
@@ -11421,7 +11470,6 @@ function initDashboard() {
 
   // Initial load; then the hash (a deep link, or an old "#timeline/<device>/<epoch>" link from a notification) is restored.
   refreshAll().then(function () {
-    document.body.classList.remove("booting");
     return initRoute();
   });
 }

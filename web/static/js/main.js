@@ -103,6 +103,20 @@ function selectDevice(deviceId) {
   return true;
 }
 
+// The short fade of a view that was switched to: the class goes away with the animation, so the next switch can replay it.
+function playPaneIn(pane) {
+  if (pane.classList.contains("active") || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+  pane.classList.remove("pane-in");
+  void pane.offsetWidth;
+  pane.classList.add("pane-in");
+  pane.addEventListener("animationend", function done() {
+    pane.classList.remove("pane-in");
+    pane.removeEventListener("animationend", done);
+  });
+}
+
 function switchTab(targetTabId) {
   var previousTab = STATE.activeTab;
   if (previousTab && previousTab !== targetTabId) {
@@ -131,6 +145,7 @@ function switchTab(targetTabId) {
   var p = 0;
   for (p = 0; p < panes.length; p += 1) {
     if (panes[p].id === targetTabId) {
+      playPaneIn(panes[p]);
       panes[p].classList.add("active");
     } else {
       panes[p].classList.remove("active");
@@ -178,6 +193,7 @@ async function reloadView(tabId) {
     var keptY = window.scrollY;
     pane.classList.remove("active");
     void pane.offsetWidth;
+    playPaneIn(pane);
     pane.classList.add("active");
     scrollWindowTo(keptY);
   }
@@ -269,9 +285,6 @@ function initNavMenu() {
 }
 
 function initDashboard() {
-  // The panels start hidden and fade in once the first data has arrived, so a reload does not flash empty placeholders.
-  document.body.classList.add("booting");
-  window.setTimeout(function () { document.body.classList.remove("booting"); }, 1500);
   initTheme();
   applyHints();
   initContextMenu();
@@ -344,6 +357,7 @@ function initDashboard() {
   if (devSel) {
     devSel.addEventListener("change", function (e) {
       STATE.deviceId = e.target.value;
+      rememberDevice(STATE.deviceId);
       STATE.selectedIfIndex = null;
       STATE.selectedIfName = "";
       // Replace, not push: Back and Forward (Alt+arrows) walk through the views, not through every device that was picked
@@ -619,7 +633,6 @@ function initDashboard() {
 
   // Initial load; then the hash (a deep link, or an old "#timeline/<device>/<epoch>" link from a notification) is restored.
   refreshAll().then(function () {
-    document.body.classList.remove("booting");
     return initRoute();
   });
 }

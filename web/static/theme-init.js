@@ -29,7 +29,7 @@
     var height = parseInt(localStorage.getItem("mini-noc-alerts-h"), 10);
     if (height > 0 && height < 2000) {
       document.documentElement.style.setProperty("--alerts-min-h", height + "px");
-      // Set before the first paint (the body class "booting" arrives later, after the scripts ran, which a slow phone paints before).
+      // Set before the first paint (a class added by the scripts would arrive after a slow phone had already painted).
       // The alerts view removes it as soon as the real banner is on screen; the timer is only a safety net.
       document.documentElement.classList.add("alerts-pending");
       window.setTimeout(function () { document.documentElement.classList.remove("alerts-pending"); }, 4000);

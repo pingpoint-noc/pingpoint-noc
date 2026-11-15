@@ -44,6 +44,36 @@ var LOCAL_TIME_ONLY = new Intl.DateTimeFormat("es-ES", {
   hour12: false
 });
 
+// The machine picked last, kept in this browser so a reload, a bookmark or a link without a device opens on it again.
+var DEVICE_KEY = "mini-noc-device";
+
+function rememberDevice(id) {
+  try {
+    if (id) {
+      window.localStorage.setItem(DEVICE_KEY, String(id));
+    }
+  } catch (e) {
+    // storage blocked: the choice just is not kept
+  }
+}
+
+// The remembered id when it is still in `devices` (a list of {id}), else null.
+function rememberedDevice(devices) {
+  var stored = null;
+  try {
+    stored = window.localStorage.getItem(DEVICE_KEY);
+  } catch (e) {
+    return null;
+  }
+  var i = 0;
+  for (i = 0; stored && i < (devices || []).length; i += 1) {
+    if (devices[i].id === stored) {
+      return stored;
+    }
+  }
+  return null;
+}
+
 var STATE = {
   activeTab: "tab-overview",
   deviceId: null,
