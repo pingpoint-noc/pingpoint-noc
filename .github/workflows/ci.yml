@@ -1,5 +1,9 @@
 name: CI
 
+# Nothing here writes to the repository.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]

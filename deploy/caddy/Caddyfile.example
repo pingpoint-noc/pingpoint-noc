@@ -1,0 +1,9 @@
+# TLS in front of PingPoint NOC with Caddy (automatic certificates). Replace the name and, if Caddy runs on another machine, the address.
+#
+#   1. In mini-noc.env set  FORWARDED_ALLOW_IPS=127.0.0.1  (the address Caddy connects from; "*" is never right) and restart mini-noc-api.
+#   2. Caddy sets X-Forwarded-For / X-Forwarded-Proto itself; the session cookie then gets "Secure" and HSTS is sent.
+#   3. Keep the API on a private address (MININOC_API_HOST=127.0.0.1 when Caddy is on the same machine).
+
+noc.example.org {
+    reverse_proxy 127.0.0.1:8080
+}
