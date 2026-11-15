@@ -105,6 +105,10 @@ HOST_METRIC_MAX_AGE_SECONDS = 600
 # ICMP (K80): loss of the last sample of five pings (two lost packets reach 40 %) and the mean RTT.
 DEFAULT_ICMP_LOSS_PCT = 40  # a sample is 5 pings (20 % per ping): 40 % = two lost pings, one is routine ICMP rate limiting
 DEFAULT_ICMP_LATENCY_MS = 150
+# A breach must last this long before it warns: a Wi-Fi client or a busy host crosses the line for a minute or two all day (98 latency
+# warnings in 24 h on a home LAN). A host that is really down is still caught by the loss rule after 2 minutes.
+DEFAULT_ICMP_LOSS_HOLD_SECONDS = 120
+DEFAULT_ICMP_LATENCY_HOLD_SECONDS = 300
 # Proxmox VE storage usage alert threshold (percentage)
 DEFAULT_PVE_STORAGE_PCT = 85.0
 # Syslog burst alert rule (L2 §10.1): burst threshold and window in seconds
@@ -1800,6 +1804,14 @@ def evaluate_host_health_rules(
         )
 
 
+def icmp_hold_seconds(variable, default):
+    """Seconds a breach must persist (MININOC_ALERT_ICMP_LOSS_HOLD_SECONDS / MININOC_ALERT_ICMP_LATENCY_HOLD_SECONDS; 0 = at once)."""
+    try:
+        return max(0, int(os.environ.get(variable, str(default))))
+    except ValueError:
+        return default
+
+
 def evaluate_icmp_rules(
     repo,
     device_id,
@@ -1845,7 +1857,8 @@ def evaluate_icmp_rules(
         )
     reconcile_alert(
         repo=repo, device_id=device_id, rule_id="icmp_loss_high", target="icmp", severity="warning",
-        is_triggered=loss_high, now_ts=now_ts, hold_seconds=0, message=loss_msg,
+        is_triggered=loss_high, now_ts=now_ts, message=loss_msg,
+        hold_seconds=icmp_hold_seconds("MININOC_ALERT_ICMP_LOSS_HOLD_SECONDS", DEFAULT_ICMP_LOSS_HOLD_SECONDS),
     )
 
     latency_high = (
@@ -1858,7 +1871,8 @@ def evaluate_icmp_rules(
         )
     reconcile_alert(
         repo=repo, device_id=device_id, rule_id="icmp_latency_high", target="icmp", severity="warning",
-        is_triggered=latency_high, now_ts=now_ts, hold_seconds=0, message=latency_msg,
+        is_triggered=latency_high, now_ts=now_ts, message=latency_msg,
+        hold_seconds=icmp_hold_seconds("MININOC_ALERT_ICMP_LATENCY_HOLD_SECONDS", DEFAULT_ICMP_LATENCY_HOLD_SECONDS),
     )
 
 

@@ -24,7 +24,9 @@ class DeviceSettingsTest(unittest.TestCase):
         self.repo.init_storage()
         self.repo.ensure_device(DEVICE, "Router", "192.168.88.1", device_type="router")
         self.repo.ensure_device("far-host", "Far host", "203.0.113.9", device_type="linux", has_snmp=0)
-        patcher = mock.patch.dict(os.environ, {"MININOC_ADMIN_TOKEN": TOKEN}, clear=False)
+        # the ICMP persistence hold has its own tests (tests/test_icmp_alerts.py): here the limits are what matters
+        env = {"MININOC_ADMIN_TOKEN": TOKEN, "MININOC_ALERT_ICMP_LOSS_HOLD_SECONDS": "0", "MININOC_ALERT_ICMP_LATENCY_HOLD_SECONDS": "0"}
+        patcher = mock.patch.dict(os.environ, env, clear=False)
         patcher.start()
         self.addCleanup(patcher.stop)
         for patcher in (mock.patch.object(engine, "RESOLVE_CYCLES", 1),):

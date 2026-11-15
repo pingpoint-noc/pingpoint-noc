@@ -1,6 +1,7 @@
 """Tests for the ICMP rules icmp_loss_high and icmp_latency_high (K80)."""
 
 from pathlib import Path
+import os
 import tempfile
 import unittest
 from unittest import mock
@@ -32,6 +33,11 @@ class IcmpAlertsTestCase(unittest.TestCase):
         for patcher in (
             mock.patch.object(engine, "NOTIFIER", self.notifier),
             mock.patch.object(engine, "RESOLVE_CYCLES", 1),
+            # These tests are about the thresholds: the persistence hold has its own tests (IcmpHoldTests).
+            mock.patch.dict(
+                "os.environ",
+                {"MININOC_ALERT_ICMP_LOSS_HOLD_SECONDS": "0", "MININOC_ALERT_ICMP_LATENCY_HOLD_SECONDS": "0"},
+            ),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -215,6 +221,78 @@ class IcmpAlertsTestCase(unittest.TestCase):
         eff = engine.load_effective_settings(self.repo)
         self.assertEqual(eff["icmp_loss_pct"], 60)
         self.assertFalse(eff["rule_toggles"]["rule_icmp_latency_high_enabled"])
+
+
+class IcmpHoldTests(unittest.TestCase):
+    """A breach must last before it warns: a Wi-Fi client or a busy host is not an incident (default 120 s loss, 300 s latency)."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.repo = create_repository("sqlite", Path(self.temp_dir.name) / "test.db")
+        self.repo.init_storage()
+        self.repo.ensure_device(PARENT, "Router", "192.168.88.1", device_type="router")
+        self.repo.ensure_device(DEVICE, "Host A", "192.168.88.30", device_type="linux", has_snmp=0)
+        self.notifier = FakeNotifier()
+        env = mock.patch.dict("os.environ", {})
+        env.start()
+        self.addCleanup(env.stop)
+        os.environ.pop("MININOC_ALERT_ICMP_LOSS_HOLD_SECONDS", None)
+        os.environ.pop("MININOC_ALERT_ICMP_LATENCY_HOLD_SECONDS", None)
+        for patcher in (
+            mock.patch.object(engine, "NOTIFIER", self.notifier),
+            mock.patch.object(engine, "RESOLVE_CYCLES", 1),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def record(self, ts, loss=None, rtt=None):
+        metrics = []
+        if loss is not None:
+            metrics.append({"metric_name": "icmp_loss_pct", "label": "", "value": loss})
+        if rtt is not None:
+            metrics.append({"metric_name": "icmp_rtt_avg_ms", "label": "", "value": rtt})
+        self.repo.record_device_metrics(DEVICE, ts, metrics)
+
+    def firing(self, rule_id):
+        return [a for a in self.repo.list_alerts(device_id=DEVICE, status="firing") if a["rule_id"] == rule_id]
+
+    def cycles(self, start, count, step=60, **sample):
+        for i in range(count):
+            ts = start + i * step
+            self.record(ts, **sample)
+            engine.evaluate_once(self.repo, ts)
+
+    def test_a_single_slow_sample_does_not_warn(self):
+        self.cycles(NOW, 1, loss=0.0, rtt=251.0)
+        self.assertEqual(self.firing("icmp_latency_high"), [])
+        self.record(NOW + 60, loss=0.0, rtt=2.0)
+        engine.evaluate_once(self.repo, NOW + 60)
+        self.assertEqual(self.firing("icmp_latency_high"), [])
+        self.assertEqual(self.notifier.sent, [])
+
+    def test_latency_that_lasts_five_minutes_warns(self):
+        self.cycles(NOW, 5, loss=0.0, rtt=251.0)  # 0..240 s: still pending
+        self.assertEqual(self.firing("icmp_latency_high"), [])
+        self.cycles(NOW + 300, 1, loss=0.0, rtt=251.0)
+        self.assertEqual(len(self.firing("icmp_latency_high")), 1)
+
+    def test_loss_that_lasts_two_minutes_warns_but_one_bad_cycle_does_not(self):
+        self.cycles(NOW, 2, loss=100.0)  # 0 and 60 s
+        self.assertEqual(self.firing("icmp_loss_high"), [])
+        self.cycles(NOW + 120, 1, loss=100.0)
+        self.assertEqual(len(self.firing("icmp_loss_high")), 1)
+
+    def test_a_recovery_in_between_restarts_the_clock(self):
+        self.cycles(NOW, 3, loss=0.0, rtt=251.0)
+        self.cycles(NOW + 180, 1, loss=0.0, rtt=2.0)
+        self.cycles(NOW + 240, 5, loss=0.0, rtt=251.0)  # 240..480 s: only 240 s of the new breach
+        self.assertEqual(self.firing("icmp_latency_high"), [])
+
+    def test_the_hold_can_be_set_by_environment(self):
+        os.environ["MININOC_ALERT_ICMP_LATENCY_HOLD_SECONDS"] = "0"
+        self.cycles(NOW, 1, loss=0.0, rtt=251.0)
+        self.assertEqual(len(self.firing("icmp_latency_high")), 1)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ without needing live connectivity to the lab router.
 
 import argparse
 import csv
+import os
 from pathlib import Path
 import time
 
@@ -238,7 +239,20 @@ def seed_demo_database(db_path="data/demo.db", samples_dir=SAMPLES_DIR, now_ts=N
         repo.record_collector_success("icmp", icmp_id, now_ts)
 
     repo.record_collector_success("retention", HOST_DEVICE_ID, now_ts - 120)
-    evaluate_once(repo, now_ts)
+    # The ICMP rules wait for a breach to last (120 s loss, 300 s latency); the demo has one evaluation, so its lossy and slow hosts
+    # would stay pending. No wait for the demo, and the caller's own setting is put back.
+    hold_names = ("MININOC_ALERT_ICMP_LOSS_HOLD_SECONDS", "MININOC_ALERT_ICMP_LATENCY_HOLD_SECONDS")
+    saved = {name: os.environ.get(name) for name in hold_names}
+    for name in hold_names:
+        os.environ[name] = "0"
+    try:
+        evaluate_once(repo, now_ts)
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
     repo.record_collector_success("alerts", HOST_DEVICE_ID, now_ts)
 
     return {
