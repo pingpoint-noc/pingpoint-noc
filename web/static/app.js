@@ -10880,6 +10880,22 @@ function userIsReading() {
   return false;
 }
 
+// Picking another machine: what depends on it is fetched again (in parallel once the device detail has set what kind of
+// machine it is); the fleet-wide panels keep what they show until the next timer tick.
+async function refreshDevice() {
+  STATE.countdownRemaining = STATE.autoRefreshSeconds;
+  var cdEl = document.getElementById("refresh-countdown");
+  if (cdEl) cdEl.textContent = STATE.countdownRemaining + "s";
+
+  await loadOverviewAndDevice();
+  var jobs = [loadBandwidth(), loadFlows(), loadLogs(), loadConfigChanges(), loadTimeline(), loadResources(), loadDnsMetrics()];
+  if (STATE.activeTab === "tab-topology") {
+    jobs.push(loadTopology());
+  }
+  await Promise.all(jobs);
+  routeSync("replace");
+}
+
 async function refreshAll() {
   STATE.countdownRemaining = STATE.autoRefreshSeconds;
   var cdEl = document.getElementById("refresh-countdown");
@@ -11199,7 +11215,7 @@ function initDashboard() {
       STATE.selectedIfName = "";
       // Replace, not push: Back and Forward (Alt+arrows) walk through the views, not through every device that was picked
       routeSync("replace");
-      refreshAll();
+      refreshDevice();
       showToast("Selected device: " + STATE.deviceId);
     });
   }

@@ -264,7 +264,7 @@ lockfile, `CHANGELOG.md`, issue templates, badges; PyPI and the container image 
 | U4 | **Dislike of the page-load animation and behaviour.** | Audit with the layout-shift observer already used for B1 (CLS, first paint, what is hidden and for how long). Candidates: no fade at all, keep the last painted values until data arrives, skeleton blocks of the final height. Decide with before/after numbers. |
 | U5 | **Switching machines reloads everything.** | Audit which requests a switch makes (network tab): fleet panels should not refetch, per-machine panels should, with `AbortController` and the scroll position kept (`tests/browser/test_browser_refresh_races.py` exists). Proposal after measuring, not before. |
 
-### Interface audit, measured on 2026-11-15 (demo database, Chromium, 1400x900; nothing changed yet)
+### Interface audit, measured on 2026-11-15 (demo database, Chromium, 1400x900)
 
 | # | What was measured | Result | Proposal (to decide) |
 |---|---|---|---|
@@ -273,3 +273,25 @@ lockfile, `CHANGELOG.md`, issue templates, badges; PyPI and the container image 
 | U5 | Requests after picking another machine, on Overview, Bandwidth, Health, Syslog and Topology. | 21-22 API calls, always the same, **sequential** (`refreshAll` awaits ten loaders one after another), about 1.2 s until idle; 11 of them are fleet endpoints that do not depend on the machine (`/api/alerts`, `/api/overview`, `/api/nodes`, `/api/capacity`, `/api/resources/fleet`, ...). Scroll position is kept (600 -> 600). | On a switch call only the per-machine loaders (bandwidth, flows, logs, timeline, health detail), with `AbortController`; let the timer refresh the fleet ones. Run the independent loaders with `Promise.all`. Check against `test_browser_refresh_races.py`. |
 | U1 | Which views depend on the selected machine. | The 8 views split as in the table above; the selector is read in 56 places (`STATE.deviceId`). | Needs the design note in `DESIGN.md` first; U5's split into fleet and per-machine loaders is its prerequisite, so do U5 first. |
 | U2 | n/a (no measurement needed). | | Small; do it with U1 so the topology highlight and "All" share one selection model. |
+
+Done the same day after the measurements (browser tests added for each): **U3** the last machine picked is kept in `localStorage`
+(`mini-noc-device`) and used on a first load without a device in the link; a link with `device=` wins, a stored id that no longer exists is
+ignored, and walking through history still gives each entry its own target. **U4** no opacity fade of the main area and no fade of the view
+shown on load (the fade stays on view switches): FCP 48 -> 28 ms, target list 110 -> 56 ms, CLS 0.004 -> 0.021 (0.020 -> 0.021 with the CPU
+4x slower; limit 0.1). The 200 ms colour transition of the alert banner and the status badge pulse are untouched. **U5** picking a machine
+calls `refreshDevice()`: 20-21 calls become 10-11 (the fleet endpoints stay as they are until the next timer tick) and the per-machine
+loaders run in parallel. Still open: U1 and U2 (need the design note in `DESIGN.md`).
+
+### Scope decision to take: disk health and other host telemetry
+
+Today the agent reports CPU, memory, disk usage (with the full-disk forecast), load, uptime, service state and `virt`. Whether to add *disk health*
+(SMART status, temperature, reallocated sectors, NVMe wear, ZFS pool and `mdadm` state) is open. First opinion, for the maintainer to confirm:
+
+- **Yes, as an opt-in extension of the agent**, because a failing disk is a *fault* that a NOC exists to surface and it explains later outages
+  (the same reasoning as the disk-full forecast). Keep it to a handful of **state** values (SMART overall result, temperature, pool/array degraded),
+  alert on a change of state or a threshold, never on raw counters, and show it in *Resources by Machine*. It needs root on the host (`smartctl`),
+  so it stays off unless the bootstrap script is run with an explicit option; the NOC itself never gets credentials.
+- **No for the rest of host monitoring**: per-process lists, log content, package or patch state, file integrity and the like belong to a host
+  agent or a SOC tool (Netdata, Zabbix agent, Wazuh), not here. The test for any new metric: does it answer "is this machine or link up and
+  healthy enough to do its job?" and can it be shown as one value and a state?
+- Suggested order if accepted: ZFS/`mdadm` state (no extra package), then SMART via `smartctl` when installed, then NVMe wear. Add it to P2 as G20.
