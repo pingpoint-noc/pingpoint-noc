@@ -1,6 +1,0 @@
-[run]
-source = api, alerts, collectors, storage, maintenance, tools
-omit = */__pycache__/*
-
-[report]
-skip_empty = True

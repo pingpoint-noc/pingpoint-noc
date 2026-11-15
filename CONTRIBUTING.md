@@ -11,6 +11,8 @@ pip install -r requirements-dev.txt
 python -m unittest discover -s tests -t .
 ```
 
+`pyproject.toml` holds the dependency ranges; `requirements.txt` and `requirements-dev.txt` are locked, hashed files compiled from it. After changing a range, regenerate both (`uv pip compile pyproject.toml --universal --python-version 3.13 --generate-hashes -o requirements.txt`, and the same with `--extra dev -o requirements-dev.txt`). `pip install -e .` installs the console scripts (`pingpoint-api`...).
+
 The browser tests in `tests/browser` are optional and skip themselves unless Playwright is installed
 (`pip install playwright` and `python -m playwright install chromium`).
 

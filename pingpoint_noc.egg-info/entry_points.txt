@@ -1,0 +1,6 @@
+[console_scripts]
+pingpoint-add-device = tools.add_device:main
+pingpoint-alerts = alerts.engine:main
+pingpoint-api = api.__main__:main
+pingpoint-preflight = tools.preflight:main
+pingpoint-users = tools.manage_users:main

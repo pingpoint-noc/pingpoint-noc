@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import scenario
-from api import auth, availability, config_changes, flowstore, services, setup
+from api import __version__, auth, availability, config_changes, flowstore, services, setup
 from api.netguard import client_host, require_local_for_bootstrap
 from alerts import digest, engine
 from alerts.notify import (
@@ -503,6 +503,7 @@ def create_app(db_path, clock=utc_now):
     docs_on = docs_enabled()
     app = FastAPI(
         title="PingPoint NOC API",
+        version=__version__,
         docs_url="/docs" if docs_on else None,
         redoc_url="/redoc" if docs_on else None,
         openapi_url="/openapi.json" if docs_on else None,
