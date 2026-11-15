@@ -8,6 +8,7 @@ writes need an admin session (web login, api/auth.py) or the emergency MININOC_A
 from datetime import datetime, timezone
 import hashlib
 import hmac
+import contextvars
 import logging
 import os
 from pathlib import Path
@@ -38,6 +39,9 @@ from storage import create_repository
 
 
 LOGGER = logging.getLogger("mini_noc.api")
+# Address of the client of the request being served (set by the read_gate middleware), for the security log lines.
+CURRENT_CLIENT = contextvars.ContextVar("mininoc_current_client", default="unknown")
+MAX_LOGGED_NAME = 64
 
 # Silencing an alert only skips its notifications; the cap stops a silence from being forgotten.
 DEFAULT_SILENCE_MINUTES = 60
@@ -134,6 +138,11 @@ READ_GATE_OPEN_PATHS = (
 def read_auth_required():
     """MININOC_AUTH_READ=1 asks for a sign-in on every read under /api (the shipped systemd unit sets it)."""
     return os.environ.get("MININOC_AUTH_READ", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def logged_name(raw_name):
+    """A user name as it goes into the log: repr() escapes line breaks (no forged entries) and the length is capped."""
+    return str(raw_name)[:MAX_LOGGED_NAME]
 
 
 def bearer_token(authorization):
@@ -501,15 +510,24 @@ def create_app(db_path, clock=utc_now):
             return None
         return user
 
+    def admin_token_matches(sent):
+        """True when `sent` is the emergency admin token. A wrong one is logged (without its value): it is a guess."""
+        expected = os.environ.get("MININOC_ADMIN_TOKEN", "")
+        if not expected or not sent:
+            return False
+        if hmac.compare_digest(sent.encode("utf-8"), expected.encode("utf-8")):
+            return True
+        LOGGER.warning("Wrong X-Admin-Token from %s", CURRENT_CLIENT.get())
+        return False
+
     def authorize_admin(x_admin_token, authorization):
         """Return the acting username: an admin session, or the emergency MININOC_ADMIN_TOKEN as 'token'."""
         expected = os.environ.get("MININOC_ADMIN_TOKEN", "")
         user = session_user(authorization)
         if user is not None and user["role"] == "admin":
             return user["username"]
-        if expected and x_admin_token:
-            if hmac.compare_digest(x_admin_token.encode("utf-8"), expected.encode("utf-8")):
-                return EMERGENCY_USER
+        if admin_token_matches(x_admin_token):
+            return EMERGENCY_USER
         if not expected and not repo.has_admin_user():
             raise HTTPException(
                 status_code=403,
@@ -535,6 +553,7 @@ def create_app(db_path, clock=utc_now):
         Authorization header, so a forged cross-site request cannot change anything.
         """
         path = request.url.path
+        CURRENT_CLIENT.set(client_host(request) or "unknown")
         if (
             read_auth_required()
             and request.method in ("GET", "HEAD")
@@ -546,10 +565,8 @@ def create_app(db_path, clock=utc_now):
             allowed = session_user(authorization) is not None
             if not allowed and cookie:
                 allowed = session_user("Bearer " + cookie) is not None
-            expected = os.environ.get("MININOC_ADMIN_TOKEN", "")
-            sent = request.headers.get("x-admin-token", "")
-            if not allowed and expected and sent:
-                allowed = hmac.compare_digest(sent.encode("utf-8"), expected.encode("utf-8"))
+            if not allowed:
+                allowed = admin_token_matches(request.headers.get("x-admin-token", ""))
             if not allowed:
                 return JSONResponse(status_code=401, content={"detail": "sign in to read this"})
         return await call_next(request)
@@ -589,9 +606,11 @@ def create_app(db_path, clock=utc_now):
             username = auth.normalize_username(raw_name)
         except ValueError:
             username = ""
-        key = (client_host(request) or "unknown", username)
+        address = client_host(request) or "unknown"
+        key = (address, username)
         wait = limiter.retry_after(key, now_ts)
         if wait > 0:
+            LOGGER.warning("Sign-in locked for %r from %s: too many failures, retry in %s s", logged_name(raw_name), address, wait)
             return JSONResponse(
                 status_code=429,
                 content={"detail": "too many failed sign-in attempts, try again later"},
@@ -608,6 +627,7 @@ def create_app(db_path, clock=utc_now):
             valid = auth.verify_password(password, user["password_hash"])
         if not valid:
             limiter.record_failure(key, now_ts)
+            LOGGER.warning("Failed sign-in for %r from %s", logged_name(raw_name), address)
             raise HTTPException(status_code=401, detail="wrong username or password")
         limiter.clear(key)
         repo.touch_login(username, now_ts)
@@ -693,10 +713,8 @@ def create_app(db_path, clock=utc_now):
             user = session_user("Bearer " + request.cookies[SESSION_COOKIE])
         if user is not None:
             return {"username": user["username"], "role": user["role"]}
-        expected = os.environ.get("MININOC_ADMIN_TOKEN", "")
-        if expected and x_admin_token:
-            if hmac.compare_digest(x_admin_token.encode("utf-8"), expected.encode("utf-8")):
-                return {"username": EMERGENCY_USER, "role": "admin"}
+        if admin_token_matches(x_admin_token):
+            return {"username": EMERGENCY_USER, "role": "admin"}
         raise HTTPException(status_code=401, detail="not signed in")
 
     @app.get("/api/settings/audit")
