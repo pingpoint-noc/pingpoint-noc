@@ -75,7 +75,9 @@ systemctl daemon-reload
 
 # Syslog: the native receiver needs nothing else installed. A site that already collects with rsyslog (files under
 # /var/log/remote, or something else holding UDP 514) keeps the file ingestor instead, so nothing is received twice.
-if [ -d /var/log/remote ] || (command -v ss > /dev/null && ss -uln 2> /dev/null | grep -qE '[:.]514\s'); then
+# On an update the port is held by our own native receiver: that is not "something else", keep it.
+own_active() { systemctl is-active --quiet "$1" 2> /dev/null; }
+if [ -d /var/log/remote ] || (command -v ss > /dev/null && ss -uln 2> /dev/null | grep -qE '[:.]514\s' && ! own_active mini-noc-syslog-udp.service); then
     SYSLOG_UNIT=mini-noc-syslog.service
     systemctl disable --now mini-noc-syslog-udp.service 2> /dev/null || true
     echo "Syslog: rsyslog detected, using the file ingestor (mini-noc-syslog)."
@@ -87,7 +89,7 @@ fi
 
 # Flows: the native receiver (NetFlow v5/v9 and IPFIX on UDP 2055) needs nothing else installed. A site that already collects with
 # nfcapd (the binary is there, or something already holds UDP 2055) keeps the nfdump based ingestor, so nothing is received twice.
-if command -v nfcapd > /dev/null || (command -v ss > /dev/null && ss -uln 2> /dev/null | grep -qE '[:.]2055[[:space:]]'); then
+if command -v nfcapd > /dev/null || (command -v ss > /dev/null && ss -uln 2> /dev/null | grep -qE '[:.]2055[[:space:]]' && ! own_active mini-noc-ipfix-udp.service); then
     IPFIX_UNIT=mini-noc-ipfix.service
     systemctl disable --now mini-noc-ipfix-udp.service 2> /dev/null || true
     echo "Flows: nfcapd detected, using the nfdump ingestor (mini-noc-ipfix)."
