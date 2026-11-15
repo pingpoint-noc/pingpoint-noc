@@ -52,7 +52,7 @@ router, y aplica **una persona** lo que falte (la IA solo propone los comandos).
 acción `remote` ni un destino IPFIX que ya exista (regla del proyecto: el NOC no cambia el router). Si configuras un router limpio o secundario,
 puedes generar e importar la plantilla idempotente con `.venv/bin/python -m tools.generate_router_config 192.168.88.4`
 (`deploy/setup_router.rsc` → `/import file-name=setup_router.rsc`, ver [`automatizacion-y-onboarding.md`](automatizacion-y-onboarding.md)).
-Para dar de alta cualquier contenedor Linux nuevo en un solo comando: `curl -s http://192.168.88.4:8080/api/bootstrap.sh | sudo bash`.
+Para dar de alta cualquier contenedor Linux nuevo en un solo comando: `curl -s http://192.168.88.4:8080/api/bootstrap.sh | sudo MININOC_ENROLL_TOKEN=<token> bash` (el token de enrolado lo genera `deploy/install.sh`; mira `automatizacion-y-onboarding.md`).
 Para comprobar que llega algo:
 
 ```bash

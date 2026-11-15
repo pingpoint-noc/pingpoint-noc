@@ -144,8 +144,11 @@ así se puede leer, pasar por `bash -n` y probar entera. La ruta la rellena con 
 
 **Uso en cualquier contenedor nuevo (`lan-host`, etc.):** una sola línea en el nuevo host:
 ```bash
-curl -fsS http://192.168.88.4:8080/api/bootstrap.sh | sudo bash
+curl -fsS http://192.168.88.4:8080/api/bootstrap.sh | sudo MININOC_ENROLL_TOKEN=<token> bash
 ```
+El alta exige el **token de enrolado** (`MININOC_ENROLL_TOKEN` en `mini-noc.env`, cabecera `X-Enroll-Token`): `deploy/install.sh` lo genera la
+primera vez y no lo muestra. Un administrador lo ve ya puesto en los comandos de Health & Inventory (Onboarding y la matriz de cobertura);
+el resto ve `<enrolment token>`. Sin token configurado en el servidor el alta responde 403, también desde la red local.
 Se puede repetir sin riesgo: reescribe el mismo fichero. Cómo se probó (14 escenarios): `tools/bootstrap_scenarios.sh`.
 
 ---

@@ -20,6 +20,8 @@ services:
     environment:
       # Vacio = el panel de Ajustes es de solo lectura. Para editarlo: MININOC_ADMIN_TOKEN=... docker compose up
       MININOC_ADMIN_TOKEN: "${MININOC_ADMIN_TOKEN:-}"
+      # Vacio = no se pueden dar de alta equipos (POST /api/nodes/register responde 403). Pon un valor largo y aleatorio.
+      MININOC_ENROLL_TOKEN: "${MININOC_ENROLL_TOKEN:-}"
     ports:
       - "127.0.0.1:${MININOC_API_PORT:-8080}:8080"
     volumes:

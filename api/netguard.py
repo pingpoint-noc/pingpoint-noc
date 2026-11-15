@@ -29,19 +29,22 @@ def is_local_client(host: str) -> bool:
     return ip.is_loopback or ip.is_private or ip.is_link_local
 
 
+def enrolment_token() -> str:
+    """The enrolment token configured on the server ("" when there is none)."""
+    return os.environ.get("MININOC_ENROLL_TOKEN", "").strip()
+
+
 def require_enrolment(request: Request, enroll_token_header: str | None) -> None:
-    """Enrolment needs MININOC_ENROLL_TOKEN when it is set; otherwise only local clients are accepted."""
-    expected = os.environ.get("MININOC_ENROLL_TOKEN", "")
-    if expected:
-        got = enroll_token_header or ""
-        if not hmac.compare_digest(got.encode("utf-8"), expected.encode("utf-8")):
-            raise HTTPException(status_code=401, detail="missing or invalid X-Enroll-Token")
-        return
-    if not is_local_client(client_host(request)):
+    """Host enrolment always needs MININOC_ENROLL_TOKEN: without one configured it is off, whatever the client address."""
+    expected = enrolment_token()
+    if not expected:
         raise HTTPException(
             status_code=403,
-            detail="enrolment from this address needs MININOC_ENROLL_TOKEN to be set on the server",
+            detail="host enrolment is disabled: set MININOC_ENROLL_TOKEN on the server (deploy/install.sh generates one)",
         )
+    got = (enroll_token_header or "").strip()
+    if not hmac.compare_digest(got.encode("utf-8"), expected.encode("utf-8")):
+        raise HTTPException(status_code=401, detail="missing or invalid X-Enroll-Token")
 
 
 def require_local_for_bootstrap(request: Request) -> None:

@@ -12,9 +12,13 @@ PingPoint NOC is an early release meant for **trusted networks**. Report vulnera
   `SameSite=Strict` and only opens reads; writes still need the `Authorization` header. Without the flag, almost every
   `GET` is public: deploy behind an authenticating reverse proxy, or only on a trusted network. Open on purpose:
   `/healthz`, `/api/auth-status`, `/api/me`, and the host/router scripts (`bootstrap.sh`, `router-config.rsc`...).
-- **Enrolment endpoints.** `POST /api/nodes/register` and `/api/nodes/register-proxmox` are called by booting hosts.
-  Set `MININOC_ENROLL_TOKEN` on the server and export the same value on the host before running the bootstrap
-  one-liner (it is sent as `X-Enroll-Token`). Without the token, only loopback and private addresses are accepted.
+- **Enrolment endpoints.** `POST /api/nodes/register` and `/api/nodes/register-proxmox` are called by booting hosts and
+  always need `MININOC_ENROLL_TOKEN`: `deploy/install.sh` generates one in `mini-noc.env` (mode 600) the first time, and the
+  host exports the same value before the bootstrap one-liner (`sudo MININOC_ENROLL_TOKEN=... bash`, sent as `X-Enroll-Token`).
+  Without a configured token enrolment is off (403), whatever the client address. Administrators read the token in the web
+  (Health & Inventory) or through `GET /api/enroll-token` (admin session or admin token only, audited, never cached).
+  *Release note:* an install made before this change must run `deploy/install.sh` again or set the variable, otherwise
+  new hosts get 403.
   `X-Forwarded-For` is ignored unless `MININOC_TRUST_PROXY=1` (set it only behind a proxy you control).
 - **First-admin bootstrap.** `POST /api/bootstrap-admin` is open until the first admin exists, but only from a local
   (loopback or private) address and, when `MININOC_ADMIN_TOKEN` is set, only with that token. Create the admin right

@@ -1501,6 +1501,6 @@ def create_app(db_path, clock=utc_now):
             raise HTTPException(status_code=502, detail="no destination accepted the test summary")
         return {"ok": all(sent["results"].values()), "results": sent["results"], "verdict": sent["verdict"]}
 
-    app.include_router(create_bootstrap_router(repo, clock))
+    app.include_router(create_bootstrap_router(repo, clock, authorize_admin, record_audit))
 
     return app

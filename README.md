@@ -109,8 +109,8 @@ Each service runs unprivileged with a read-only filesystem except `data/`. Check
 [`docs/adaptar-a-otro-escenario.md`](docs/adaptar-a-otro-escenario.md) and `mini-noc.env.example`. Running it in your own
 container: [`docs/montar-contenedor.md`](docs/montar-contenedor.md).
 
-Onboarding devices takes one command: `curl -s http://<noc>:8080/api/bootstrap.sh | sudo bash` for Linux hosts,
-`curl -s http://<noc>:8080/api/bootstrap-pve.sh | sudo bash` for Proxmox VE hypervisors, and a `.rsc` template for the router
+Onboarding devices takes one command: `curl -s http://<noc>:8080/api/bootstrap.sh | sudo MININOC_ENROLL_TOKEN=<token> bash` for Linux hosts (the install generates the token; administrators see it in the web),
+`curl -s http://<noc>:8080/api/bootstrap-pve.sh | sudo MININOC_ENROLL_TOKEN=<token> bash` for Proxmox VE hypervisors, and a `.rsc` template for the router
 that a person applies (the NOC never changes the router). Details in
 [`docs/automatizacion-y-onboarding.md`](docs/automatizacion-y-onboarding.md),
 [`docs/diseno-integracion-proxmox.md`](docs/diseno-integracion-proxmox.md) and

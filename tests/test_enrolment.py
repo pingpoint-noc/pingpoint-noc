@@ -1,0 +1,133 @@
+"""SEC-01: host enrolment always needs MININOC_ENROLL_TOKEN, and only an admin can read the token from the API."""
+
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from fastapi.testclient import TestClient
+
+from api.app import create_app
+from storage import create_repository
+
+TOKEN = "enrol-secret-0123456789"
+ADMIN = "admin-emergency-token"
+REGISTER = "/api/nodes/register"
+REGISTER_PVE = "/api/nodes/register-proxmox"
+PVE_BODY = {"ip": "192.168.89.20", "hostname": "pve", "token_id": "u@pve!t", "token_secret": "s"}
+
+
+class EnrolmentTokenTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        db = str(Path(self.tmp.name) / "noc.db")
+        repo = create_repository("sqlite", db)
+        repo.init_storage()
+        self.env = mock.patch.dict(os.environ, {"MININOC_ENROLL_TOKEN": TOKEN, "MININOC_ADMIN_TOKEN": ADMIN})
+        self.env.start()
+        self.client = TestClient(create_app(db, clock=lambda: 1000))
+
+    def tearDown(self):
+        self.client.close()
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def test_register_without_token_is_refused(self):
+        res = self.client.post(REGISTER, json={"ip": "192.168.89.5"})
+        self.assertEqual(res.status_code, 401)
+
+    def test_register_with_token_works(self):
+        res = self.client.post(REGISTER, json={"ip": "192.168.89.5"}, headers={"X-Enroll-Token": TOKEN})
+        self.assertEqual(res.status_code, 200)
+
+    def test_register_with_unknown_device_type_is_400(self):
+        res = self.client.post(
+            REGISTER, json={"ip": "192.168.89.5", "device_type": "toaster"}, headers={"X-Enroll-Token": TOKEN}
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_register_proxmox_needs_token(self):
+        self.assertEqual(self.client.post(REGISTER_PVE, json=PVE_BODY).status_code, 401)
+        res = self.client.post(REGISTER_PVE, json=PVE_BODY, headers={"X-Enroll-Token": TOKEN})
+        self.assertEqual(res.status_code, 200)
+
+    def test_enroll_token_endpoint_needs_admin(self):
+        self.assertEqual(self.client.get("/api/enroll-token").status_code, 401)
+        self.assertEqual(self.client.get("/api/enroll-token", headers={"X-Admin-Token": "wrong"}).status_code, 401)
+
+    def test_enroll_token_endpoint_for_admin(self):
+        res = self.client.get("/api/enroll-token", headers={"X-Admin-Token": ADMIN})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json(), {"configured": True, "token": TOKEN})
+        self.assertEqual(res.headers["cache-control"], "no-store")
+
+
+class EnrolmentDisabledTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        db = str(Path(self.tmp.name) / "noc.db")
+        create_repository("sqlite", db).init_storage()
+        self.env = mock.patch.dict(os.environ, {"MININOC_ADMIN_TOKEN": ADMIN})
+        self.env.start()
+        os.environ.pop("MININOC_ENROLL_TOKEN", None)
+        self.client = TestClient(create_app(db, clock=lambda: 1000))
+
+    def tearDown(self):
+        self.client.close()
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def test_without_configured_token_enrolment_is_off_even_from_a_local_client(self):
+        # The test client counts as a local address; it used to be enough.
+        res = self.client.post(REGISTER, json={"ip": "192.168.89.5"})
+        self.assertEqual(res.status_code, 403)
+        self.assertIn("MININOC_ENROLL_TOKEN", res.json()["detail"])
+
+    def test_an_empty_header_does_not_match_an_unset_token(self):
+        res = self.client.post(REGISTER, json={"ip": "192.168.89.5"}, headers={"X-Enroll-Token": ""})
+        self.assertEqual(res.status_code, 403)
+
+    def test_enroll_token_endpoint_reports_not_configured(self):
+        res = self.client.get("/api/enroll-token", headers={"X-Admin-Token": ADMIN})
+        self.assertEqual(res.json(), {"configured": False, "token": ""})
+
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+class InstallerTokenTests(unittest.TestCase):
+    """deploy/install.sh makes the token, keeps it private, never prints it, and does not wait on a login-protected URL."""
+
+    def setUp(self):
+        self.script = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
+
+    def test_generates_the_token_when_missing(self):
+        self.assertIn("MININOC_ENROLL_TOKEN=", self.script)
+        self.assertIn("secrets.token_hex", self.script)
+        self.assertIn("umask 077", self.script)
+
+    def test_never_prints_the_token(self):
+        for line in self.script.splitlines():
+            if line.lstrip().startswith(("echo", "printf")):
+                self.assertNotIn("$TOKEN", line)
+                self.assertNotIn("${TOKEN", line)
+
+    def test_waits_on_healthz_not_on_a_protected_endpoint(self):
+        self.assertIn("/healthz", self.script)
+        self.assertNotIn("/api/overview", self.script)
+
+    def test_self_onboarding_sends_the_token(self):
+        self.assertIn("MININOC_ENROLL_TOKEN=", self.script.split("bootstrap.sh?noc_ip")[1].split("\n")[0])
+
+
+class WebCommandTests(unittest.TestCase):
+    def test_coverage_hints_carry_the_token_placeholder(self):
+        from api import services
+
+        for key in ("agent", "syslog", "proxmox"):
+            self.assertIn("MININOC_ENROLL_TOKEN={token}", services.COVERAGE_HOW[key], key)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -29,6 +29,20 @@ fi
 mkdir -p "$INSTALL_DIR/data"
 chown -R "$RUN_USER" "$INSTALL_DIR/data"
 
+# Host enrolment (POST /api/nodes/register) is off without MININOC_ENROLL_TOKEN. Make one the first time and keep it in
+# mini-noc.env (mode 600, owned by the service user). An existing token or file is never overwritten, and the value is
+# never printed: an administrator reads it in the web (Health > Onboarding) or in that file.
+ENV_FILE="$INSTALL_DIR/mini-noc.env"
+if ! grep -qE '^MININOC_ENROLL_TOKEN=.+' "$ENV_FILE" 2> /dev/null; then
+    TOKEN="$("$INSTALL_DIR/.venv/bin/python" -c 'import secrets; print(secrets.token_hex(32))')"
+    (umask 077; printf 'MININOC_ENROLL_TOKEN=%s\n' "$TOKEN" >> "$ENV_FILE")
+    chown "$RUN_USER" "$ENV_FILE" 2> /dev/null || true
+    chmod 600 "$ENV_FILE"
+    echo "Enrolment token generated in $ENV_FILE (shown to administrators in the web, Health > Onboarding)."
+else
+    TOKEN="$(grep -E '^MININOC_ENROLL_TOKEN=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '"')"
+fi
+
 for unit in "$INSTALL_DIR"/deploy/systemd/mini-noc-*; do
     sed -e "s#@INSTALL_DIR@#$INSTALL_DIR#g" -e "s#@RUN_USER@#$RUN_USER#g" \
         "$unit" > "/etc/systemd/system/$(basename "$unit")"
@@ -100,10 +114,10 @@ if [ ! -e "$FIRST_RUN_MARK" ]; then
     if [ "$WANT" = "yes" ]; then
         echo "Waiting for the API on port $API_PORT..."
         for _ in $(seq 1 30); do
-            curl -fsS "http://127.0.0.1:$API_PORT/api/overview" > /dev/null 2>&1 && break
+            curl -fsS "http://127.0.0.1:$API_PORT/healthz" > /dev/null 2>&1 && break
             sleep 1
         done
-        if curl -fsS "http://127.0.0.1:$API_PORT/api/bootstrap.sh?noc_ip=$MY_IP&noc_port=$API_PORT" | bash; then
+        if curl -fsS "http://127.0.0.1:$API_PORT/api/bootstrap.sh?noc_ip=$MY_IP&noc_port=$API_PORT" | MININOC_ENROLL_TOKEN="$TOKEN" bash; then
             echo "This machine now reports to the NOC."
         else
             echo "Could not onboard this machine automatically; run the command below on it by hand." >&2
@@ -117,8 +131,9 @@ cat <<MSG
 
 PingPoint NOC is running: http://$MY_IP:$API_PORT
 Add other machines (run on each, as root):
-  Linux host or container:  curl -fsS "http://$MY_IP:$API_PORT/api/bootstrap.sh" | sudo bash
-  Proxmox VE host:          curl -fsS "http://$MY_IP:$API_PORT/api/bootstrap-pve.sh" | sudo bash
+  Linux host or container:  curl -fsS "http://$MY_IP:$API_PORT/api/bootstrap.sh" | sudo MININOC_ENROLL_TOKEN=<token> bash
+  Proxmox VE host:          curl -fsS "http://$MY_IP:$API_PORT/api/bootstrap-pve.sh" | sudo MININOC_ENROLL_TOKEN=<token> bash
+  (the token is in $ENV_FILE and, for administrators, in the web under Health > Onboarding)
   MikroTik router:          fetch http://$MY_IP:$API_PORT/api/router-config.rsc  (then /import it)
 Anything with SNMP, a DNS API or only ping: python -m tools.add_device --help
 MSG

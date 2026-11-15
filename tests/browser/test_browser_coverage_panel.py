@@ -46,5 +46,31 @@ class CoveragePanelTest(BrowserTestCase):
         self.assertIn("--id gw --ip 192.0.2.1", page.inner_text("#coverage-how"))
 
 
+class EnrolmentTokenInCommandsTest(BrowserTestCase):
+    """SEC-01: an administrator's commands carry the enrolment token, everybody else's a placeholder."""
+
+    SERVER_ENV = {"MININOC_ENROLL_TOKEN": "browser-enrol-token-123"}
+    TOKEN = "browser-enrol-token-123"
+
+    def onboarding_command(self, page):
+        page.evaluate("() => { switchTab('tab-health'); }")
+        page.evaluate("() => loadNodes()")
+        return page.text_content("#onboarding-curl-cmd")
+
+    def test_anonymous_visitor_sees_a_placeholder_not_the_token(self):
+        page = self.open_page()
+        page.wait_for_function("document.querySelectorAll('#device-select option').length > 0")
+        command = self.onboarding_command(page)
+        self.assertIn("MININOC_ENROLL_TOKEN=<enrolment token>", command)
+        self.assertNotIn(self.TOKEN, page.content())
+
+    def test_signed_in_administrator_sees_the_token_in_the_command(self):
+        page = self.open_page()
+        page.wait_for_function("document.querySelectorAll('#device-select option').length > 0")
+        self.sign_in(page)
+        command = self.onboarding_command(page)
+        self.assertIn("MININOC_ENROLL_TOKEN=" + self.TOKEN + " bash", command)
+
+
 if __name__ == "__main__":
     unittest.main()

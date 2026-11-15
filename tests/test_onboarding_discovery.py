@@ -133,7 +133,7 @@ class TestBootstrapAndRegistrationApi(unittest.TestCase):
         self.assertLess(action_gone, action_added)
 
     def test_node_registration_response_never_exposes_snmp_community(self):
-        resp = self.client.post("/api/nodes/register", json={"hostname": "h", "ip": "192.168.89.9"})
+        resp = self.client.post("/api/nodes/register", json={"hostname": "h", "ip": "192.168.89.9"}, headers={"X-Enroll-Token": "test-enroll-token"})
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn("snmp_community", resp.json())
 
@@ -141,6 +141,7 @@ class TestBootstrapAndRegistrationApi(unittest.TestCase):
         reg_resp = self.client.post(
             "/api/nodes/register",
             json={"hostname": "lan-host", "ip": "192.168.89.3"},
+            headers={"X-Enroll-Token": "test-enroll-token"},
         )
         self.assertEqual(reg_resp.status_code, 200)
         body = reg_resp.json()
@@ -154,6 +155,7 @@ class TestBootstrapAndRegistrationApi(unittest.TestCase):
         reg_again = self.client.post(
             "/api/nodes/register",
             json={"hostname": "lan-host-updated", "ip": "192.168.89.3"},
+            headers={"X-Enroll-Token": "test-enroll-token"},
         )
         self.assertEqual(reg_again.status_code, 200)
         self.assertFalse(reg_again.json()["is_new"])
@@ -185,6 +187,7 @@ class TestBootstrapAndRegistrationApi(unittest.TestCase):
         bad_resp = self.client.post(
             "/api/nodes/register",
             json={"hostname": "bad-host", "ip": "not-an-ip"},
+            headers={"X-Enroll-Token": "test-enroll-token"},
         )
         self.assertEqual(bad_resp.status_code, 400)
 

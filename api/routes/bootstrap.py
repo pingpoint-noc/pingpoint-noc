@@ -12,11 +12,12 @@ import re
 from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 import scenario
 from api import services
-from api.netguard import client_host, require_enrolment
+from api.netguard import client_host, enrolment_token, require_enrolment
 from tools.generate_router_config import build_rsc_content
 
 # Only characters that are safe inside the double quotes of the generated bash script.
@@ -120,9 +121,23 @@ def resolve_noc_address(request, noc_ip):
     raise HTTPException(status_code=400, detail="noc_ip is needed: pass ?noc_ip=<address of this NOC> or set MININOC_NOC_IP")
 
 
-def create_bootstrap_router(repo, clock):
+def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None):
     """Create the FastAPI APIRouter for onboarding and node discovery."""
     router = APIRouter(tags=["Provisioning"])
+
+    @router.get("/api/enroll-token")
+    def get_enroll_token(
+        x_admin_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ):
+        """The enrolment token, for an administrator only: it goes into the one-liners the web shows."""
+        if authorize_admin is None:
+            raise HTTPException(status_code=404, detail="not available")
+        actor = authorize_admin(x_admin_token, authorization)
+        token = enrolment_token()
+        if record_audit is not None:
+            record_audit(actor, "enroll_token.view", [])
+        return JSONResponse({"configured": bool(token), "token": token}, headers={"Cache-Control": "no-store"})
 
     @router.get("/api/bootstrap.sh")
     def get_bootstrap_script(

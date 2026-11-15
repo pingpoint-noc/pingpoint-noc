@@ -79,7 +79,7 @@ class TestProxmoxOnboarding(unittest.TestCase):
             "token_secret": "abcdef-123456-uuid",
             "node_name": "proxmox",
         }
-        resp = self.client.post("/api/nodes/register-proxmox", json=payload)
+        resp = self.client.post("/api/nodes/register-proxmox", json=payload, headers={"X-Enroll-Token": "test-enroll-token"})
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
         self.assertEqual(body["status"], "registered")

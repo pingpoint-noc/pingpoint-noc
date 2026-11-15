@@ -598,8 +598,33 @@ async function loadResources() {
 var COVERAGE_LABELS = { snmp: "SNMP", agent: "Agent", syslog: "Syslog", ipfix: "IPFIX", icmp: "ICMP", dns: "DNS", proxmox: "Proxmox" };
 var COVERAGE_DATA = null;
 
+// The enrolment token goes into the commands for administrators only (GET /api/enroll-token answers 401/403 to anyone else);
+// the others see a placeholder and are told to ask an administrator.
+var ENROLL_TOKEN = "";
+var ENROLL_PLACEHOLDER = "<enrolment token>";
+
+async function loadEnrollToken() {
+  if (ENROLL_TOKEN !== "" || !hasCredentials()) {
+    return;
+  }
+  try {
+    var response = await fetch("/api/enroll-token", { headers: authHeaders({}), cache: "no-store" });
+    if (response.ok) {
+      var body = await response.json();
+      ENROLL_TOKEN = body.token || "";
+    }
+  } catch (err) {
+    console.error("Could not read the enrolment token:", err);
+  }
+}
+
+function enrollTokenForCommand() {
+  return ENROLL_TOKEN !== "" ? ENROLL_TOKEN : ENROLL_PLACEHOLDER;
+}
+
 function coverageCommand(template, device) {
-  return template.split("{noc}").join(window.location.origin).split("{ip}").join(device.ip).split("{id}").join(device.id);
+  return template.split("{noc}").join(window.location.origin).split("{ip}").join(device.ip).split("{id}").join(device.id)
+    .split("{token}").join(enrollTokenForCommand());
 }
 
 function showCoverageHow(deviceId, source) {
@@ -630,6 +655,7 @@ async function loadCoverage() {
     return;
   }
   try {
+    await loadEnrollToken();
     var data = await fetchJson("/api/coverage");
     COVERAGE_DATA = data;
     var head = "<tr><th>Device</th>";
@@ -831,9 +857,10 @@ async function loadAvailabilityReport() {
 // 8. ONBOARDING & DISCOVERY NODES
 async function loadNodes() {
   try {
+    await loadEnrollToken();
     var curlEl = document.getElementById("onboarding-curl-cmd");
     if (curlEl && window.location && window.location.origin) {
-      curlEl.textContent = "curl -s " + window.location.origin + "/api/bootstrap.sh | sudo bash";
+      curlEl.textContent = "curl -s " + window.location.origin + "/api/bootstrap.sh | sudo MININOC_ENROLL_TOKEN=" + enrollTokenForCommand() + " bash";
     }
 
     var expCsv = document.getElementById("export-nodes-csv");

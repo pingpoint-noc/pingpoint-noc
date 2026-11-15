@@ -2202,6 +2202,8 @@ def register_node_in_inventory(
     clean_type = "linux"
     if device_type is not None and str(device_type).strip() != "":
         clean_type = str(device_type).strip()
+    if clean_type not in ALLOWED_DEVICE_TYPES:
+        raise ValueError("device_type must be one of: " + ", ".join(ALLOWED_DEVICE_TYPES))
 
     record = repo.upsert_discovered_device(
         ip=clean_ip,
@@ -3126,12 +3128,12 @@ COVERAGE_SOURCES = ("snmp", "agent", "syslog", "ipfix", "icmp", "dns", "proxmox"
 # {noc} is replaced in the browser with the address the person used to open the NOC; {ip} and {id} with the device's.
 COVERAGE_HOW = {
     "snmp": "python -m tools.add_device --id {id} --ip {ip} --snmp   (add --cred <profile> or --community <name>; see docs/automatizacion-y-onboarding.md)",
-    "agent": "On the host: curl -fsS \"{noc}/api/bootstrap.sh\" | sudo bash   (also forwards its syslog)",
-    "syslog": "On the host: curl -fsS \"{noc}/api/bootstrap.sh\" | sudo bash   (a router or switch: send its syslog to the NOC, UDP 514)",
+    "agent": "On the host: curl -fsS \"{noc}/api/bootstrap.sh\" | sudo MININOC_ENROLL_TOKEN={token} bash   (also forwards its syslog)",
+    "syslog": "On the host: curl -fsS \"{noc}/api/bootstrap.sh\" | sudo MININOC_ENROLL_TOKEN={token} bash   (a router or switch: send its syslog to the NOC, UDP 514)",
     "ipfix": "Point the router's flow export (IPFIX/NetFlow) at the NOC, UDP 2055; for RouterOS see /api/router-config.rsc",
     "icmp": "No ping probe has run yet: check the mini-noc-icmp service (journalctl -u mini-noc-icmp)",
     "dns": "python -m tools.add_device --id {id} --ip {ip} --type dns --dns-type adguard --api-url http://{ip}:3000   (or pihole, or probe)",
-    "proxmox": "On the Proxmox host: curl -fsS \"{noc}/api/bootstrap-pve.sh\" | sudo bash",
+    "proxmox": "On the Proxmox host: curl -fsS \"{noc}/api/bootstrap-pve.sh\" | sudo MININOC_ENROLL_TOKEN={token} bash",
 }
 HOST_TYPES = ("linux", "server", "proxmox")
 FLOW_TYPES = ("router", "switch")

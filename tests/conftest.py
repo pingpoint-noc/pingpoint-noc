@@ -18,5 +18,8 @@ LAB_SCENARIO = {
     "MININOC_TZ": "Europe/Madrid",
 }
 
+# Host enrolment is off without a token (SEC-01): the tests that register hosts send this one.
+LAB_SCENARIO["MININOC_ENROLL_TOKEN"] = "test-enroll-token"
+
 for _name, _value in LAB_SCENARIO.items():
     os.environ.setdefault(_name, _value)

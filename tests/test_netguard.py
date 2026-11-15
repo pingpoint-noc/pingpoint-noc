@@ -29,12 +29,13 @@ class NetguardTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"MININOC_TRUST_PROXY": "1"}):
             self.assertEqual(netguard.client_host(FakeRequest("10.0.0.1", forwarded="1.1.1.1")), "1.1.1.1")
 
-    def test_enrolment_from_internet_needs_token(self):
+    def test_enrolment_is_off_without_a_configured_token(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("MININOC_ENROLL_TOKEN", None)
-            with self.assertRaises(HTTPException) as ctx:
-                netguard.require_enrolment(FakeRequest("8.8.8.8", forwarded="192.168.1.5"), None)
-            self.assertEqual(ctx.exception.status_code, 403)
+            for host in ("8.8.8.8", "192.168.1.5", "127.0.0.1"):
+                with self.assertRaises(HTTPException) as ctx:
+                    netguard.require_enrolment(FakeRequest(host), None)
+                self.assertEqual(ctx.exception.status_code, 403, host)
 
     def test_enrolment_token_must_match(self):
         with mock.patch.dict(os.environ, {"MININOC_ENROLL_TOKEN": "s3cret"}):

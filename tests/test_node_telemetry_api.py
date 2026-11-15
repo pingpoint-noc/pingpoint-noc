@@ -40,6 +40,7 @@ class TestNodeTelemetryApi(unittest.TestCase):
         res = self.client.post(
             "/api/nodes/register",
             json={"ip": "192.168.88.97", "hostname": "web2-nginx", "device_type": "linux"},
+            headers={"X-Enroll-Token": "test-enroll-token"},
         )
         self.assertEqual(res.status_code, 200)
         data = res.json()

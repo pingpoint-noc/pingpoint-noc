@@ -75,7 +75,7 @@ class TestCredentialProfilesInTheApi(unittest.TestCase):
             response = self.client.get(path)
             for secret in SECRETS:
                 self.assertNotIn(secret, response.text, "%s leaks %s" % (path, secret))
-        registered = self.client.post("/api/nodes/register", json={"hostname": "h", "ip": "192.168.89.77"})
+        registered = self.client.post("/api/nodes/register", json={"hostname": "h", "ip": "192.168.89.77"}, headers={"X-Enroll-Token": "test-enroll-token"})
         for secret in SECRETS:
             self.assertNotIn(secret, registered.text)
 
