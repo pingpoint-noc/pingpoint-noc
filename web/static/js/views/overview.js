@@ -201,8 +201,13 @@ async function loadOverviewAndDevice() {
     STATE.overviewDown = false;
     var devSelect = document.getElementById("device-select");
 
-    if (overview.devices.length > 0 && !STATE.deviceId) {
-      STATE.deviceId = pickDefaultDevice(overview.devices);
+    if (overview.devices.length > 0 && !STATE.deviceId && !STATE.allMachines) {
+      var first = pickDefaultDevice(overview.devices);
+      if (first === ALL_VALUE) {
+        STATE.allMachines = true;
+      } else {
+        STATE.deviceId = first;
+      }
     }
 
     renderAvailability(overview.devices);
@@ -214,6 +219,11 @@ async function loadOverviewAndDevice() {
     if (devSelect) {
       var devHolder = beginOptions(devSelect);
       var i = 0;
+      var allOpt = document.createElement("option");
+      allOpt.value = ALL_VALUE;
+      allOpt.textContent = "All machines";
+      allOpt.selected = STATE.allMachines;
+      devHolder.appendChild(allOpt);
       for (i = 0; i < overview.devices.length; i += 1) {
         var d = overview.devices[i];
         var opt = document.createElement("option");
@@ -227,6 +237,7 @@ async function loadOverviewAndDevice() {
       commitOptions(devSelect, devHolder);
     }
 
+    applyAllMachinesUi();
     if (!STATE.deviceId) {
       return;
     }

@@ -67,7 +67,10 @@ Todo SVG en línea o en `web/static/favicon.svg` (señal de tráfico de trazo gr
 
 ## Selección de equipo: vista «Todos» (U1) y pulso en la topología (U2)
 
-Estado: propuesta, sin implementar. Medidas previas en `ROADMAP.md` («Interface audit»).
+Estado (16-11): implementado U1 como opción (`STATE.allMachines`, `device=all`, tarjeta «Pick a machine» en Bandwidth, Flows, Syslog y
+Timeline, y Overview sin los paneles del equipo) y U2. **Sigue por decidir y hacer:** que «All machines» sea el valor por defecto de una instalación
+nueva (hoy el defecto sigue siendo un equipo, para no cambiar lo que ven los usuarios actuales) y la búsqueda de Syslog en todos los equipos (cambio
+de API). Medidas previas en `ROADMAP.md` («Interface audit»).
 
 - **Qué depende del equipo.** Con un equipo elegido cambian Overview (panel del equipo), Bandwidth, Flows, Syslog, Timeline y *Resources*; el resto
   (banner de alertas, Topology, Health & Inventory, resumen de flota) es de toda la flota. El selector se lee en 56 sitios (`STATE.deviceId`).

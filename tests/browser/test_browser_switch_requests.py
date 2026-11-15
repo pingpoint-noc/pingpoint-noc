@@ -19,7 +19,7 @@ class SwitchRequestsTest(BrowserTestCase):
         page.wait_for_function("document.querySelectorAll('#device-select option').length > 1 && STATE.cacheDeviceDetail !== undefined")
         page.wait_for_timeout(1500)
         current = page.input_value("#device-select")
-        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value)")
+        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value).filter(v => v !== '*')")
         other = [i for i in ids if i != current][0]
         paths = []
         page.on("request", lambda r: paths.append(urlparse(r.url).path) if urlparse(r.url).path.startswith("/api/") else None)
@@ -39,7 +39,7 @@ class SwitchRequestsTest(BrowserTestCase):
     def test_the_view_still_shows_the_new_machine_after_a_switch(self):
         page = self.open_page()
         page.wait_for_function("document.querySelectorAll('#device-select option').length > 1 && STATE.cacheDeviceDetail !== undefined")
-        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value)")
+        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value).filter(v => v !== '*')")
         for device in ids[:4]:
             page.select_option("#device-select", device)
             page.wait_for_function("STATE.cacheDeviceDetail && STATE.cacheDeviceDetail.id === %r" % device)

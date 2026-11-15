@@ -143,7 +143,7 @@ function switchTab(targetTabId) {
   if (targetTabId === "tab-settings") {
     loadSettings();
   } else if (targetTabId === "tab-topology") {
-    loadTopology();
+    Promise.resolve(loadTopology()).then(pulseTopologyNode);
   }
   var tabButtons = document.querySelectorAll(".nav-tab-btn");
   var b = 0;
@@ -371,17 +371,43 @@ function initDashboard() {
   // Device Selector
   var devSel = document.getElementById("device-select");
   if (devSel) {
+    // After a pick with the mouse or a finger the list lets go of the focus (it kept its highlighted border); with the keyboard it keeps it.
+    var pickedWithPointer = false;
+    devSel.addEventListener("pointerdown", function () { pickedWithPointer = true; });
+    devSel.addEventListener("keydown", function () { pickedWithPointer = false; });
     devSel.addEventListener("change", function (e) {
-      STATE.deviceId = e.target.value;
-      rememberDevice(STATE.deviceId);
+      if (pickedWithPointer) {
+        pickedWithPointer = false;
+        e.target.blur();
+      }
+      if (e.target.value === ALL_VALUE) {
+        STATE.allMachines = true;
+        STATE.deviceId = null;
+        STATE.cacheDeviceDetail = undefined;
+        rememberDevice(ALL_VALUE);
+      } else {
+        STATE.allMachines = false;
+        STATE.deviceId = e.target.value;
+        rememberDevice(STATE.deviceId);
+      }
+      applyAllMachinesUi();
       STATE.selectedIfIndex = null;
       STATE.selectedIfName = "";
       // Replace, not push: Back and Forward (Alt+arrows) walk through the views, not through every device that was picked
       routeSync("replace");
       refreshDevice();
-      showToast("Selected device: " + STATE.deviceId);
+      showToast(STATE.allMachines ? "Showing all machines" : "Selected device: " + STATE.deviceId);
     });
   }
+
+  // The "pick a machine" cards of the views that show one machine.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest(".pick-machine-btn") : null;
+    if (btn && devSel) {
+      devSel.value = btn.getAttribute("data-id");
+      devSel.dispatchEvent(new Event("change"));
+    }
+  });
 
   // Manual Refresh
   var refreshBtn = document.getElementById("refresh-btn");

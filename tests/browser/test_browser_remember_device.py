@@ -14,7 +14,7 @@ class RememberDeviceTest(BrowserTestCase):
         page.wait_for_function("document.querySelectorAll('#device-select option').length > 1")
 
     def pick_other(self, page):
-        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value)")
+        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value).filter(v => v !== '*')")
         other = [i for i in ids if i != page.input_value("#device-select")][-1]
         page.select_option("#device-select", other)
         page.wait_for_function("STATE.deviceId === %r" % other)
@@ -41,7 +41,7 @@ class RememberDeviceTest(BrowserTestCase):
         page = self.open_page()
         self.ready(page)
         other = self.pick_other(page)
-        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value)")
+        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value).filter(v => v !== '*')")
         wanted = [i for i in ids if i != other][0]
         page.goto(self.server.base_url + "/#/overview?device=" + wanted)
         self.ready(page)

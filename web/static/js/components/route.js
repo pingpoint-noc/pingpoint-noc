@@ -110,7 +110,9 @@ function buildRouteHash() {
   var view = routeSlugForTab(STATE.activeTab);
   var params = [];
   var def = routeDefaultDevice();
-  if (STATE.deviceId && STATE.deviceId !== def) {
+  if (STATE.allMachines) {
+    params.push("device=" + ALL_ROUTE);
+  } else if (STATE.deviceId && STATE.deviceId !== def) {
     params.push("device=" + encodeURIComponent(STATE.deviceId));
   }
   if (ROUTE_RANGES.indexOf(STATE.range) !== -1 && STATE.range !== ROUTE_DEFAULT_RANGE) {
@@ -192,6 +194,9 @@ async function applyRoute(hash, initial) {
   try {
     var route = parseRoute(hash);
     var device = route.device !== null && routeKnownDevice(route.device) ? route.device : (initial ? rememberedDevice(STATE.cacheDevices) : null) || routeDefaultDevice();
+    if (route.device === ALL_ROUTE) {
+      device = ALL_VALUE;
+    }
     var range = route.range !== null ? route.range : ROUTE_DEFAULT_RANGE;
     var tabId = ROUTE_VIEWS[route.view];
 
@@ -199,14 +204,20 @@ async function applyRoute(hash, initial) {
     if (rangeChanged) {
       setRange(range);
     }
-    if (device !== null && device !== STATE.deviceId) {
-      STATE.deviceId = device;
+    var wantAll = device === ALL_VALUE;
+    if (device !== null && (wantAll ? !STATE.allMachines : device !== STATE.deviceId || STATE.allMachines)) {
+      STATE.allMachines = wantAll;
+      STATE.deviceId = wantAll ? null : device;
+      if (wantAll) {
+        STATE.cacheDeviceDetail = undefined;
+      }
       STATE.selectedIfIndex = null;
       STATE.selectedIfName = "";
       var devSel = document.getElementById("device-select");
       if (devSel) {
         devSel.value = device;
       }
+      applyAllMachinesUi();
       await refreshAll();
     } else if (rangeChanged) {
       loadBandwidth();

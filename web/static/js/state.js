@@ -47,6 +47,41 @@ var LOCAL_TIME_ONLY = new Intl.DateTimeFormat("es-ES", {
 // The machine picked last, kept in this browser so a reload, a bookmark or a link without a device opens on it again.
 var DEVICE_KEY = "mini-noc-device";
 
+// "All machines" (U1): STATE.deviceId stays null and STATE.allMachines is true. The selector value, the link (`device=all`) and the
+// remembered value use these two spellings.
+var ALL_VALUE = "*";
+var ALL_ROUTE = "all";
+
+// Show or hide what only makes sense for one machine (CSS keys on body[data-all-machines]).
+function applyAllMachinesUi() {
+  if (STATE.allMachines) {
+    document.body.setAttribute("data-all-machines", "1");
+  } else {
+    document.body.removeAttribute("data-all-machines");
+  }
+  renderPickMachine();
+}
+
+// The list of machines offered where a view needs one (the "pick a machine" cards).
+function renderPickMachine() {
+  var boxes = document.querySelectorAll(".pick-machine-list");
+  var b = 0;
+  for (b = 0; b < boxes.length; b += 1) {
+    var holder = boxes[b];
+    holder.textContent = "";
+    var list = STATE.cacheDevices || [];
+    var i = 0;
+    for (i = 0; i < list.length; i += 1) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-secondary btn-small pick-machine-btn";
+      btn.setAttribute("data-id", list[i].id);
+      btn.textContent = list[i].name || list[i].id;
+      holder.appendChild(btn);
+    }
+  }
+}
+
 function rememberDevice(id) {
   try {
     if (id) {
@@ -65,6 +100,9 @@ function rememberedDevice(devices) {
   } catch (e) {
     return null;
   }
+  if (stored === ALL_VALUE) {
+    return ALL_VALUE;
+  }
   var i = 0;
   for (i = 0; stored && i < (devices || []).length; i += 1) {
     if (devices[i].id === stored) {
@@ -77,6 +115,7 @@ function rememberedDevice(devices) {
 var STATE = {
   activeTab: "tab-overview",
   deviceId: null,
+  allMachines: false,
   isRouter: false,
   isDns: false,
   isProxmox: false,

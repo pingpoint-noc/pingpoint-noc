@@ -281,7 +281,7 @@ ignored, and walking through history still gives each entry its own target. **U4
 shown on load (the fade stays on view switches): FCP 48 -> 28 ms, target list 110 -> 56 ms, CLS 0.004 -> 0.021 (0.020 -> 0.021 with the CPU
 4x slower; limit 0.1). The 200 ms colour transition of the alert banner and the status badge pulse are untouched. **U5** picking a machine
 calls `refreshDevice()`: 20-21 calls become 10-11 (the fleet endpoints stay as they are until the next timer tick) and the per-machine
-loaders run in parallel. Still open: U1 and U2 (need the design note in `DESIGN.md`).
+loaders run in parallel. **U1** (16-11): an "All machines" entry in the Target list (opt-in; `device=all` in the link; the views that show one machine ask for one; the Overview drops the target panels) and **U2**: the card of the selected machine pulses for a second when Topology opens. Still open: "All" as the default of a fresh install and Syslog across all machines (see `DESIGN.md`).
 
 ### Scope decision: disk health and other host telemetry (accepted 2026-11-16 as G20)
 

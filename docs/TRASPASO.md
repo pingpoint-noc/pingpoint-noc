@@ -6,7 +6,7 @@ Un único fichero que se sobrescribe en cada cierre. No contiene datos de ningú
 
 Di **«quiero seguir»** (o pega esto) en un chat nuevo dentro de este repo:
 
-> Quiero seguir con PingPoint NOC. Lee `docs/TRASPASO.md`, la sección «Audit of 2026-11-14» de `ROADMAP.md` y tu memoria del proyecto. Todo está en `main` y subido. Empieza por la limpieza de pruebas y luego sigue la lista «Pendiente» de ese traspaso, en orden. No hagas push ni despliegues sin que te lo pida. Antes de dar algo por bueno corre la suite normal y la de navegador.
+> Quiero seguir con PingPoint NOC. Lee `AGENTS.md`, `docs/TRASPASO.md` y la sección «Session of 2026-11-15» de `ROADMAP.md`. Hay commits locales sin subir (comprueba con `git log origin/main..HEAD`); el CT de referencia ya lleva todo hasta U5, no U1/U2. No hagas push, etiquetas ni despliegues sin que te lo pida. Antes de dar algo por bueno corre la suite completa.
 
 ## Estado (15-11-2026)
 
@@ -24,32 +24,28 @@ Hecho y subido a `main`:
 - **Seguridad (15-11, antes de la 0.1.0):** el alta de equipos exige siempre `MININOC_ENROLL_TOKEN` (lo genera `deploy/install.sh`; un administrador lo ve en Health & Inventory); el primer administrador por HTTP exige `MININOC_ADMIN_TOKEN` (sin él se crea con `python -m tools.manage_users add`); las cabeceras del proxy solo cuentan desde `FORWARDED_ALLOW_IPS` (`MININOC_TRUST_PROXY` ya no existe); cabeceras de seguridad, CSP y HSTS; `/docs` apagado salvo `MININOC_API_DOCS=1`; fallos de login en el journal; límites de longitud y de marcas de tiempo del emisor; los scripts de bootstrap prefieren `MININOC_NOC_IP` al `Host`. Notas de versión en `SECURITY.md`.
 - **Segunda tanda de seguridad (15-11, sin subir ni desplegar):** SEC-09 (las 11 unidades systemd endurecidas; probado antes en un LXC sin privilegios: 9 servicios activos, ICMP y syslog funcionando, exposición 1,7-1,9), F6-06 (límites por dirección: 10 altas, 30 descargas de scripts y 20 telemetrías por minuto), F6-07 (`POST /api/logout` invalida las sesiones del usuario en el servidor; migración 5), DT-02 a DT-04 (zona de equipos nuevos desde `MININOC_TZ`, `protected` en `/api/nodes`, `bootstrap_pve.sh` con cola acotada y rollback; el bloque rsyslog se probó en un contenedor Ubuntu).
 - **Fase 2:** `pyproject.toml` (`pip install -e .`, `pingpoint-api`...), versión 0.1.0 en `api/__version__`, lockfiles con hashes compilados con `uv`, `CHANGELOG.md`. Sin etiqueta ni publicación.
-- **Auditoría de interfaz U1-U5:** medida y hechas U3 (recuerda la última máquina), U4 (sin desvanecido en la primera carga) y U5 (`refreshDevice()`: la mitad de llamadas al cambiar de máquina); quedan U1 y U2 (nota de diseño en `DESIGN.md` primero). Resultados en `ROADMAP.md`. También ahí, pendiente de decidir: si la salud de discos (SMART, ZFS, mdadm) entra en el alcance del NOC.
-- **Desplegado en el CT 105 (16-11):** todo hasta U5 (851e6de). Salud de discos aceptada como G20; U1/U2 con propuesta en `DESIGN.md`, sin implementar.
+- **Auditoría de interfaz U1-U5:** medida y hechas U3 (recuerda la última máquina), U4 (sin desvanecido en la primera carga) y U5 (`refreshDevice()`: la mitad de llamadas al cambiar de máquina); U1 (entrada «All machines», opcional) y U2 (pulso en Topology) hechos en local; queda decidir si «All» es el defecto y el Syslog global (`DESIGN.md`). Resultados en `ROADMAP.md`. También ahí, pendiente de decidir: si la salud de discos (SMART, ZFS, mdadm) entra en el alcance del NOC.
+- **Desplegado en el CT 105 (16-11):** todo hasta U5 (851e6de). U1/U2 y el arreglo del foco están solo en local. Salud de discos aceptada como G20.
 - **Avisos ICMP:** la pérdida y la latencia alta avisan solo si duran (120 s y 300 s; `MININOC_ALERT_ICMP_*_HOLD_SECONDS`).
 - **Instalador:** una actualización ya no cambia los receptores nativos de syslog/flujos por los de fichero.
 - Los tests de navegador saltan la CSP (Playwright usa `eval`); solo `tests/browser/test_browser_csp.py` la aplica.
 
-## Limpieza de las pruebas (hecho en parte el 15-11)
+## Entorno de pruebas
 
-Hecho: los 14 equipos que el NOC dio de alta solos a partir de los flujos de la prueba se quitaron del inventario del NOC de referencia. Queda lo del hipervisor:
-
-
-Quedó sin borrar lo que se creó para probar. Los detalles concretos (identificadores y direcciones) están en la memoria del proyecto y en las notas privadas del servidor, no aquí:
-
-- El contenedor LXC desechable de pruebas, que sigue arrancado exportando flujos con `softflowd` y generando tráfico con un bucle: pararlo y destruirlo en el hipervisor.
-- El equipo que el NOC dio de alta solo a partir de esos flujos: quitarlo en Settings > Monitored Targets (Remove).
-- Docker Desktop del PC de desarrollo: está cerrado; solo se abre para probar `rsyslog` en contenedores.
-- Comprobar que no quedan archivos de prueba en `/tmp` del hipervisor ni ficheros `*.bak` creados a mano en el contenedor de pruebas (se van con él).
+- Hecho: los equipos que el NOC dio de alta solos a partir de los flujos de prueba se quitaron del inventario de referencia; no quedan copias antiguas de la base de datos (solo la copia diaria programada).
+- Se conserva, **parado**, un contenedor LXC Ubuntu 24.04 sin privilegios con el NOC instalado, para probar unidades systemd, `rsyslog` y scripts de bootstrap antes de tocar el de referencia (su identificador está en las notas privadas). Arrancarlo solo para probar y volver a pararlo.
+- Docker Desktop del PC de desarrollo: cerrado; solo se abre para probar `rsyslog` en contenedores.
+- La suite se corre con el venv del repo (`.venv\Scripts\python`); Python 3.13.
 
 ## Pendiente (en este orden)
 
-1. **Instalación de cero y revisión de lo que falte.** Instalar con `deploy/install.sh`, abrir Settings (la guía debe salir sola), dar de alta equipos con el comando de bootstrap (comprobar que los contenedores Ubuntu avisan de reiniciar y luego reenvían syslog), añadir la API de Proxmox, mandar un mensaje de prueba y mirar *Resources by Machine*.
-2. **`bootstrap_pve.sh.in`:** aplicarle la misma cola rsyslog con validación `rsyslogd -N1` y rollback, y una opción `--with-flows` (opt-in) que instale y configure `softflowd` sobre el puente para exportar flujos al NOC. Probado a mano: `softflowd -i <iface> -n <noc>:2055 -v 10`. Nota: libpcap entrega por bloques, con poco tráfico `softflowctl statistics` marca 0 paquetes procesados durante un rato.
-3. **Agentes ya instalados:** reinstalar el agente (`bootstrap.sh`) en los equipos enrolados antes de F4 para que informen `virt`.
-4. **Restos de F3:** `devices.tz` sigue con `Europe/Madrid` por defecto en el almacenamiento; `web/static/js/views/settings.js` oculta Remove solo para el id `edge-router-1`.
-5. **F1 pendiente:** transporte SCTP/TCP, plantillas de opciones (tasa de muestreo) y comparar con `nfdump` sobre una captura real.
-6. **Ideas G1-G19** de `ROADMAP.md` (escalado de alertas, sondas HTTP/TCP y caducidad TLS, trampas SNMP...).
+1. **Subir y desplegar lo local** (si el mantenedor lo pide): U1/U2 y el arreglo del foco de la lista aún no están en el CT de referencia; repasar los commits de `origin/main..HEAD` antes del push.
+2. **«All machines» como valor por defecto** de una instalación nueva y **Syslog en todos los equipos** (cambio de API): decisión abierta, ver `DESIGN.md`.
+3. **Instalación de cero y revisión de lo que falte** (comando de bootstrap, guía de Settings, API de Proxmox, mensaje de prueba, *Resources by Machine*), con `bootstrap_pve.sh` probado en un Proxmox real (el bloque rsyslog se probó en un contenedor).
+4. **Agentes ya instalados:** reinstalar `bootstrap.sh` para que informen `virt`.
+5. **G20 (salud de discos, opt-in)** y el resto de ideas G1-G19 de `ROADMAP.md` (escalado de alertas, sondas HTTP/TCP y caducidad TLS, trampas SNMP...). F1: SCTP/TCP, plantillas de opciones, comparar con `nfdump`.
+6. **Fases 7 y 8** del plan (sondas HTTP/TCP, documentación en inglés); PyPI y la imagen de contenedor solo con el OK del mantenedor y tras reestructurar bajo un paquete único.
+7. Ajuste opcional: ignorar en `syslog_burst` las líneas de sesión ssh/pam del hipervisor (el despliegue desde el PC disparó una alerta de ráfaga que no era un fallo).
 
 ## Reglas de trabajo
 

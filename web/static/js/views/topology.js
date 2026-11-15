@@ -674,6 +674,23 @@ function renderTopologyGraph() {
   }
 }
 
+// U2: arriving in Topology, the card of the selected machine pulses for a second and is brought into view (with reduced motion it is
+// only highlighted for that second).
+function pulseTopologyNode() {
+  if (!STATE.deviceId || STATE.activeTab !== "tab-topology") {
+    return;
+  }
+  var node = document.querySelector('.topo-node[data-node-id="' + String(STATE.deviceId).replace(/"/g, "") + '"]');
+  if (!node) {
+    return;
+  }
+  if (node.scrollIntoView) {
+    node.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+  }
+  node.classList.add("pulse");
+  window.setTimeout(function () { node.classList.remove("pulse"); }, 1100);
+}
+
 function applyTopologyTransform() {
   var rootGroup = document.getElementById("topology-root-group");
   if (rootGroup) {

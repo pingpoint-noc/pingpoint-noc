@@ -6,7 +6,7 @@ from .support import BrowserTestCase
 class SelectDeviceTest(BrowserTestCase):
     def test_selecting_a_known_device_changes_the_target_and_shows_the_overview(self):
         page = self.ready()
-        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value)")
+        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value).filter(v => v !== '*')")
         other = [i for i in ids if i != page.input_value("#device-select")][0]
         page.click("button[data-tab=tab-topology]")
         self.assertTrue(page.evaluate("selectDevice(%r)" % other))
@@ -28,7 +28,7 @@ class SelectDeviceTest(BrowserTestCase):
 
     def test_picking_devices_does_not_add_history_entries(self):
         page = self.ready()
-        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value)")
+        ids = page.evaluate("[...document.querySelectorAll('#device-select option')].map(o => o.value).filter(v => v !== '*')")
         before = page.evaluate("history.length")
         for device in ids[:3]:
             page.select_option("#device-select", device)

@@ -51,6 +51,41 @@ var LOCAL_TIME_ONLY = new Intl.DateTimeFormat("es-ES", {
 // The machine picked last, kept in this browser so a reload, a bookmark or a link without a device opens on it again.
 var DEVICE_KEY = "mini-noc-device";
 
+// "All machines" (U1): STATE.deviceId stays null and STATE.allMachines is true. The selector value, the link (`device=all`) and the
+// remembered value use these two spellings.
+var ALL_VALUE = "*";
+var ALL_ROUTE = "all";
+
+// Show or hide what only makes sense for one machine (CSS keys on body[data-all-machines]).
+function applyAllMachinesUi() {
+  if (STATE.allMachines) {
+    document.body.setAttribute("data-all-machines", "1");
+  } else {
+    document.body.removeAttribute("data-all-machines");
+  }
+  renderPickMachine();
+}
+
+// The list of machines offered where a view needs one (the "pick a machine" cards).
+function renderPickMachine() {
+  var boxes = document.querySelectorAll(".pick-machine-list");
+  var b = 0;
+  for (b = 0; b < boxes.length; b += 1) {
+    var holder = boxes[b];
+    holder.textContent = "";
+    var list = STATE.cacheDevices || [];
+    var i = 0;
+    for (i = 0; i < list.length; i += 1) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-secondary btn-small pick-machine-btn";
+      btn.setAttribute("data-id", list[i].id);
+      btn.textContent = list[i].name || list[i].id;
+      holder.appendChild(btn);
+    }
+  }
+}
+
 function rememberDevice(id) {
   try {
     if (id) {
@@ -69,6 +104,9 @@ function rememberedDevice(devices) {
   } catch (e) {
     return null;
   }
+  if (stored === ALL_VALUE) {
+    return ALL_VALUE;
+  }
   var i = 0;
   for (i = 0; stored && i < (devices || []).length; i += 1) {
     if (devices[i].id === stored) {
@@ -81,6 +119,7 @@ function rememberedDevice(devices) {
 var STATE = {
   activeTab: "tab-overview",
   deviceId: null,
+  allMachines: false,
   isRouter: false,
   isDns: false,
   isProxmox: false,
@@ -2067,8 +2106,13 @@ async function loadOverviewAndDevice() {
     STATE.overviewDown = false;
     var devSelect = document.getElementById("device-select");
 
-    if (overview.devices.length > 0 && !STATE.deviceId) {
-      STATE.deviceId = pickDefaultDevice(overview.devices);
+    if (overview.devices.length > 0 && !STATE.deviceId && !STATE.allMachines) {
+      var first = pickDefaultDevice(overview.devices);
+      if (first === ALL_VALUE) {
+        STATE.allMachines = true;
+      } else {
+        STATE.deviceId = first;
+      }
     }
 
     renderAvailability(overview.devices);
@@ -2080,6 +2124,11 @@ async function loadOverviewAndDevice() {
     if (devSelect) {
       var devHolder = beginOptions(devSelect);
       var i = 0;
+      var allOpt = document.createElement("option");
+      allOpt.value = ALL_VALUE;
+      allOpt.textContent = "All machines";
+      allOpt.selected = STATE.allMachines;
+      devHolder.appendChild(allOpt);
       for (i = 0; i < overview.devices.length; i += 1) {
         var d = overview.devices[i];
         var opt = document.createElement("option");
@@ -2093,6 +2142,7 @@ async function loadOverviewAndDevice() {
       commitOptions(devSelect, devHolder);
     }
 
+    applyAllMachinesUi();
     if (!STATE.deviceId) {
       return;
     }
@@ -3599,6 +3649,23 @@ function renderTopologyGraph() {
   if (TOPOLOGY_STATE.selectedNodeId) {
     selectTopologyNode(TOPOLOGY_STATE.selectedNodeId);
   }
+}
+
+// U2: arriving in Topology, the card of the selected machine pulses for a second and is brought into view (with reduced motion it is
+// only highlighted for that second).
+function pulseTopologyNode() {
+  if (!STATE.deviceId || STATE.activeTab !== "tab-topology") {
+    return;
+  }
+  var node = document.querySelector('.topo-node[data-node-id="' + String(STATE.deviceId).replace(/"/g, "") + '"]');
+  if (!node) {
+    return;
+  }
+  if (node.scrollIntoView) {
+    node.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+  }
+  node.classList.add("pulse");
+  window.setTimeout(function () { node.classList.remove("pulse"); }, 1100);
 }
 
 function applyTopologyTransform() {
@@ -7526,7 +7593,9 @@ function buildRouteHash() {
   var view = routeSlugForTab(STATE.activeTab);
   var params = [];
   var def = routeDefaultDevice();
-  if (STATE.deviceId && STATE.deviceId !== def) {
+  if (STATE.allMachines) {
+    params.push("device=" + ALL_ROUTE);
+  } else if (STATE.deviceId && STATE.deviceId !== def) {
     params.push("device=" + encodeURIComponent(STATE.deviceId));
   }
   if (ROUTE_RANGES.indexOf(STATE.range) !== -1 && STATE.range !== ROUTE_DEFAULT_RANGE) {
@@ -7608,6 +7677,9 @@ async function applyRoute(hash, initial) {
   try {
     var route = parseRoute(hash);
     var device = route.device !== null && routeKnownDevice(route.device) ? route.device : (initial ? rememberedDevice(STATE.cacheDevices) : null) || routeDefaultDevice();
+    if (route.device === ALL_ROUTE) {
+      device = ALL_VALUE;
+    }
     var range = route.range !== null ? route.range : ROUTE_DEFAULT_RANGE;
     var tabId = ROUTE_VIEWS[route.view];
 
@@ -7615,14 +7687,20 @@ async function applyRoute(hash, initial) {
     if (rangeChanged) {
       setRange(range);
     }
-    if (device !== null && device !== STATE.deviceId) {
-      STATE.deviceId = device;
+    var wantAll = device === ALL_VALUE;
+    if (device !== null && (wantAll ? !STATE.allMachines : device !== STATE.deviceId || STATE.allMachines)) {
+      STATE.allMachines = wantAll;
+      STATE.deviceId = wantAll ? null : device;
+      if (wantAll) {
+        STATE.cacheDeviceDetail = undefined;
+      }
       STATE.selectedIfIndex = null;
       STATE.selectedIfName = "";
       var devSel = document.getElementById("device-select");
       if (devSel) {
         devSel.value = device;
       }
+      applyAllMachinesUi();
       await refreshAll();
     } else if (rangeChanged) {
       loadBandwidth();
@@ -10980,7 +11058,7 @@ function switchTab(targetTabId) {
   if (targetTabId === "tab-settings") {
     loadSettings();
   } else if (targetTabId === "tab-topology") {
-    loadTopology();
+    Promise.resolve(loadTopology()).then(pulseTopologyNode);
   }
   var tabButtons = document.querySelectorAll(".nav-tab-btn");
   var b = 0;
@@ -11208,17 +11286,43 @@ function initDashboard() {
   // Device Selector
   var devSel = document.getElementById("device-select");
   if (devSel) {
+    // After a pick with the mouse or a finger the list lets go of the focus (it kept its highlighted border); with the keyboard it keeps it.
+    var pickedWithPointer = false;
+    devSel.addEventListener("pointerdown", function () { pickedWithPointer = true; });
+    devSel.addEventListener("keydown", function () { pickedWithPointer = false; });
     devSel.addEventListener("change", function (e) {
-      STATE.deviceId = e.target.value;
-      rememberDevice(STATE.deviceId);
+      if (pickedWithPointer) {
+        pickedWithPointer = false;
+        e.target.blur();
+      }
+      if (e.target.value === ALL_VALUE) {
+        STATE.allMachines = true;
+        STATE.deviceId = null;
+        STATE.cacheDeviceDetail = undefined;
+        rememberDevice(ALL_VALUE);
+      } else {
+        STATE.allMachines = false;
+        STATE.deviceId = e.target.value;
+        rememberDevice(STATE.deviceId);
+      }
+      applyAllMachinesUi();
       STATE.selectedIfIndex = null;
       STATE.selectedIfName = "";
       // Replace, not push: Back and Forward (Alt+arrows) walk through the views, not through every device that was picked
       routeSync("replace");
       refreshDevice();
-      showToast("Selected device: " + STATE.deviceId);
+      showToast(STATE.allMachines ? "Showing all machines" : "Selected device: " + STATE.deviceId);
     });
   }
+
+  // The "pick a machine" cards of the views that show one machine.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest(".pick-machine-btn") : null;
+    if (btn && devSel) {
+      devSel.value = btn.getAttribute("data-id");
+      devSel.dispatchEvent(new Event("change"));
+    }
+  });
 
   // Manual Refresh
   var refreshBtn = document.getElementById("refresh-btn");

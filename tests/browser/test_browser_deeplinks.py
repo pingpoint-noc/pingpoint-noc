@@ -11,7 +11,7 @@ def active_tab(page):
 
 
 def device_ids(page):
-    return page.eval_on_selector_all("#device-select option", "els => els.map(e => e.value)")
+    return page.eval_on_selector_all("#device-select option", "els => els.map(e => e.value).filter(v => v !== '*')")
 
 
 def active_range(page):

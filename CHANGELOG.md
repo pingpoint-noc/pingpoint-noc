@@ -6,6 +6,15 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
 
 ## [Unreleased]
 
+### Added
+- "All machines" entry in the Target list (opt-in, `device=all` in links): fleet views keep working, views that show one machine ask for one.
+- The card of the selected machine pulses for a second when Topology opens.
+- The last machine picked is remembered in the browser.
+
+### Changed
+- No fade of the main area on first paint (the fade stays on view switches).
+- Picking a machine refetches only what depends on it (about half the requests, in parallel); the Target list lets go of the focus after a pointer pick.
+
 ## [0.1.0] - 2026-11-15
 
 First tagged release.
