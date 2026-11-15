@@ -26,6 +26,8 @@ LOGGER = logging.getLogger("mini_noc.syslog_receiver")
 
 COLLECTOR_NAME = "syslog"
 MAX_DATAGRAM = 8192
+MAX_STAMP_SKEW_SECONDS = 300  # a sender's clock may be this far ahead
+MAX_STAMP_AGE_SECONDS = 172800  # and a relay may deliver this late (two days)
 QUEUE_LIMIT = 20000
 FLUSH_SECONDS = 1.0
 FLUSH_EVENTS = 500
@@ -77,7 +79,11 @@ def parse_datagram(data, now_ts):
             try:
                 moment = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
                 if moment.tzinfo is not None:
-                    ts_utc = int(moment.astimezone(timezone.utc).timestamp())
+                    claimed = int(moment.astimezone(timezone.utc).timestamp())
+                    # The sender chooses this stamp: only a plausible one is believed (a little clock skew ahead, up to two days
+                    # of delay behind); otherwise a forged future date would sit at the top of the log for ever.
+                    if int(now_ts) - MAX_STAMP_AGE_SECONDS <= claimed <= int(now_ts) + MAX_STAMP_SKEW_SECONDS:
+                        ts_utc = claimed
             except ValueError:
                 pass
     else:

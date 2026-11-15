@@ -142,6 +142,49 @@ class TestNodeTelemetryApi(unittest.TestCase):
         self.assertEqual(svc_map["nginx"], "active")
         self.assertEqual(svc_map["rsyslog"], "active")
 
+    def push(self, **extra):
+        payload = {"device_id": "web1-nginx", "metrics": {"cpu_load_pct": 12.0}}
+        payload.update(extra)
+        return self.client.post("/api/nodes/telemetry", json=payload, headers={"X-Node-Token": self.token})
+
+    def test_a_timestamp_far_in_the_future_is_replaced_by_the_server_clock(self):
+        # The clock of the test app is 2000: an agent cannot make a host look fresh for ever.
+        self.assertEqual(self.push(ts_utc=2000 + 10**9).status_code, 200)
+        self.assertEqual(self.repo.get_device("web1-nginx")["last_seen_utc"], 2000)
+
+    def test_a_timestamp_long_in_the_past_is_replaced_by_the_server_clock(self):
+        self.assertEqual(self.push(ts_utc=2000 - 301).status_code, 200)
+        self.assertEqual(self.repo.get_device("web1-nginx")["last_seen_utc"], 2000)
+
+    def test_a_timestamp_within_five_minutes_is_kept(self):
+        self.assertEqual(self.push(ts_utc=2000 - 300).status_code, 200)
+        self.assertEqual(self.repo.get_device("web1-nginx")["last_seen_utc"], 1700)
+
+    def test_oversized_fields_are_refused(self):
+        self.assertEqual(self.push(hostname="h" * 254).status_code, 422)
+        self.assertEqual(self.push(hostname="h" * 253).status_code, 200)
+        self.assertEqual(self.push(virt="v" * 33).status_code, 422)
+        disks = [{"label": "/d%d" % i, "used_pct": 1.0} for i in range(65)]
+        self.assertEqual(self.push(metrics={"disks": disks}).status_code, 422)
+        self.assertEqual(self.push(metrics={"disks": disks[:64]}).status_code, 200)
+        services = [{"name": "s%d" % i} for i in range(129)]
+        self.assertEqual(self.push(services=services).status_code, 422)
+        self.assertEqual(self.push(services=services[:128]).status_code, 200)
+        self.assertEqual(self.push(services=[{"name": "n" * 129}]).status_code, 422)
+        self.assertEqual(self.push(services=[{"name": "n", "description": "d" * 257}]).status_code, 422)
+        self.assertEqual(self.push(metrics={"disks": [{"label": "l" * 129, "used_pct": 1.0}]}).status_code, 422)
+
+    def test_oversized_registration_fields_are_refused(self):
+        headers = {"X-Enroll-Token": "test-enroll-token"}
+        body = {"ip": "192.168.88.99", "hostname": "h" * 254}
+        self.assertEqual(self.client.post("/api/nodes/register", json=body, headers=headers).status_code, 422)
+        body = {"ip": "192.168.88.99", "device_type": "t" * 33}
+        self.assertEqual(self.client.post("/api/nodes/register", json=body, headers=headers).status_code, 422)
+        pve = {"ip": "192.168.88.98", "token_id": "i" * 257, "token_secret": "s"}
+        self.assertEqual(self.client.post("/api/nodes/register-proxmox", json=pve, headers=headers).status_code, 422)
+        pve = {"ip": "192.168.88.98", "token_id": "i", "token_secret": "s", "node_name": "n" * 64}
+        self.assertEqual(self.client.post("/api/nodes/register-proxmox", json=pve, headers=headers).status_code, 422)
+
     def test_telemetry_with_bearer_token(self):
         payload = {
             "device_id": "web1-nginx",

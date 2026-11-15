@@ -11,12 +11,30 @@ NOW = 1_800_000_000
 
 
 class ParseTest(unittest.TestCase):
+    def stamp_message(self, offset_seconds):
+        """An RFC 5424 message stamped `offset_seconds` from NOW (+01:00, to check the zone is applied)."""
+        moment = time.gmtime(NOW + offset_seconds + 3600)
+        stamp = time.strftime("%Y-%m-%dT%H:%M:%S+01:00", moment)
+        return ("<34>1 %s host1 sshd 812 ID47 - Failed password for root" % stamp).encode()
+
     def test_rfc5424_keeps_its_own_time_host_app_and_message(self):
-        event = parse_datagram(b"<34>1 2026-11-14T01:00:00+01:00 host1 sshd 812 ID47 - Failed password for root", NOW)
+        event = parse_datagram(self.stamp_message(-3600), NOW)
         self.assertEqual((event["facility"], event["severity"]), ("auth", "crit"))
         self.assertEqual((event["topic"], event["hostname"]), ("sshd", "host1"))
         self.assertEqual(event["message"], "Failed password for root")
-        self.assertEqual(time.gmtime(event["ts_utc"])[:4], (2026, 11, 14, 0))  # +01:00 -> 00:00 UTC
+        self.assertEqual(event["ts_utc"], NOW - 3600)  # +01:00 applied
+
+    def test_a_stamp_in_the_future_is_replaced_by_the_arrival_time(self):
+        self.assertEqual(parse_datagram(self.stamp_message(301), NOW)["ts_utc"], NOW)
+        self.assertEqual(parse_datagram(self.stamp_message(10 * 365 * 86400), NOW)["ts_utc"], NOW)
+
+    def test_a_little_clock_skew_into_the_future_is_kept(self):
+        self.assertEqual(parse_datagram(self.stamp_message(300), NOW)["ts_utc"], NOW + 300)
+
+    def test_a_stamp_older_than_two_days_is_replaced_by_the_arrival_time(self):
+        self.assertEqual(parse_datagram(self.stamp_message(-172801), NOW)["ts_utc"], NOW)
+        self.assertEqual(parse_datagram(self.stamp_message(-365 * 86400), NOW)["ts_utc"], NOW)
+        self.assertEqual(parse_datagram(self.stamp_message(-172800), NOW)["ts_utc"], NOW - 172800)
 
     def test_bsd_format_is_stamped_on_arrival_and_split_into_tag_and_message(self):
         event = parse_datagram(b"<30>Nov 14 01:02:03 router dhcp[77]: lease granted to 192.0.2.7", NOW)

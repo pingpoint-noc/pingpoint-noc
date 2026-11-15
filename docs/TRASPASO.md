@@ -8,7 +8,7 @@ Di **«quiero seguir»** (o pega esto) en un chat nuevo dentro de este repo:
 
 > Quiero seguir con PingPoint NOC. Lee `docs/TRASPASO.md`, la sección «Audit of 2026-11-14» de `ROADMAP.md` y tu memoria del proyecto. Todo está en `main` y subido. Empieza por la limpieza de pruebas y luego sigue la lista «Pendiente» de ese traspaso, en orden. No hagas push ni despliegues sin que te lo pida. Antes de dar algo por bueno corre la suite normal y la de navegador.
 
-## Estado (14-11-2026)
+## Estado (15-11-2026)
 
 Hecho y subido a `main`:
 
@@ -21,7 +21,15 @@ Hecho y subido a `main`:
 - **H2 (resuelto):** en contenedores Ubuntu 24.04 sobre Proxmox 9 el perfil AppArmor de `rsyslogd` impide que journald le entregue nada, así que no hay `/var/log/syslog` ni reenvío. `bootstrap.sh` lo detecta con una línea de prueba, deshabilita ese perfil y avisa de reiniciar el contenedor una vez (detalle y pruebas descartadas en `ROADMAP.md`, fila H2).
 - **Resources by Machine:** `GET /api/resources/fleet` y panel en Health & Inventory > Capacity & Trends: una fila por equipo, VM o contenedor con CPU, memoria y disco, miniatura de histórico y orden por columna. El poller de Proxmox guarda ahora el uso de cada invitado.
 
-## Limpieza de las pruebas (hacerla al empezar, con permiso)
+- **Seguridad (15-11, antes de la 0.1.0):** el alta de equipos exige siempre `MININOC_ENROLL_TOKEN` (lo genera `deploy/install.sh`; un administrador lo ve en Health & Inventory); el primer administrador por HTTP exige `MININOC_ADMIN_TOKEN` (sin él se crea con `python -m tools.manage_users add`); las cabeceras del proxy solo cuentan desde `FORWARDED_ALLOW_IPS` (`MININOC_TRUST_PROXY` ya no existe); cabeceras de seguridad, CSP y HSTS; `/docs` apagado salvo `MININOC_API_DOCS=1`; fallos de login en el journal; límites de longitud y de marcas de tiempo del emisor; los scripts de bootstrap prefieren `MININOC_NOC_IP` al `Host`. Notas de versión en `SECURITY.md`.
+- **Avisos ICMP:** la pérdida y la latencia alta avisan solo si duran (120 s y 300 s; `MININOC_ALERT_ICMP_*_HOLD_SECONDS`).
+- **Instalador:** una actualización ya no cambia los receptores nativos de syslog/flujos por los de fichero.
+- Los tests de navegador saltan la CSP (Playwright usa `eval`); solo `tests/browser/test_browser_csp.py` la aplica.
+
+## Limpieza de las pruebas (hecho en parte el 15-11)
+
+Hecho: los 14 equipos que el NOC dio de alta solos a partir de los flujos de la prueba se quitaron del inventario del NOC de referencia. Queda lo del hipervisor:
+
 
 Quedó sin borrar lo que se creó para probar. Los detalles concretos (identificadores y direcciones) están en la memoria del proyecto y en las notas privadas del servidor, no aquí:
 

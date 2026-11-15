@@ -69,11 +69,43 @@ class TestBootstrapWithoutNocAddress(unittest.TestCase):
             self.assertEqual(res.status_code, 400, path)
             self.assertIn("noc_ip", res.json()["detail"], path)
 
-    def test_the_setting_is_the_last_resort(self):
+    def test_the_setting_is_used_when_nothing_else_names_the_collector(self):
         with patch.dict(os.environ, {"MININOC_NOC_IP": "198.51.100.9"}):
             res = self.client.get("/api/bootstrap.sh")
         self.assertEqual(res.status_code, 200)
         self.assertIn("198.51.100.9", res.text)
+
+    def test_the_setting_wins_over_the_host_the_page_was_opened_with(self):
+        # Opened through the public name, the script must still send syslog and registrations to the collector itself (SEC-07).
+        env = {"MININOC_NOC_IP": "192.0.2.10", "MININOC_API_PORT": "8000"}
+        with patch.dict(os.environ, env):
+            for path in ("/api/bootstrap.sh", "/api/bootstrap-pve.sh"):
+                res = self.client.get(path, headers={"host": "noc.example.org"})
+                self.assertEqual(res.status_code, 200, path)
+                self.assertIn('NOC_IP="192.0.2.10"', res.text, path)
+                self.assertIn('NOC_PORT="8000"', res.text, path)
+                self.assertNotIn("noc.example.org", res.text, path)
+            rsc = self.client.get("/api/router-config.rsc", headers={"host": "noc.example.org"})
+        self.assertIn("192.0.2.10", rsc.text)
+        self.assertNotIn("noc.example.org", rsc.text)
+
+    def test_with_the_setting_the_port_comes_from_the_query_then_the_setting(self):
+        env = {"MININOC_NOC_IP": "192.0.2.10", "MININOC_API_PORT": "8000"}
+        with patch.dict(os.environ, env):
+            res = self.client.get("/api/bootstrap.sh?noc_port=9000", headers={"host": "noc.example.org:7000"})
+        self.assertIn('NOC_PORT="9000"', res.text)
+
+    def test_an_explicit_address_beats_the_setting_and_keeps_the_page_port(self):
+        env = {"MININOC_NOC_IP": "192.0.2.10", "MININOC_API_PORT": "8000"}
+        with patch.dict(os.environ, env):
+            res = self.client.get("/api/bootstrap.sh?noc_ip=203.0.113.7", headers={"host": "noc.example.org:7000"})
+        self.assertIn('NOC_IP="203.0.113.7"', res.text)
+        self.assertIn('NOC_PORT="7000"', res.text)
+
+    def test_without_the_setting_the_host_and_its_port_are_used(self):
+        res = self.client.get("/api/bootstrap.sh", headers={"host": "noc.example.test:8123"})
+        self.assertIn('NOC_IP="noc.example.test"', res.text)
+        self.assertIn('NOC_PORT="8123"', res.text)
 
 
 class TestCollectorsWithoutDefaultRouter(unittest.TestCase):

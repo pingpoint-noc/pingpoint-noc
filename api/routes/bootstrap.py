@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import scenario
 from api import services
@@ -27,22 +27,22 @@ HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.\-]*[A-Za-z0-9])?$|^[0-9a-fA-F:.]
 class NodeRegistrationPayload(BaseModel):
     """JSON body sent by `bootstrap.sh` when a Linux host or container boots."""
 
-    ip: str
-    hostname: str = ""
-    device_type: str = "linux"
+    ip: str = Field(max_length=64)
+    hostname: str = Field(default="", max_length=253)
+    device_type: str = Field(default="linux", max_length=32)
 
 
 class DiskTelemetryItem(BaseModel):
-    label: str = "/"
+    label: str = Field(default="/", max_length=128)
     used_pct: float
     total_bytes: int | None = None
     used_bytes: int | None = None
 
 
 class ServiceTelemetryItem(BaseModel):
-    name: str
-    status: str = "active"
-    description: str = ""
+    name: str = Field(max_length=128)
+    status: str = Field(default="active", max_length=32)
+    description: str = Field(default="", max_length=256)
 
 
 class NodeMetricsPayload(BaseModel):
@@ -55,18 +55,19 @@ class NodeMetricsPayload(BaseModel):
     mem_used_bytes: int | None = None
     mem_free_bytes: int | None = None
     uptime_seconds: int | None = None
-    disks: list[DiskTelemetryItem] = []
+    disks: list[DiskTelemetryItem] = Field(default=[], max_length=64)
 
 
 class NodeTelemetryPayload(BaseModel):
-    device_id: str
-    hostname: str = ""
-    virt: str = ""
+    device_id: str = Field(max_length=128)
+    hostname: str = Field(default="", max_length=253)
+    virt: str = Field(default="", max_length=32)
     ts_utc: int | None = None
     metrics: NodeMetricsPayload = NodeMetricsPayload()
-    services: list[ServiceTelemetryItem] = []
+    services: list[ServiceTelemetryItem] = Field(default=[], max_length=128)
 
 
+TELEMETRY_MAX_SKEW_SECONDS = 300
 BOOTSTRAP_TEMPLATE = Path(__file__).with_name("bootstrap.sh.in")
 BOOTSTRAP_PVE_TEMPLATE = Path(__file__).with_name("bootstrap_pve.sh.in")
 
@@ -93,11 +94,11 @@ def build_bootstrap_pve_script(noc_ip, noc_port=8080):
 class ProxmoxRegistrationPayload(BaseModel):
     """JSON body sent by `bootstrap-pve.sh` when a Proxmox VE hypervisor is onboarded."""
 
-    ip: str
-    hostname: str = ""
-    token_id: str
-    token_secret: str
-    node_name: str = "proxmox"
+    ip: str = Field(max_length=64)
+    hostname: str = Field(default="", max_length=253)
+    token_id: str = Field(max_length=256)
+    token_secret: str = Field(max_length=256)
+    node_name: str = Field(default="proxmox", max_length=63)
 
 
 def default_noc_ip():
@@ -105,20 +106,41 @@ def default_noc_ip():
     return scenario.value("MININOC_NOC_IP")
 
 
-def resolve_noc_address(request, noc_ip):
-    """The address a script offers as the collector: the explicit `noc_ip`, else the address the web was opened with, else MININOC_NOC_IP.
+def resolve_noc_endpoint(request, noc_ip, noc_port):
+    """The (address, port) a script offers as the collector.
 
-    Raises HTTPException(400) when none of them is known (a test client has no real host, and a fresh install sets no MININOC_NOC_IP).
+    Address: the explicit `noc_ip`, else MININOC_NOC_IP, else the address the web was opened with. The setting comes before the
+    Host header so that a page opened through a public name still sends syslog and registrations to the collector itself.
+    Port: the explicit `noc_port`; else, with the setting, MININOC_API_PORT; else the port of the page (8080 when it names none).
+    Raises HTTPException(400) when no address is known (a test client has no real host, and a fresh install sets no MININOC_NOC_IP).
     """
-    if noc_ip is not None and noc_ip.strip() != "":
-        return noc_ip.strip()
-    host = request.base_url.hostname
-    if host and host != "testserver":
-        return host
+    explicit = noc_ip.strip() if noc_ip is not None else ""
     configured = default_noc_ip()
-    if configured:
-        return configured
-    raise HTTPException(status_code=400, detail="noc_ip is needed: pass ?noc_ip=<address of this NOC> or set MININOC_NOC_IP")
+    host = request.base_url.hostname
+    if host == "testserver":
+        host = ""
+    if explicit:
+        address, from_setting = explicit, False
+    elif configured:
+        address, from_setting = configured, True
+    elif host:
+        address, from_setting = host, False
+    else:
+        raise HTTPException(status_code=400, detail="noc_ip is needed: pass ?noc_ip=<address of this NOC> or set MININOC_NOC_IP")
+    if noc_port is not None:
+        port = int(noc_port)
+    elif from_setting and os.environ.get("MININOC_API_PORT", "").strip().isdigit():
+        port = int(os.environ["MININOC_API_PORT"])
+    elif request.base_url.port:
+        port = int(request.base_url.port)
+    else:
+        port = 8080
+    return address, port
+
+
+def resolve_noc_address(request, noc_ip):
+    """Only the address of resolve_noc_endpoint (the router script has no port)."""
+    return resolve_noc_endpoint(request, noc_ip, None)[0]
 
 
 def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None):
@@ -145,13 +167,7 @@ def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None
         noc_ip: str | None = None,
         noc_port: int | None = None,
     ):
-        resolved_ip = resolve_noc_address(request, noc_ip)
-
-        resolved_port = 8080
-        if noc_port is not None:
-            resolved_port = int(noc_port)
-        elif request.base_url.port:
-            resolved_port = int(request.base_url.port)
+        resolved_ip, resolved_port = resolve_noc_endpoint(request, noc_ip, noc_port)
 
         if not HOST_RE.match(resolved_ip):
             raise HTTPException(status_code=400, detail="noc_ip must be an IP address or a host name")
@@ -164,13 +180,7 @@ def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None
         noc_ip: str | None = None,
         noc_port: int | None = None,
     ):
-        resolved_ip = resolve_noc_address(request, noc_ip)
-
-        resolved_port = 8080
-        if noc_port is not None:
-            resolved_port = int(noc_port)
-        elif request.base_url.port:
-            resolved_port = int(request.base_url.port)
+        resolved_ip, resolved_port = resolve_noc_endpoint(request, noc_ip, noc_port)
 
         if not HOST_RE.match(resolved_ip):
             raise HTTPException(status_code=400, detail="noc_ip must be an IP address or a host name")
@@ -273,7 +283,11 @@ def create_bootstrap_router(repo, clock, authorize_admin=None, record_audit=None
 
         client_ip = client_host(request)
         try:
-            now_ts = int(payload.ts_utc) if payload.ts_utc is not None else clock()
+            now_ts = clock()
+            # The agent's own timestamp is believed only within five minutes of the server clock (a forged future one would
+            # keep the host looking fresh for ever).
+            if payload.ts_utc is not None and abs(int(payload.ts_utc) - now_ts) <= TELEMETRY_MAX_SKEW_SECONDS:
+                now_ts = int(payload.ts_utc)
             result = services.record_node_telemetry(
                 repo=repo,
                 payload_dict=payload.model_dump(),
