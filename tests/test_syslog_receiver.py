@@ -1,8 +1,10 @@
+import os
 import socket
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from collectors.syslog.receiver import SyslogReceiver, parse_datagram
 from storage import create_repository
@@ -122,6 +124,70 @@ class RateLimitTest(unittest.TestCase):
     def test_zero_disables_the_limit(self):
         receiver = self.make(0)
         self.assertTrue(all(receiver.allow("192.0.2.9", now=1.0) for _ in range(5000)))
+
+
+class SenderPolicyTest(unittest.TestCase):
+    """SEC-06: UDP source addresses can be forged, so who may create devices, and how many, is bounded."""
+
+    def make(self, **kwargs):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.repo = create_repository("sqlite", Path(tmp.name) / "t.db")
+        self.repo.init_storage()
+        return SyslogReceiver(self.repo, host="127.0.0.1", port=0, snmp_query_fn=lambda *a, **k: None, **kwargs)
+
+    def test_a_sender_list_refuses_everybody_else_and_counts_them(self):
+        receiver = self.make(allowed_senders="192.0.2.0/24, 198.51.100.7")
+        self.assertTrue(receiver.accepts("192.0.2.5"))
+        self.assertTrue(receiver.accepts("198.51.100.7"))
+        self.assertFalse(receiver.accepts("203.0.113.1"))
+        self.assertFalse(receiver.accepts("198.51.100.8"))
+        self.assertEqual(receiver.refused, 2)
+
+    def test_without_a_list_every_sender_is_accepted_by_the_socket(self):
+        self.assertTrue(self.make().accepts("203.0.113.1"))
+
+    def test_the_list_can_come_from_the_environment(self):
+        with mock.patch.dict(os.environ, {"MININOC_SYSLOG_ALLOWED_SENDERS": "192.0.2.0/24"}):
+            receiver = self.make()
+        self.assertFalse(receiver.accepts("203.0.113.1"))
+
+    def test_a_public_stranger_does_not_become_a_device_without_a_list(self):
+        receiver = self.make()
+        self.assertIsNone(receiver.device_for("8.8.8.8", NOW))
+        self.assertIsNone(self.repo.get_device_by_ip("8.8.8.8"))
+        self.assertEqual(receiver.discarded_strangers, 1)
+
+    def test_a_private_stranger_does_become_a_device(self):
+        receiver = self.make()
+        self.assertIsNotNone(receiver.device_for("192.168.1.50", NOW))
+        self.assertIsNotNone(self.repo.get_device_by_ip("192.168.1.50"))
+
+    def test_a_known_device_with_a_public_address_is_still_stored(self):
+        self.make()
+        self.repo.ensure_device("far", "Far host", "203.0.113.9", device_type="linux", has_snmp=0)
+        receiver = SyslogReceiver(self.repo, host="127.0.0.1", port=0)
+        self.assertEqual(receiver.device_for("203.0.113.9", NOW), "far")
+
+    def test_at_most_twenty_new_devices_per_hour(self):
+        receiver = self.make()
+        made = [receiver.device_for("10.0.0.%d" % n, NOW + n) for n in range(1, 24)]
+        self.assertEqual(len([m for m in made if m is not None]), 20)
+        self.assertEqual(made[20:], [None, None, None])
+        self.assertIsNotNone(receiver.device_for("10.0.1.1", NOW + 3700))  # an hour later there is room again
+
+    def test_the_sender_list_lifts_the_per_hour_cap_for_listed_networks(self):
+        receiver = self.make(allowed_senders="10.0.0.0/16")
+        made = [receiver.device_for("10.0.0.%d" % n, NOW + n) for n in range(1, 30)]
+        self.assertTrue(all(m is not None for m in made))
+
+    def test_the_per_sender_tables_cannot_grow_without_bound(self):
+        receiver = self.make(max_per_second=1)
+        for n in range(5000):
+            receiver.allow("10.%d.%d.1" % (n // 250, n % 250), now=100.0)
+            receiver.allow("10.%d.%d.1" % (n // 250, n % 250), now=100.0)  # the second one is limited: fills `limited`
+        self.assertLessEqual(len(receiver._buckets), 4096)
+        self.assertLessEqual(len(receiver.limited), 4096)
 
 
 if __name__ == "__main__":

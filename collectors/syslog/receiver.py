@@ -26,6 +26,8 @@ LOGGER = logging.getLogger("mini_noc.syslog_receiver")
 
 COLLECTOR_NAME = "syslog"
 MAX_DATAGRAM = 8192
+MAX_TRACKED_SENDERS = 4096  # entries of each per-sender table: UDP source addresses can be forged, so they cannot grow for ever
+MAX_NEW_DEVICES_PER_HOUR = 20  # devices created for unknown senders (without a sender list)
 MAX_STAMP_SKEW_SECONDS = 300  # a sender's clock may be this far ahead
 MAX_STAMP_AGE_SECONDS = 172800  # and a relay may deliver this late (two days)
 QUEUE_LIMIT = 20000
@@ -113,8 +115,22 @@ def parse_datagram(data, now_ts):
 class SyslogReceiver:
     """Socket thread + writer: datagrams are queued, then stored in batches per sending device."""
 
-    def __init__(self, repo, host="0.0.0.0", port=514, snmp_query_fn=None, max_per_second=None):
+    def __init__(self, repo, host="0.0.0.0", port=514, snmp_query_fn=None, max_per_second=None, allowed_senders=None):
         self.repo = repo
+        # MININOC_SYSLOG_ALLOWED_SENDERS: addresses or CIDR networks (comma separated). Empty = everybody may send, but strangers
+        # only become devices when private and at most MAX_NEW_DEVICES_PER_HOUR an hour.
+        raw = os.environ.get("MININOC_SYSLOG_ALLOWED_SENDERS", "") if allowed_senders is None else allowed_senders
+        self.allowed_networks = []
+        for part in str(raw).split(","):
+            part = part.strip()
+            if part:
+                try:
+                    self.allowed_networks.append(ipaddress.ip_network(part, strict=False))
+                except ValueError:
+                    LOGGER.warning("MININOC_SYSLOG_ALLOWED_SENDERS: %r is not an address or network, ignored", part)
+        self.refused = 0  # datagrams from addresses outside the sender list
+        self.discarded_strangers = 0  # datagrams from unknown, not-allowed senders that were not turned into a device
+        self._new_device_times = []
         self.max_per_second = int(os.environ.get("MININOC_SYSLOG_MAX_PER_SECOND", DEFAULT_MAX_PER_SECOND)) if max_per_second is None else int(max_per_second)
         self._buckets = {}  # ip -> [tokens, last_monotonic]
         self.limited = {}  # ip -> datagrams dropped since the last report
@@ -127,12 +143,37 @@ class SyslogReceiver:
         self._stop = threading.Event()
         self._device_cache = {}  # ip -> device id
 
+    def accepts(self, ip):
+        """False for a sender outside MININOC_SYSLOG_ALLOWED_SENDERS (always True without a list)."""
+        if not self.allowed_networks:
+            return True
+        try:
+            address = ipaddress.ip_address(ip)
+        except ValueError:
+            self.refused += 1
+            return False
+        if any(address in network for network in self.allowed_networks):
+            return True
+        self.refused += 1
+        return False
+
+    def _in_sender_list(self, ip):
+        try:
+            address = ipaddress.ip_address(ip)
+        except ValueError:
+            return False
+        return any(address in network for network in self.allowed_networks)
+
     def allow(self, ip, now=None):
         """Token bucket per sender: max_per_second sustained, BURST_SECONDS worth of burst. 0 disables the limit."""
         if self.max_per_second <= 0:
             return True
         now = time.monotonic() if now is None else now
         capacity = float(self.max_per_second * BURST_SECONDS)
+        if len(self._buckets) >= MAX_TRACKED_SENDERS and ip not in self._buckets:
+            self._buckets.clear()
+        if len(self.limited) >= MAX_TRACKED_SENDERS and ip not in self.limited:
+            self.limited.clear()
         tokens, last = self._buckets.get(ip, (capacity, now))
         tokens = min(capacity, tokens + (now - last) * self.max_per_second)
         if tokens < 1.0:
@@ -164,7 +205,7 @@ class SyslogReceiver:
                 continue
             except OSError:
                 break
-            if not self.allow(addr[0]):
+            if not self.accepts(addr[0]) or not self.allow(addr[0]):
                 continue
             try:
                 self.queue.put_nowait((addr[0], data, int(time.time())))
@@ -182,6 +223,14 @@ class SyslogReceiver:
         except ValueError:
             return None
         existing = self.repo.get_device_by_ip(ip)
+        if existing is None and not self._may_create_device(ip, now_ts):
+            self.discarded_strangers += 1
+            if self.discarded_strangers == 1 or self.discarded_strangers % 1000 == 0:
+                LOGGER.warning(
+                    "Syslog from %s is not stored: an unknown sender (%d so far). Add the host to the inventory, or list its network in "
+                    "MININOC_SYSLOG_ALLOWED_SENDERS.", ip, self.discarded_strangers,
+                )
+            return None
         if existing is None:
             record = self.repo.upsert_discovered_device(ip=ip, source="syslog", ts_utc=now_ts)
             device_id = record["device_id"]
@@ -195,8 +244,23 @@ class SyslogReceiver:
             LOGGER.info("New syslog source: %s (%s)", ip, device_id)
         else:
             device_id = existing["id"]
+        if len(self._device_cache) >= MAX_TRACKED_SENDERS:
+            self._device_cache.clear()
         self._device_cache[ip] = device_id
         return device_id
+
+    def _may_create_device(self, ip, now_ts):
+        """A sender on the list may always become a device; otherwise only a private address, and a bounded number an hour."""
+        if self._in_sender_list(ip):
+            return True
+        address = ipaddress.ip_address(ip)
+        if not (address.is_private or address.is_loopback or address.is_link_local):
+            return False
+        self._new_device_times = [t for t in self._new_device_times if now_ts - t < 3600]
+        if len(self._new_device_times) >= MAX_NEW_DEVICES_PER_HOUR:
+            return False
+        self._new_device_times.append(now_ts)
+        return True
 
     def flush(self, pending):
         """Store {ip: [(data, ts), ...]}; returns how many events were stored."""

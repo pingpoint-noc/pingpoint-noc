@@ -242,3 +242,24 @@ LibreNMS and Zabbix feature pages, Uptime Kuma README. Netdata and Observium wer
 5. F1, F2, G3 to G6 with real data; G15 and G19 last.
 
 In the reference deployment, look first at the syslog burst behind A3 and the stale device behind A1 (server work, kept out of this repo).
+
+## Session of 2026-11-15: security done, what comes next
+
+Done (details in `SECURITY.md` and `docs/TRASPASO.md`): SEC-01 to SEC-05, SEC-06, SEC-07, SEC-11, SEC-13, security headers, CSP, HSTS, API docs behind
+the sign-in, failed-login log, ICMP warnings that must last (120 s loss, 300 s latency), installer fixes (symlink, final newline, native receivers kept on
+update, executable bit), first admin only with `MININOC_ADMIN_TOKEN`.
+
+Still open from the audit, in this order: SEC-09 (systemd hardening: try one unit in a throw-away LXC first), F6-04 docs for TLS (Caddy example exists), F6-06
+(per-address limits on enrolment, bootstrap and telemetry), F6-07 (server-side logout), DT-02 to DT-04, then phase 2 (`pyproject.toml`, version `0.1.0`,
+lockfile, `CHANGELOG.md`, issue templates, badges; PyPI and the container image only with the maintainer's OK), then phase 7 (HTTP/TCP probes) and phase 8
+(English documentation). Operations kept in the private notes: copy of the database outside the container, restore drill, external heartbeat.
+
+### Interface ideas to audit in a new session (nothing done yet; the maintainer's wishes, with a first opinion)
+
+| # | Idea | Opinion and first step |
+|---|---|---|
+| U1 | **An "all machines" overview instead of always having one machine selected.** | Good idea. Overview, Topology, Health & Inventory, Timeline and the alert banner are fleet views already; only Bandwidth, Flows and Syslog are per machine. Add an "All" entry to the selector (default for the fleet views); per-machine views keep the last machine and show "pick a machine" (Syslog could also search all machines). Needs a short design note in `DESIGN.md` first, because the selector drives most requests. |
+| U2 | **Selected machine briefly highlighted when switching to Topology.** | Good, small: a one-second pulse on the card (nothing under `prefers-reduced-motion`), scrolled into view. |
+| U3 | **The machine selection is lost on reload.** | Check first: A5 promised "last used, kept in `localStorage`" and deep links carry the device. Find which case loses it (no stored value, a stored id that no longer exists, a route that overrides it) and cover it with a browser test. |
+| U4 | **Dislike of the page-load animation and behaviour.** | Audit with the layout-shift observer already used for B1 (CLS, first paint, what is hidden and for how long). Candidates: no fade at all, keep the last painted values until data arrives, skeleton blocks of the final height. Decide with before/after numbers. |
+| U5 | **Switching machines reloads everything.** | Audit which requests a switch makes (network tab): fleet panels should not refetch, per-machine panels should, with `AbortController` and the scroll position kept (`tests/browser/test_browser_refresh_races.py` exists). Proposal after measuring, not before. |
