@@ -64,3 +64,22 @@ Escala fija en `rem`, pesos 400/600/700; los números y las IP en monoespaciada.
 ## Iconos y favicon
 
 Todo SVG en línea o en `web/static/favicon.svg` (señal de tráfico de trazo grueso, legible a 16 px). Sin librerías de iconos.
+
+## Selección de equipo: vista «Todos» (U1) y pulso en la topología (U2)
+
+Estado: propuesta, sin implementar. Medidas previas en `ROADMAP.md` («Interface audit»).
+
+- **Qué depende del equipo.** Con un equipo elegido cambian Overview (panel del equipo), Bandwidth, Flows, Syslog, Timeline y *Resources*; el resto
+  (banner de alertas, Topology, Health & Inventory, resumen de flota) es de toda la flota. El selector se lee en 56 sitios (`STATE.deviceId`).
+- **Propuesta.** Una entrada «All machines» al principio del selector (`STATE.deviceId = "*"`, en el enlace `device=all`). Es el valor por defecto de
+  las vistas de flota. Las vistas por equipo, si se abren con «All», muestran el aviso «Pick a machine» con la lista de equipos como botones (y
+  recuerdan el último con U3); Syslog puede buscar en todos los equipos (cambio de API: `/api/logs` sin `device`). El panel «Resources by Machine» ya
+  es la tabla de flota y pasa a ser el contenido de Overview con «All».
+- **Cómo se hace sin romper nada.** (1) Encapsular la lectura en `currentDevice()` (devuelve `null` con «All») y migrar los 56 sitios; (2) los cargadores
+  por equipo no piden nada con `null` (mismo camino que `refreshDevice()` de U5); (3) la entrada «All» y los avisos; (4) Syslog global. Cada paso
+  con su test de navegador y sin cambiar el comportamiento mientras el selector no tenga «All».
+- **Decisión abierta.** Si «All» sustituye al equipo por defecto de las vistas de flota o convive con el recuerdo de U3 (propuesta: convive; «All» es
+  lo que se ve en una instalación nueva, y un equipo elegido a mano se recuerda).
+- **U2 (pulso en Topology).** Al pasar a Topology con un equipo elegido, su tarjeta hace un pulso de 1 s (contorno con el color de acento, sin mover
+  nada) y se desplaza a la vista; con `prefers-reduced-motion` solo se resalta, sin animación. Con «All» no hay pulso.
+

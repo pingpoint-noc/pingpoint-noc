@@ -232,6 +232,7 @@ LibreNMS and Zabbix feature pages, Uptime Kuma README. Netdata and Observium wer
 | G17 (done 2026-11-14: `GET /api/metrics`, under the same read gate as the rest of the API) | Prometheus metrics (device up, CPU and memory, active alerts, database size) | Operation | S | Nil | S |
 | G18 | Config backup (Oxidized/RANCID style): **not** in the NOC (it needs credentials); link to Oxidized in the docs | Configuration | n/a | n/a | n/a |
 | G19 | Simple anomaly detection on a 7-day moving average, informational only, no push by default | Performance | L | High | N |
+| G20 (scope accepted 2026-11-16) | Disk health in the agent, opt-in: ZFS/`mdadm` state first, then SMART via `smartctl` (overall result, temperature), then NVMe wear; alert on a change of state, show in *Resources by Machine*; needs root on the host, so off unless the bootstrap script gets an explicit option | Performance | M | Low | N (needs real disks) |
 
 ### Order of work
 
@@ -282,7 +283,7 @@ shown on load (the fade stays on view switches): FCP 48 -> 28 ms, target list 11
 calls `refreshDevice()`: 20-21 calls become 10-11 (the fleet endpoints stay as they are until the next timer tick) and the per-machine
 loaders run in parallel. Still open: U1 and U2 (need the design note in `DESIGN.md`).
 
-### Scope decision to take: disk health and other host telemetry
+### Scope decision: disk health and other host telemetry (accepted 2026-11-16 as G20)
 
 Today the agent reports CPU, memory, disk usage (with the full-disk forecast), load, uptime, service state and `virt`. Whether to add *disk health*
 (SMART status, temperature, reallocated sectors, NVMe wear, ZFS pool and `mdadm` state) is open. First opinion, for the maintainer to confirm:
