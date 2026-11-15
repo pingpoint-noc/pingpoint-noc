@@ -33,14 +33,24 @@ chown -R "$RUN_USER" "$INSTALL_DIR/data"
 # mini-noc.env (mode 600, owned by the service user). An existing token or file is never overwritten, and the value is
 # never printed: an administrator reads it in the web (Health > Onboarding) or in that file.
 ENV_FILE="$INSTALL_DIR/mini-noc.env"
+# This runs as root inside a directory owned by the service user: never follow a link planted at that name.
+if [ -L "$ENV_FILE" ]; then
+    echo "Refusing to use $ENV_FILE: it is a symbolic link." >&2
+    exit 1
+fi
 if ! grep -qE '^MININOC_ENROLL_TOKEN=.+' "$ENV_FILE" 2> /dev/null; then
     TOKEN="$("$INSTALL_DIR/.venv/bin/python" -c 'import secrets; print(secrets.token_hex(32))')"
-    (umask 077; printf 'MININOC_ENROLL_TOKEN=%s\n' "$TOKEN" >> "$ENV_FILE")
-    chown "$RUN_USER" "$ENV_FILE" 2> /dev/null || true
+    # Private before anything is written (an existing file may be 644 and hold other secrets), and start on a new line.
+    (umask 077; touch "$ENV_FILE")
     chmod 600 "$ENV_FILE"
+    if [ -s "$ENV_FILE" ] && [ "$(tail -c1 "$ENV_FILE" | od -An -c | tr -d ' ')" != '\n' ]; then
+        printf '\n' >> "$ENV_FILE"
+    fi
+    printf 'MININOC_ENROLL_TOKEN=%s\n' "$TOKEN" >> "$ENV_FILE"
+    chown "$RUN_USER" "$ENV_FILE" 2> /dev/null || true
     echo "Enrolment token generated in $ENV_FILE (shown to administrators in the web, Health > Onboarding)."
 else
-    TOKEN="$(grep -E '^MININOC_ENROLL_TOKEN=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '"')"
+    TOKEN="$(grep -E '^MININOC_ENROLL_TOKEN=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d "\"'")"
 fi
 
 for unit in "$INSTALL_DIR"/deploy/systemd/mini-noc-*; do

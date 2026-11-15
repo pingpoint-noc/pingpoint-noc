@@ -1,6 +1,9 @@
 """SEC-01: host enrolment always needs MININOC_ENROLL_TOKEN, and only an admin can read the token from the API."""
 
 import os
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -182,7 +185,7 @@ class InstallerTokenTests(unittest.TestCase):
 
     def test_never_prints_the_token(self):
         for line in self.script.splitlines():
-            if line.lstrip().startswith(("echo", "printf")):
+            if line.lstrip().startswith(("echo", "printf")) and ">>" not in line:
                 self.assertNotIn("$TOKEN", line)
                 self.assertNotIn("${TOKEN", line)
 
@@ -192,6 +195,79 @@ class InstallerTokenTests(unittest.TestCase):
 
     def test_self_onboarding_sends_the_token(self):
         self.assertIn("MININOC_ENROLL_TOKEN=", self.script.split("bootstrap.sh?noc_ip")[1].split("\n")[0])
+
+
+def _installer_block():
+    """The token-making part of deploy/install.sh (from its comment up to the unit loop), to run it for real."""
+    text = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
+    start = text.index("# Host enrolment")
+    return text[start : text.index('for unit in "$INSTALL_DIR"/deploy/systemd')]
+
+
+def _bash():
+    """A working bash: on Windows `bash` is often WSL without a distribution, so only Git's is accepted there."""
+    if os.name == "nt":
+        for candidate in ("C:/Program Files/Git/bin/bash.exe", "C:/Program Files (x86)/Git/bin/bash.exe"):
+            if os.path.exists(candidate):
+                return candidate
+        return None
+    return shutil.which("bash")
+
+
+@unittest.skipUnless(_bash(), "needs bash")
+class InstallerTokenRunTests(unittest.TestCase):
+    """Run the installer's token block against a throw-away install directory."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="pp-install-"))
+        self.addCleanup(shutil.rmtree, str(self.dir), True)
+        (self.dir / ".venv" / "bin").mkdir(parents=True)
+        python = self.dir / ".venv" / "bin" / "python"
+        python.write_text("#!/bin/sh\nexec '" + sys.executable.replace("\\", "/") + "' \"$@\"\n")
+        python.chmod(0o755)
+        self.env_file = self.dir / "mini-noc.env"
+
+    def run_block(self):
+        script = 'INSTALL_DIR="%s"; RUN_USER="$(id -un)"\n%s' % (self.dir.as_posix(), _installer_block())
+        return subprocess.run([_bash(), "-c", "set -euo pipefail\n" + script], capture_output=True, text=True)
+
+    def test_creates_the_file_with_a_token_and_does_not_print_it(self):
+        result = self.run_block()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        text = self.env_file.read_text()
+        token = text.strip().split("=", 1)[1]
+        self.assertEqual(len(token), 64)
+        self.assertNotIn(token, result.stdout + result.stderr)
+
+    def test_a_file_without_a_final_newline_is_not_corrupted(self):
+        self.env_file.write_text("MININOC_ADMIN_TOKEN=abc")
+        self.assertEqual(self.run_block().returncode, 0)
+        lines = self.env_file.read_text().splitlines()
+        self.assertEqual(lines[0], "MININOC_ADMIN_TOKEN=abc")
+        self.assertTrue(lines[1].startswith("MININOC_ENROLL_TOKEN="))
+
+    def test_an_existing_token_is_kept_and_the_file_untouched(self):
+        self.env_file.write_text("MININOC_ENROLL_TOKEN=keepme\n")
+        self.assertEqual(self.run_block().returncode, 0)
+        self.assertEqual(self.env_file.read_text(), "MININOC_ENROLL_TOKEN=keepme\n")
+
+    def test_a_symlinked_env_file_is_refused(self):
+        target = self.dir / "elsewhere"
+        target.write_text("precious\n")
+        try:
+            os.symlink(str(target), str(self.env_file))
+        except (OSError, NotImplementedError):
+            self.skipTest("cannot create symlinks here")
+        result = self.run_block()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(target.read_text(), "precious\n")
+
+    @unittest.skipIf(os.name == "nt", "POSIX modes")
+    def test_the_file_is_private(self):
+        self.env_file.write_text("MININOC_ADMIN_TOKEN=abc\n")
+        self.env_file.chmod(0o644)
+        self.assertEqual(self.run_block().returncode, 0)
+        self.assertEqual(self.env_file.stat().st_mode & 0o777, 0o600)
 
 
 class WebCommandTests(unittest.TestCase):
