@@ -56,6 +56,59 @@ class TestSyslogBurstAlert(unittest.TestCase):
             sessions.append("Started session-%d.scope - Session %d of User root." % (i, i))
         self.assertEqual(self.burst(sessions), [])
 
+    def ssh_login_lifecycle(self, n):
+        """What one ssh login of root writes on a Debian/Proxmox host, as seen in the log of a hypervisor (about 35 lines)."""
+        return [
+            "Accepted publickey for root from 192.0.2.7 port %d ssh2: ED25519 SHA256:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG" % (40000 + n),
+            "pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)",
+            "New session %d of user root." % n,
+            "Started session-%d.scope - Session %d of User root." % (n, n),
+            "Starting user-runtime-dir@0.service - User Runtime Directory /run/user/0...",
+            "Finished user-runtime-dir@0.service - User Runtime Directory /run/user/0.",
+            "Starting user@0.service - User Manager for UID 0...",
+            "pam_unix(systemd-user:session): session opened for user root(uid=0) by root(uid=0)",
+            "Created slice user-0.slice - User Slice of UID 0.",
+            "Created slice app.slice - User Application Slice.",
+            "Queued start job for default target default.target.",
+            "Starting gpg-agent.socket - GnuPG cryptographic agent and passphrase cache...",
+            "Listening on gpg-agent.socket - GnuPG cryptographic agent and passphrase cache.",
+            "Listening on ssh-agent.socket - OpenSSH Agent socket.",
+            "Listening on dirmngr.socket - GnuPG network certificate management daemon.",
+            "Listening on keyboxd.socket - GnuPG public key management service.",
+            "Reached target sockets.target - Sockets.",
+            "Reached target timers.target - Timers.",
+            "Reached target paths.target - Paths.",
+            "Reached target basic.target - Basic System.",
+            "Reached target default.target - Main User Target.",
+            "Startup finished in 130ms.",
+            "Started user@0.service - User Manager for UID 0.",
+            "Received disconnect from 192.0.2.7 port %d:11: disconnected by user" % (40000 + n),
+            "Disconnected from user root 192.0.2.7 port %d" % (40000 + n),
+            "pam_unix(sshd:session): session closed for user root",
+            "session-%d.scope: Deactivated successfully." % n,
+            "session-%d.scope: Consumed 0.1s CPU time, 4.2M memory peak." % n,
+            "Session %d logged out. Waiting for processes to exit." % n,
+            "Removed session %d." % n,
+            "Stopped user-runtime-dir@0.service - User Runtime Directory /run/user/0.",
+            "Removed slice user-0.slice - User Slice of UID 0.",
+            "run-user-0.mount: Deactivated successfully.",
+        ]
+
+    def test_a_burst_of_ssh_logins_by_an_administrator_is_not_a_flood(self):
+        """Four logins in a minute (a script, `pct exec`, a deploy) wrote 130 lines on a hypervisor and raised a warning."""
+        lines = []
+        for n in range(4):
+            lines.extend(self.ssh_login_lifecycle(n))
+        self.assertGreaterEqual(len(lines), 100)
+        self.assertEqual(self.burst(lines), [])
+
+    def test_failed_and_pre_authentication_lines_still_count_next_to_logins(self):
+        noise = []
+        for n in range(3):
+            noise.extend(self.ssh_login_lifecycle(n))
+        attack = ["Connection closed by authenticating user root 203.0.113.%d port 5555 [preauth]" % (i % 250) for i in range(60)]
+        self.assertEqual(len(self.burst(noise + attack)), 1)
+
     def test_failed_logins_still_count(self):
         attempts = ["Failed password for invalid user admin from 203.0.113.%d port 4444 ssh2" % (i % 250) for i in range(80)]
         self.assertEqual(len(self.burst(attempts)), 1)

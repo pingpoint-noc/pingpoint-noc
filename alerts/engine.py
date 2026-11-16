@@ -958,14 +958,27 @@ def evaluate_failed_logins_rule(
 
 # Session housekeeping every Linux host writes whenever someone logs in or a job runs (ssh, sudo, cron, `pct exec` on a hypervisor):
 # opening and closing a session says nothing about the host's health, and a login burst from an administrator or a script must
-# not look like a flood. Failed logins and invalid users are NOT here: those still count (and have their own rule).
+# not look like a flood. One ssh login of root is about 35 lines (pam, logind, the systemd user manager and its sockets, the
+# accepted key, the disconnect), so four in a minute reached 130. Failed logins, invalid users and pre-authentication closes are NOT
+# here: those still count (and have their own rule).
 DEFAULT_SYSLOG_BURST_IGNORE = re.compile(
+    # pam, logind and session scopes
     r"pam_unix\([^)]*:session\): session (?:opened|closed) for user"
     r"|pam_systemd\([^)]*:session\)"
     r"|systemd-logind\b.*\b(?:new session|removed session|session \d+ logged out)"
     r"|\bsession-\d+\.scope\b"
     r"|^session \d+ logged out"
-    r"|^(?:new|removed) session \d+",
+    r"|^(?:new|removed) session \d+"
+    # the systemd user manager that a login starts and stops
+    r"|\buser@\d+\.service\b|\buser-runtime-dir@\d+\.service\b|\buser-\d+\.slice\b|\brun-user-\d+\.mount\b|\bapp\.slice\b"
+    r"|\b(?:ssh-agent|gpg-agent[\w-]*|keyboxd|dirmngr)\.socket\b"
+    r"|^queued start job for default target"
+    r"|^reached target (?:default|basic|sockets|timers|paths)\.target"
+    r"|^startup finished in \d+ms"
+    # ssh after a successful authentication
+    r"|^accepted (?:publickey|password|keyboard-interactive/pam) for \S+ from"
+    r"|^disconnected from user \S+"
+    r"|^received disconnect from \S+ port \d+:\d+: disconnected by user",
     re.IGNORECASE,
 )
 

@@ -20,8 +20,9 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
 
 ### Changed
 - `syslog_burst` and the learned burst threshold no longer count session housekeeping (pam session opened/closed, logind sessions,
-  systemd session scopes): logging in many times, by hand or from a script, is not a flood. Failed logins still count. The per-device
-  `syslog_burst_ignore` pattern adds to this filter.
+  systemd session scopes and user manager, the accepted key and the disconnect of an ssh login): logging in many times, by hand or from
+  a script, is not a flood (one root login writes about 35 lines). Failed logins and pre-authentication closes still count. The
+  per-device `syslog_burst_ignore` pattern adds to this filter.
 - A browser that never picked a machine (or whose remembered machine is gone) opens on "All machines" when there is more than one;
   a machine picked by hand is still remembered and wins.
 - No fade of the main area on first paint (the fade stays on view switches).
