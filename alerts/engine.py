@@ -956,16 +956,31 @@ def evaluate_failed_logins_rule(
     )
 
 
+# Session housekeeping every Linux host writes whenever someone logs in or a job runs (ssh, sudo, cron, `pct exec` on a hypervisor):
+# opening and closing a session says nothing about the host's health, and a login burst from an administrator or a script must
+# not look like a flood. Failed logins and invalid users are NOT here: those still count (and have their own rule).
+DEFAULT_SYSLOG_BURST_IGNORE = re.compile(
+    r"pam_unix\([^)]*:session\): session (?:opened|closed) for user"
+    r"|pam_systemd\([^)]*:session\)"
+    r"|systemd-logind\b.*\b(?:new session|removed session|session \d+ logged out)"
+    r"|\bsession-\d+\.scope\b"
+    r"|^session \d+ logged out"
+    r"|^(?:new|removed) session \d+",
+    re.IGNORECASE,
+)
+
+
 def device_syslog_ignore(repo, device_id):
-    """The compiled pattern of syslog lines a device's burst rule must not count (key syslog_burst_ignore), or None. An invalid
-    pattern is ignored (the API validates it on save)."""
+    """The compiled pattern of syslog lines a device's burst rule must not count: the session housekeeping above plus the
+    device's own key syslog_burst_ignore. An invalid own pattern is ignored (the API validates it on save)."""
     raw = repo.get_device_settings(device_id).get("syslog_burst_ignore", "")
     if not raw:
-        return None
+        return DEFAULT_SYSLOG_BURST_IGNORE
     try:
-        return re.compile(raw, re.IGNORECASE)
+        own = re.compile(raw, re.IGNORECASE)
     except re.error:
-        return None
+        return DEFAULT_SYSLOG_BURST_IGNORE
+    return re.compile("(?:%s)|(?:%s)" % (DEFAULT_SYSLOG_BURST_IGNORE.pattern, raw), re.IGNORECASE)
 
 
 def _syslog_baseline_per_window(repo, device_id, window_start_ts, window_seconds, ignore=None):

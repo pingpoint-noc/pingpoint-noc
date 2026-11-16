@@ -91,10 +91,15 @@ def _per_interface_rates(conn, since):
 
 
 def _per_device_minute_counts(conn, since):
+    """Syslog lines per minute and device, without the session housekeeping the burst rule does not count either (a script
+    that logs in many times would otherwise teach a threshold that lets a real flood through)."""
+    from alerts.engine import DEFAULT_SYSLOG_BURST_IGNORE
+
+    conn.create_function("ignored", 1, lambda message: 1 if DEFAULT_SYSLOG_BURST_IGNORE.search(message or "") else 0)
     series = {}
     for row in conn.execute(
         "SELECT device_id, ts_utc / 60 AS minute, COUNT(*) AS n FROM syslog_events WHERE ts_utc >= ? "
-        "GROUP BY device_id, minute", (since,)
+        "AND NOT ignored(message) GROUP BY device_id, minute", (since,)
     ):
         series.setdefault(row["device_id"], []).append(row["n"])
     return series

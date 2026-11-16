@@ -140,6 +140,24 @@ class SuggestThresholdsTest(unittest.TestCase):
         self.assertEqual(r["p99"], 60)
         self.assertEqual(r["suggested"], 72)
 
+    def test_session_housekeeping_does_not_teach_a_higher_threshold(self):
+        ts = NOW - DAY
+        for minute in range(255):
+            count = 60 if minute >= 250 else 5
+            for k in range(count):
+                self.conn.execute(
+                    "INSERT INTO syslog_events (device_id, ts_utc, facility, severity, topic, message) VALUES (?, ?, 'user', 'info', 'x', 'm')",
+                    ("edge-router-1", ts + minute * 60 + (k % 59)))
+        # a script that logs in a hundred times a minute for a while
+        for minute in range(100, 130):
+            for k in range(100):
+                self.conn.execute(
+                    "INSERT INTO syslog_events (device_id, ts_utc, facility, severity, topic, message) VALUES (?, ?, 'authpriv', 'info', 'x', ?)",
+                    ("edge-router-1", ts + minute * 60 + (k % 59), "pam_unix(sshd:session): session opened for user root(uid=0) by (uid=0)"))
+        self.conn.commit()
+        r = self.rows()["syslog_burst_threshold"]
+        self.assertEqual(r["p99"], 60)
+
     def test_the_current_value_is_the_saved_setting_or_the_default(self):
         self.assertEqual(self.rows()["host_cpu_pct"]["current"], 90)  # no settings table yet: the default
         self.conn.execute(

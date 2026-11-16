@@ -41,10 +41,30 @@ class TestSyslogBurstAlert(unittest.TestCase):
 
     def test_the_alert_names_the_message_that_floods_the_log(self):
         flood = ['audit: type=1400 apparmor="DENIED" pid=%d comm="rsyslogd"' % (1000 + i) for i in range(45)]
-        other = ["Session %d logged out" % i for i in range(15)]
+        other = ["eth0: link is up (%d)" % i for i in range(15)]
         alerts = self.burst(flood + other)
         self.assertEqual(len(alerts), 1)
         self.assertIn('Most repeated (45 of 60, 75%): "audit: type=N apparmor="DENIED" pid=N comm="rsyslogd""', alerts[0]["message"])
+
+    def test_session_housekeeping_is_not_a_burst(self):
+        """An administrator or a script opening many ssh/sudo/`pct exec` sessions writes pam, logind and scope lines."""
+        sessions = []
+        for i in range(30):
+            sessions.append("pam_unix(sshd:session): session opened for user root(uid=0) by (uid=0)")
+            sessions.append("pam_unix(sudo:session): session closed for user root")
+            sessions.append("systemd-logind[612]: New session %d of user root." % i)
+            sessions.append("Started session-%d.scope - Session %d of User root." % (i, i))
+        self.assertEqual(self.burst(sessions), [])
+
+    def test_failed_logins_still_count(self):
+        attempts = ["Failed password for invalid user admin from 203.0.113.%d port 4444 ssh2" % (i % 250) for i in range(80)]
+        self.assertEqual(len(self.burst(attempts)), 1)
+
+    def test_the_device_pattern_adds_to_the_session_filter(self):
+        self.repo.set_device_settings(self.device_id, {"syslog_burst_ignore": "apparmor"}, 1700000000)
+        mixed = ['audit: apparmor="DENIED" pid=%d' % i for i in range(40)] + \
+            ["pam_unix(sshd:session): session opened for user root(uid=0) by (uid=0)"] * 40
+        self.assertEqual(self.burst(mixed), [])
 
     def test_lines_matching_the_device_ignore_pattern_are_not_counted(self):
         self.repo.set_device_settings(self.device_id, {"syslog_burst_ignore": "apparmor"}, 1700000000)
