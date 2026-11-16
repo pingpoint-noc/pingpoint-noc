@@ -65,7 +65,9 @@ fi
 say "Proxmox VE detected: $(pveversion)"
 
 # 1. Create auditor user if missing
-if ! pveum user list 2>/dev/null | grep -q "^$PVE_USER"; then
+# `pveum user list` prints a bordered table by default ("│ userid │ ..."), so a plain `grep ^user` never matched and a second run
+# died on "user already exists". The JSON output has the id in a field whatever the layout.
+if ! pveum user list --output-format json 2>/dev/null | grep -Eq "\"userid\"[[:space:]]*:[[:space:]]*\"$PVE_USER\""; then
     say "Creating read-only auditor user: $PVE_USER..."
     pveum user add "$PVE_USER" -comment "Mini-NOC Read-Only Auditor"
 fi
