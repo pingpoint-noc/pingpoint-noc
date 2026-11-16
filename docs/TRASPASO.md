@@ -26,6 +26,7 @@ Hecho y subido a `main`:
 - **Fase 2:** `pyproject.toml` (`pip install -e .`, `pingpoint-api`...), versión 0.1.0 en `api/__version__`, lockfiles con hashes compilados con `uv`, `CHANGELOG.md`. Sin etiqueta ni publicación.
 - **Auditoría de interfaz U1-U5:** hechas todas (U3 recuerda la última máquina, U4 sin desvanecido en la primera carga, U5 `refreshDevice()`, U1 «All machines», U2 pulso en Topology). Resultados en `ROADMAP.md`. También ahí, pendiente de decidir: si la salud de discos (SMART, ZFS, mdadm) entra en el alcance del NOC.
 - Salud de discos aceptada como G20.
+- **Instalación de cero probada (16-11)** en un LXC Ubuntu 24.04 limpio (Python 3.12, sin git ni curl): `install.sh` deja las 9 unidades activas, sin errores en el journal y con la guía de arranque correcta. Arreglado en `tools.preflight` lo que fallaba en toda instalación nueva (Salud pide sesión: `--token`; Datos ICMP sin equipos; flujos con el receptor nativo). `syslog_burst` y el umbral aprendido ignoran las líneas de sesión (pam, logind, scopes). Todo en `main` y desplegado en el CT de referencia.
 - **«All machines» por defecto y Syslog global (16-11, subido y desplegado en el CT de referencia, esquema 6):** sin equipo recordado (o si el recordado ya no existe) y con más de uno se abre en «All»; Syslog con «All» mezcla todos los equipos (`GET /api/logs`, columna *Machine*, «Inspect ±» elige el equipo de la línea); migración 6 (`idx_syslog_ts`). Los tests de navegador siembran el primer equipo con datos (`open_page(remember_machine=False)` para un navegador vacío). Detalle en `DESIGN.md`.
 - **Avisos ICMP:** la pérdida y la latencia alta avisan solo si duran (120 s y 300 s; `MININOC_ALERT_ICMP_*_HOLD_SECONDS`).
 - **Instalador:** una actualización ya no cambia los receptores nativos de syslog/flujos por los de fichero.
@@ -41,8 +42,7 @@ Hecho y subido a `main`:
 ## Pendiente (en este orden)
 
 1. Opcional: exportar el Syslog de todos los equipos (hoy la exportación es por equipo y se oculta con «All»).
-2. **Instalación de cero y revisión de lo que falte** (comando de bootstrap, guía de Settings, API de Proxmox, mensaje de prueba, *Resources by Machine*), con `bootstrap_pve.sh` probado en un Proxmox real (el bloque rsyslog se probó en un contenedor).
-4. **Agentes ya instalados:** reinstalar `bootstrap.sh` para que informen `virt`.
+2. **Resto de la instalación de cero:** enrolar un host de verdad contra el NOC recién instalado (bootstrap), probar el mensaje de prueba y la API de Proxmox, y `bootstrap_pve.sh` en un Proxmox real (el bloque rsyslog se probó en un contenedor). Los CT 100/102/103/105 ya llevan el agente nuevo; falta pve1 y adguard.
 5. **G20 (salud de discos, opt-in)** y el resto de ideas G1-G19 de `ROADMAP.md` (escalado de alertas, sondas HTTP/TCP y caducidad TLS, trampas SNMP...). F1: SCTP/TCP, plantillas de opciones, comparar con `nfdump`.
 6. **Fases 7 y 8** del plan (sondas HTTP/TCP, documentación en inglés); PyPI y la imagen de contenedor solo con el OK del mantenedor y tras reestructurar bajo un paquete único.
 7. Ajuste opcional: ignorar en `syslog_burst` las líneas de sesión ssh/pam del hipervisor (el despliegue desde el PC disparó una alerta de ráfaga que no era un fallo).
