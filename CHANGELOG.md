@@ -13,6 +13,11 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
 - The card of the selected machine pulses for a second when Topology opens.
 - The last machine picked is remembered in the browser.
 
+### Fixed
+- `tools.preflight` on a fresh install: "Health" no longer fails because `/api/health` needs a session (it warns and takes
+  `--token` or `MININOC_PREFLIGHT_TOKEN`); "ICMP data" warns instead of failing while no device is monitored; with the native flow
+  receiver and no nfdump the flow-expiry checks give way to one "Flows" line instead of two warnings.
+
 ### Changed
 - `syslog_burst` and the learned burst threshold no longer count session housekeeping (pam session opened/closed, logind sessions,
   systemd session scopes): logging in many times, by hand or from a script, is not a flood. Failed logins still count. The per-device

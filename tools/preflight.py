@@ -19,6 +19,7 @@ import re
 import sqlite3
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 
 import scenario
@@ -369,6 +370,8 @@ def check_icmp_data(db_path, now_ts):
         conn.close()
     covered = [name for name in devices if name in fresh]
     missing = [name for name in devices if name not in fresh]
+    if len(devices) == 0:
+        return [make_result("Datos ICMP", "WARN", "aún no hay equipos monitorizados (añade uno o enrola un host con bootstrap.sh)")]
     if len(covered) == 0:
         return [
             make_result(
@@ -386,8 +389,16 @@ def check_icmp_data(db_path, now_ts):
     return [make_result("Datos ICMP", "PASS", "%d de %d equipos con muestra de los últimos %d s" % (len(covered), len(devices), limit))]
 
 
-def check_health(data):
-    """GET /api/health: status ok and every collector fresh (row 0.4)."""
+def check_health(data, needs_sign_in=False):
+    """GET /api/health: status ok and every collector fresh (row 0.4).
+
+    The service answers /api/ only to a signed-in session (MININOC_AUTH_READ=1 in the unit), so without a token the check
+    cannot run: that is a warning that says how to run it, not a failure of the NOC."""
+    if needs_sign_in:
+        return [make_result(
+            "Salud", "WARN",
+            "/api/health pide sesión: pasa --token (o MININOC_PREFLIGHT_TOKEN) con el token de POST /api/login para comprobarla",
+        )]
     if not isinstance(data, dict):
         return [make_result("Salud", "FAIL", "no se pudo leer /api/health")]
     results = []
@@ -498,12 +509,24 @@ def systemctl_state(name):
     return done.stdout.strip()
 
 
-def fetch_text(url):
+def fetch_text(url, token=""):
     try:
-        with urllib.request.urlopen(url, timeout=8) as response:
+        request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token} if token else {})
+        with urllib.request.urlopen(request, timeout=8) as response:
             return response.read().decode("utf-8", errors="replace")
     except Exception:
         return None
+
+
+def health_needs_sign_in(url):
+    """True when the URL answers 401 (the read gate), so a missing health report is not a failure of the NOC."""
+    try:
+        urllib.request.urlopen(url, timeout=8).close()
+    except urllib.error.HTTPError as exc:
+        return exc.code == 401
+    except Exception:
+        return False
+    return False
 
 
 def nfexpire_limits(flow_dir):
@@ -540,6 +563,8 @@ def main(argv=None):
     parser.add_argument("--db-path", default=os.environ.get("MININOC_DB_PATH", "data/mini_noc.db"))
     parser.add_argument("--env-file", default="mini-noc.env", help="mini-noc.env of the deployment")
     parser.add_argument("--url", default="http://localhost:8080")
+    parser.add_argument("--token", default=os.environ.get("MININOC_PREFLIGHT_TOKEN", ""),
+                        help="session token (POST /api/login) to read /api/health, which needs a signed-in session")
     parser.add_argument("--nfdump-conf", default="/etc/nfdump/default.conf", help="config of the flow collector")
     parser.add_argument("--evidence", default="", help="also write the report to this file")
     args = parser.parse_args(argv)
@@ -556,18 +581,19 @@ def main(argv=None):
     except ValueError:
         max_mb = DEFAULT_MAX_DB_MB
 
-    health_text = fetch_text(args.url + "/api/health")
+    health_text = fetch_text(args.url + "/api/health", args.token)
     health = None
     if health_text is not None:
         try:
             health = json.loads(health_text)
         except ValueError:
             health = None
+    sign_in = health is None and not args.token and health_needs_sign_in(args.url + "/api/health")
 
     results = []
     results.append(make_result("Código", "PASS", git_commit_line()))
     results.extend(check_services(SERVICES, systemctl_state))
-    results.extend(check_health(health))
+    results.extend(check_health(health, needs_sign_in=sign_in))
     results.extend(check_icmp_data(args.db_path, int(datetime.now(timezone.utc).timestamp())))
     results.extend(check_db_schema(args.db_path))
     results.extend(check_env_settings(env))
@@ -584,9 +610,13 @@ def main(argv=None):
     except OSError:
         conf_text = None
     limits_text, limits_error = nfexpire_limits(flow_dir)
-    results.extend(check_flow_expiry(
-        conf_text, flow_store_usage(flow_dir, int(datetime.now(timezone.utc).timestamp())), limits_text, limits_error,
-    ))
+    if conf_text is None and limits_text is None and limits_error is None and systemctl_state("mini-noc-ipfix-udp") == "active":
+        # No nfdump here: flows go through the native receiver, which keeps them in the database (retention applies).
+        results.append(make_result("Flujos", "PASS", "receptor nativo (mini-noc-ipfix-udp) activo; no usa nfdump ni ficheros de flujos"))
+    else:
+        results.extend(check_flow_expiry(
+            conf_text, flow_store_usage(flow_dir, int(datetime.now(timezone.utc).timestamp())), limits_text, limits_error,
+        ))
     page = fetch_text(args.url + "/")
     if page is None:
         results.append(make_result("Sin recursos externos", "FAIL", "no se pudo leer la página"))

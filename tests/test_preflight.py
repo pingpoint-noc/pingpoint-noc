@@ -15,6 +15,7 @@ from tools.preflight import (
     check_env_settings,
     check_flow_expiry,
     check_health,
+    check_icmp_data,
     check_journal_cap,
     check_no_external_resources,
     check_scenario,
@@ -251,6 +252,21 @@ class TestHealth(unittest.TestCase):
 
     def test_no_data_at_all_fails(self):
         self.assertEqual(statuses(check_health(None)), ["FAIL"])
+
+    def test_a_read_gate_without_a_token_warns_and_says_how_to_run_it(self):
+        results = check_health(None, needs_sign_in=True)
+        self.assertEqual(statuses(results), ["WARN"])
+        self.assertIn("--token", joined_details(results))
+
+
+class TestIcmpDataOnAFreshInstall(unittest.TestCase):
+    def test_no_devices_yet_is_a_warning_not_a_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "t.db"
+            create_repository("sqlite", db).init_storage()
+            results = check_icmp_data(db, 1_800_000_000)
+        self.assertEqual(statuses(results), ["WARN"])
+        self.assertIn("aún no hay equipos", joined_details(results))
 
 
 class TestExternalResources(unittest.TestCase):
