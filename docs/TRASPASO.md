@@ -6,7 +6,7 @@ Un único fichero que se sobrescribe en cada cierre. No contiene datos de ningú
 
 Di **«quiero seguir»** (o pega esto) en un chat nuevo dentro de este repo:
 
-> Quiero seguir con PingPoint NOC. Lee `AGENTS.md`, `docs/TRASPASO.md` y la sección «Session of 2026-11-15» de `ROADMAP.md`. Comprueba con `git log origin/main..HEAD` qué hay sin subir; el CT de referencia lleva hasta 18e731a (U1/U2), no el Syslog global ni «All» por defecto. No hagas push, etiquetas ni despliegues sin que te lo pida. Antes de dar algo por bueno corre la suite completa.
+> Quiero seguir con PingPoint NOC. Lee `AGENTS.md`, `docs/TRASPASO.md` y la sección «Session of 2026-11-15» de `ROADMAP.md`. Comprueba con `git log origin/main..HEAD` qué hay sin subir; el CT de referencia lleva lo último de `main` (Syslog global y «All» por defecto). No hagas push, etiquetas ni despliegues sin que te lo pida. Antes de dar algo por bueno corre la suite completa.
 
 ## Estado (16-11-2026)
 
@@ -25,8 +25,8 @@ Hecho y subido a `main`:
 - **Segunda tanda de seguridad (15-11, sin subir ni desplegar):** SEC-09 (las 11 unidades systemd endurecidas; probado antes en un LXC sin privilegios: 9 servicios activos, ICMP y syslog funcionando, exposición 1,7-1,9), F6-06 (límites por dirección: 10 altas, 30 descargas de scripts y 20 telemetrías por minuto), F6-07 (`POST /api/logout` invalida las sesiones del usuario en el servidor; migración 5), DT-02 a DT-04 (zona de equipos nuevos desde `MININOC_TZ`, `protected` en `/api/nodes`, `bootstrap_pve.sh` con cola acotada y rollback; el bloque rsyslog se probó en un contenedor Ubuntu).
 - **Fase 2:** `pyproject.toml` (`pip install -e .`, `pingpoint-api`...), versión 0.1.0 en `api/__version__`, lockfiles con hashes compilados con `uv`, `CHANGELOG.md`. Sin etiqueta ni publicación.
 - **Auditoría de interfaz U1-U5:** hechas todas (U3 recuerda la última máquina, U4 sin desvanecido en la primera carga, U5 `refreshDevice()`, U1 «All machines», U2 pulso en Topology). Resultados en `ROADMAP.md`. También ahí, pendiente de decidir: si la salud de discos (SMART, ZFS, mdadm) entra en el alcance del NOC.
-- **Desplegado en el CT de referencia:** hasta 18e731a (U1/U2 y el arreglo del foco, subidos a `main`). Salud de discos aceptada como G20.
-- **«All machines» por defecto y Syslog global (16-11, sin subir ni desplegar):** sin equipo recordado (o si el recordado ya no existe) y con más de uno se abre en «All»; Syslog con «All» mezcla todos los equipos (`GET /api/logs`, columna *Machine*, «Inspect ±» elige el equipo de la línea); migración 6 (`idx_syslog_ts`). Los tests de navegador siembran el primer equipo con datos (`open_page(remember_machine=False)` para un navegador vacío). Detalle en `DESIGN.md`.
+- Salud de discos aceptada como G20.
+- **«All machines» por defecto y Syslog global (16-11, subido y desplegado en el CT de referencia, esquema 6):** sin equipo recordado (o si el recordado ya no existe) y con más de uno se abre en «All»; Syslog con «All» mezcla todos los equipos (`GET /api/logs`, columna *Machine*, «Inspect ±» elige el equipo de la línea); migración 6 (`idx_syslog_ts`). Los tests de navegador siembran el primer equipo con datos (`open_page(remember_machine=False)` para un navegador vacío). Detalle en `DESIGN.md`.
 - **Avisos ICMP:** la pérdida y la latencia alta avisan solo si duran (120 s y 300 s; `MININOC_ALERT_ICMP_*_HOLD_SECONDS`).
 - **Instalador:** una actualización ya no cambia los receptores nativos de syslog/flujos por los de fichero.
 - Los tests de navegador saltan la CSP (Playwright usa `eval`); solo `tests/browser/test_browser_csp.py` la aplica.
@@ -40,9 +40,8 @@ Hecho y subido a `main`:
 
 ## Pendiente (en este orden)
 
-1. **Subir y desplegar lo local** (si el mantenedor lo pide): «All» por defecto y Syslog global (migración 6); repasar los commits de `origin/main..HEAD` antes del push.
-2. Opcional: exportar el Syslog de todos los equipos (hoy la exportación es por equipo y se oculta con «All»).
-3. **Instalación de cero y revisión de lo que falte** (comando de bootstrap, guía de Settings, API de Proxmox, mensaje de prueba, *Resources by Machine*), con `bootstrap_pve.sh` probado en un Proxmox real (el bloque rsyslog se probó en un contenedor).
+1. Opcional: exportar el Syslog de todos los equipos (hoy la exportación es por equipo y se oculta con «All»).
+2. **Instalación de cero y revisión de lo que falte** (comando de bootstrap, guía de Settings, API de Proxmox, mensaje de prueba, *Resources by Machine*), con `bootstrap_pve.sh` probado en un Proxmox real (el bloque rsyslog se probó en un contenedor).
 4. **Agentes ya instalados:** reinstalar `bootstrap.sh` para que informen `virt`.
 5. **G20 (salud de discos, opt-in)** y el resto de ideas G1-G19 de `ROADMAP.md` (escalado de alertas, sondas HTTP/TCP y caducidad TLS, trampas SNMP...). F1: SCTP/TCP, plantillas de opciones, comparar con `nfdump`.
 6. **Fases 7 y 8** del plan (sondas HTTP/TCP, documentación en inglés); PyPI y la imagen de contenedor solo con el OK del mantenedor y tras reestructurar bajo un paquete único.
