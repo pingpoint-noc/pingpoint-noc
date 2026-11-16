@@ -178,13 +178,19 @@ async function loadGlobalNodesKpi() {
   }
 }
 
-// First target when nobody picked one (the last one picked in this browser wins while it still exists): the first device (hierarchy order) that reports traffic or health data. A router watched
-// by ping only would leave the bandwidth and flow panels empty on the very first screen.
+// First target when nobody picked one (the last one picked in this browser wins while it still exists): "All machines"
+// when there is more than one; a single machine is simply that machine.
 function pickDefaultDevice(devices) {
   var remembered = rememberedDevice(devices);
   if (remembered !== null) {
     return remembered;
   }
+  return devices.length > 1 ? ALL_VALUE : firstDeviceWithData(devices);
+}
+
+// The first device (hierarchy order) that reports traffic or health data. A router watched by ping only would leave the
+// bandwidth and flow panels empty.
+function firstDeviceWithData(devices) {
   var i = 0;
   for (i = 0; i < devices.length; i += 1) {
     var d = devices[i];

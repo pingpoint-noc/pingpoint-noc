@@ -176,7 +176,7 @@ class StorageRepository(ABC):
 
     @abstractmethod
     def query_syslog_events(self, device_id, severity=None, query_text=None, limit=50):
-        """Return the newest syslog events of a device matching optional severity and text."""
+        """Return the newest syslog events of a device (every device if None) matching optional severity and text."""
 
     @abstractmethod
     def get_syslog_events_in_window(
@@ -192,7 +192,7 @@ class StorageRepository(ABC):
 
     @abstractmethod
     def count_syslog_by_severity(self, device_id, query_text=None):
-        """Return a dict mapping severity to event count for a device (with optional text filter)."""
+        """Return a dict mapping severity to event count for a device, every device if None (with optional text filter)."""
 
     @abstractmethod
     def record_flows_batch(self, device_id, flows, cursor_json, ts_utc):

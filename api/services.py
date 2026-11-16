@@ -859,8 +859,29 @@ def get_bandwidth_view(repo, device_id, if_index, range_key, now_ts, compare=Non
 # ---------------------------------------------------------------------------
 
 
+def fleet_syslog_status(repo, events, now_ts):
+    """Syslog status of the whole fleet: the best status among the devices that send syslog ("na" if none does).
+
+    Each event also gets the name of its device, so a list mixing machines says which one wrote each line.
+    """
+    rank = {"ok": 0, "stale": 1, "down": 2}
+    best = "na"
+    names = {}
+    for dev in repo.list_monitored_devices():
+        names[dev["id"]] = dev.get("name") or dev["id"]
+        if not int(dev.get("has_syslog", 0) or 0):
+            continue
+        status, _ = collector_status_for(repo, dev["id"], "syslog", now_ts)
+        if status in rank and (best == "na" or rank[status] < rank[best]):
+            best = status
+    for ev in events:
+        ev["device_name"] = names.get(ev.get("device_id"), ev.get("device_id"))
+    return best
+
+
 def get_logs_view(repo, device_id, now_ts, severity=None, query_text=None, limit=50):
-    """Newest syslog events for a device, optional severity/text filters, and counts by severity.
+    """Newest syslog events for a device (every device with device_id None), optional severity/text filters, and counts
+    by severity.
 
     Syslog freshness is measured by the collector pulse (decision S5), because a healthy
     router can go hours without emitting any syslog line.
@@ -887,7 +908,10 @@ def get_logs_view(repo, device_id, now_ts, severity=None, query_text=None, limit
         limit=limit,
     )
     severity_counts = repo.count_syslog_by_severity(device_id, query_text=clean_query)
-    status, _ = collector_status_for(repo, device_id, "syslog", now_ts)
+    if device_id is None:
+        status = fleet_syslog_status(repo, events, now_ts)
+    else:
+        status, _ = collector_status_for(repo, device_id, "syslog", now_ts)
 
     as_of = None
     if len(events) > 0:

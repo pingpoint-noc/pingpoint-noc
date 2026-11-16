@@ -1,9 +1,5 @@
 <!-- ============================================================== -->
     <div id="tab-syslog" class="tab-pane" role="tabpanel">
-      <section class="panel pick-machine" aria-live="polite">
-        <div class="panel-header"><div class="panel-title-wrap"><h2>Pick a machine</h2><span class="panel-subtitle">This view shows one machine at a time</span></div></div>
-        <div class="pick-machine-list"></div>
-      </section>
       <section class="panel source-absent-note" aria-live="polite"><div class="source-absent-body" data-absent="syslog"></div></section>
       <section class="panel panel-wide" id="logs-panel">
         <div class="panel-header">
@@ -56,6 +52,7 @@
             <thead>
               <tr>
                 <th style="width: 175px;">Time ({{ tz }})</th>
+                <th class="col-machine" style="width: 140px;">Machine</th>
                 <th style="width: 90px;">Severity</th>
                 <th style="width: 90px;">Facility</th>
                 <th>Event Message</th>

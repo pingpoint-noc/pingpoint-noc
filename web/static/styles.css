@@ -4480,9 +4480,14 @@ button.coverage-gap:focus-visible { outline: 2px solid var(--border-focus); outl
 /* "All machines" (U1): the views that show one machine ask for one instead; the target indicators of the Overview go away. */
 .pick-machine { display: none; }
 .pick-machine-list { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem 1rem 1rem; }
-body[data-all-machines="1"] :is(#tab-bandwidth, #tab-flows, #tab-syslog, #tab-timeline) > :not(.pick-machine) { display: none; }
-body[data-all-machines="1"] :is(#tab-bandwidth, #tab-flows, #tab-syslog, #tab-timeline) > .pick-machine { display: block; }
+body[data-all-machines="1"] :is(#tab-bandwidth, #tab-flows, #tab-timeline) > :not(.pick-machine) { display: none; }
+body[data-all-machines="1"] :is(#tab-bandwidth, #tab-flows, #tab-timeline) > .pick-machine { display: block; }
 body[data-all-machines="1"] #tab-overview :is(.kpi-group-target, .overview-split-layout) { display: none; }
+/* Syslog mixes every machine instead: a Machine column, and no per-machine extras (export, config changes, source note). */
+.col-machine { display: none; }
+body[data-all-machines="1"] #tab-syslog .col-machine { display: table-cell; }
+body[data-all-machines="1"] #tab-syslog :is(.source-absent-note, #config-changes-panel, .export-button-group) { display: none; }
+body[data-all-machines="1"] #tab-syslog > #logs-panel { display: block; }
 
 /* U2: the card of the machine that was selected pulses for a second when Topology opens (only highlighted under reduced motion). */
 .topo-node.pulse .topo-node-card {

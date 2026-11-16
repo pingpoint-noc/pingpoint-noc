@@ -193,7 +193,7 @@ async function applyRoute(hash, initial) {
   ROUTE.applying += 1;
   try {
     var route = parseRoute(hash);
-    var device = route.device !== null && routeKnownDevice(route.device) ? route.device : (initial ? rememberedDevice(STATE.cacheDevices) : null) || routeDefaultDevice();
+    var device = route.device !== null && routeKnownDevice(route.device) ? route.device : (initial ? pickDefaultDevice(STATE.cacheDevices || []) : null) || routeDefaultDevice();
     if (route.device === ALL_ROUTE) {
       device = ALL_VALUE;
     }

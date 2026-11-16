@@ -20,20 +20,59 @@ class AllMachinesTest(BrowserTestCase):
         page.select_option("#device-select", "*")
         page.wait_for_function("STATE.allMachines === true")
 
-    def test_the_list_starts_with_all_machines_and_a_machine_is_still_the_default(self):
-        page = self.ready()
+    def test_a_browser_that_never_picked_opens_on_all_machines(self):
+        page = self.open_page(remember_machine=False)
+        page.wait_for_function("document.querySelectorAll('#device-select option').length > 2")
+        page.wait_for_function("STATE.allMachines === true")
         self.assertEqual(page.evaluate("document.querySelector('#device-select option').value"), "*")
+        self.assertEqual(page.input_value("#device-select"), "*")
+        self.assertIsNone(page.evaluate("STATE.deviceId"))
+
+    def test_a_remembered_machine_still_wins_over_all(self):
+        page = self.ready()
         self.assertFalse(page.evaluate("STATE.allMachines"))
         self.assertNotEqual(page.input_value("#device-select"), "*")
 
     def test_per_machine_views_ask_for_a_machine(self):
         page = self.ready()
         self.pick_all(page)
-        for tab in ("bandwidth", "flows", "syslog", "timeline"):
+        for tab in ("bandwidth", "flows", "timeline"):
             page.click("button[data-tab=tab-%s]" % tab)
             self.assertTrue(page.is_visible("#tab-%s .pick-machine" % tab), tab)
             self.assertFalse(page.is_visible("#tab-%s .pick-machine ~ section" % tab), tab)
             self.assertGreater(page.locator("#tab-%s .pick-machine-btn" % tab).count(), 1, tab)
+
+    def test_syslog_mixes_every_machine(self):
+        page = self.ready()
+        self.pick_all(page)
+        with page.expect_request(lambda r: "/api/logs?" in r.url):
+            page.click("button[data-tab=tab-syslog]")
+        page.wait_for_function("document.querySelectorAll('#logs-tbody tr').length > 0")
+        self.assertTrue(page.is_visible("#logs-panel"))
+        self.assertEqual(page.text_content("#syslog-panel-title"), "Syslog Stream: All machines")
+        self.assertTrue(page.is_visible("#logs-panel thead .col-machine"))
+        machines = page.evaluate("[...document.querySelectorAll('#logs-tbody .col-machine')].map(td => td.textContent)")
+        self.assertTrue(machines and all(machines))
+        self.assertFalse(page.is_visible("#config-changes-panel"))
+        self.assertFalse(page.is_visible("#export-logs-csv"))
+
+    def test_inspecting_a_mixed_syslog_line_picks_its_machine(self):
+        page = self.ready()
+        self.pick_all(page)
+        page.click("button[data-tab=tab-syslog]")
+        button = page.locator("#logs-tbody .jump-tl-btn").first
+        button.wait_for()
+        wanted = button.get_attribute("data-device")
+        button.click()
+        page.wait_for_function("STATE.deviceId === %r && !STATE.allMachines" % wanted)
+        page.wait_for_function("STATE.activeTab === 'tab-timeline'")
+
+    def test_syslog_of_one_machine_has_no_machine_column(self):
+        page = self.ready()
+        page.click("button[data-tab=tab-syslog]")
+        page.wait_for_function("document.querySelectorAll('#logs-tbody tr').length > 0")
+        self.assertFalse(page.is_visible("#logs-panel thead .col-machine"))
+        self.assertEqual(page.locator("#logs-tbody .col-machine").count(), 0)
 
     def test_fleet_views_and_the_overview_keep_working(self):
         page = self.ready()
@@ -47,13 +86,13 @@ class AllMachinesTest(BrowserTestCase):
     def test_picking_from_the_card_selects_that_machine(self):
         page = self.ready()
         self.pick_all(page)
-        page.click("button[data-tab=tab-syslog]")
-        button = page.locator("#tab-syslog .pick-machine-btn").nth(1)
+        page.click("button[data-tab=tab-bandwidth]")
+        button = page.locator("#tab-bandwidth .pick-machine-btn").nth(1)
         wanted = button.get_attribute("data-id")
         button.click()
         page.wait_for_function("STATE.deviceId === %r" % wanted)
         self.assertFalse(page.evaluate("STATE.allMachines"))
-        self.assertFalse(page.is_visible("#tab-syslog .pick-machine"))
+        self.assertFalse(page.is_visible("#tab-bandwidth .pick-machine"))
 
     def test_the_choice_survives_a_reload_and_is_in_the_link(self):
         page = self.ready()

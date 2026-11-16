@@ -67,10 +67,12 @@ Todo SVG en línea o en `web/static/favicon.svg` (señal de tráfico de trazo gr
 
 ## Selección de equipo: vista «Todos» (U1) y pulso en la topología (U2)
 
-Estado (16-11): implementado U1 como opción (`STATE.allMachines`, `device=all`, tarjeta «Pick a machine» en Bandwidth, Flows, Syslog y
-Timeline, y Overview sin los paneles del equipo) y U2. **Sigue por decidir y hacer:** que «All machines» sea el valor por defecto de una instalación
-nueva (hoy el defecto sigue siendo un equipo, para no cambiar lo que ven los usuarios actuales) y la búsqueda de Syslog en todos los equipos (cambio
-de API). Medidas previas en `ROADMAP.md` («Interface audit»).
+Estado (16-11): hechos U1 y U2. «All machines» (`STATE.allMachines`, `device=all`) es el valor por defecto de un navegador que no ha elegido
+nada (o cuyo equipo recordado ya no existe) si hay más de un equipo; un equipo elegido a mano se recuerda y gana (convive con U3). Bandwidth, Flows y
+Timeline muestran la tarjeta «Pick a machine»; Overview pierde los paneles del equipo; Syslog mezcla los últimos eventos de todos los equipos
+(`GET /api/logs`, índice `idx_syslog_ts` de la migración 6) con una columna *Machine*, sin exportar ni *Configuration Changes*, e «Inspect ±» en una
+línea elige su equipo antes de abrir Timeline. Los tests de navegador abren por defecto como si ya se hubiera elegido el primer equipo con datos
+(`open_page(remember_machine=False)` da un navegador vacío). Medidas previas en `ROADMAP.md` («Interface audit»).
 
 - **Qué depende del equipo.** Con un equipo elegido cambian Overview (panel del equipo), Bandwidth, Flows, Syslog, Timeline y *Resources*; el resto
   (banner de alertas, Topology, Health & Inventory, resumen de flota) es de toda la flota. El selector se lee en 56 sitios (`STATE.deviceId`).
@@ -81,8 +83,7 @@ de API). Medidas previas en `ROADMAP.md` («Interface audit»).
 - **Cómo se hace sin romper nada.** (1) Encapsular la lectura en `currentDevice()` (devuelve `null` con «All») y migrar los 56 sitios; (2) los cargadores
   por equipo no piden nada con `null` (mismo camino que `refreshDevice()` de U5); (3) la entrada «All» y los avisos; (4) Syslog global. Cada paso
   con su test de navegador y sin cambiar el comportamiento mientras el selector no tenga «All».
-- **Decisión abierta.** Si «All» sustituye al equipo por defecto de las vistas de flota o convive con el recuerdo de U3 (propuesta: convive; «All» es
-  lo que se ve en una instalación nueva, y un equipo elegido a mano se recuerda).
+- **Decisión (16-11).** «All» convive con el recuerdo de U3: es lo que se ve sin nada recordado, y un equipo elegido a mano se recuerda.
 - **U2 (pulso en Topology).** Al pasar a Topology con un equipo elegido, su tarjeta hace un pulso de 1 s (contorno con el color de acento, sin mover
   nada) y se desplaza a la vista; con `prefers-reduced-motion` solo se resalta, sin animación. Con «All» no hay pulso.
 

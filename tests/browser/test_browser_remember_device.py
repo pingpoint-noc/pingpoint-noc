@@ -47,14 +47,14 @@ class RememberDeviceTest(BrowserTestCase):
         self.ready(page)
         page.wait_for_function("STATE.deviceId === %r" % wanted)
 
-    def test_a_remembered_machine_that_is_gone_falls_back_to_the_default(self):
+    def test_a_remembered_machine_that_is_gone_falls_back_to_all_machines(self):
         page = self.open_page()
         self.ready(page)
-        default = page.input_value("#device-select")
         page.evaluate("localStorage.setItem('mini-noc-device', 'no-such-device')")
         page.goto(self.server.base_url + "/")
         self.ready(page)
-        self.assertEqual(page.input_value("#device-select"), default)
+        page.wait_for_function("STATE.allMachines === true")
+        self.assertEqual(page.input_value("#device-select"), "*")
 
 
 if __name__ == "__main__":

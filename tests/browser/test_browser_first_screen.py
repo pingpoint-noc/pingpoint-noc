@@ -18,11 +18,20 @@ class FirstScreenTest(BrowserTestCase):
         page = self.open_page()
         page.wait_for_selector(".noc-navbar-controls")
         result = page.evaluate("""() => [
-          pickDefaultDevice([{id: 'ping-only'}, {id: 'with-snmp', has_snmp: true}]),
-          pickDefaultDevice([{id: 'a'}, {id: 'b'}]),
-          pickDefaultDevice([{id: 'a', has_telemetry: true}, {id: 'b', has_snmp: true}]),
-          pickDefaultDevice([])]""")
+          firstDeviceWithData([{id: 'ping-only'}, {id: 'with-snmp', has_snmp: true}]),
+          firstDeviceWithData([{id: 'a'}, {id: 'b'}]),
+          firstDeviceWithData([{id: 'a', has_telemetry: true}, {id: 'b', has_snmp: true}]),
+          firstDeviceWithData([])]""")
         self.assertEqual(result, ["with-snmp", "a", "a", None])
+
+    def test_default_target_is_all_machines_when_there_is_more_than_one(self):
+        page = self.open_page(remember_machine=False)
+        page.wait_for_selector(".noc-navbar-controls")
+        result = page.evaluate("""() => [
+          pickDefaultDevice([{id: 'a'}, {id: 'b'}]),
+          pickDefaultDevice([{id: 'only', has_snmp: true}]),
+          pickDefaultDevice([])]""")
+        self.assertEqual(result, ["*", "only", None])
 
 
 if __name__ == "__main__":

@@ -438,7 +438,40 @@ class TestLogsView(ApiTestCase):
         self.assertEqual(dead_view["source_status"], "down")
         self.assertEqual(dead_view["empty_reason"], "collector_down")
 
+    def test_every_device_at_once_when_no_device_is_given(self):
+        self.add_logs()
+        self.repo.ensure_device("nas-1", "nas", "192.168.88.5")
+        self.repo.record_syslog_batch(
+            "nas-1",
+            [{"ts_utc": NOW - 30, "facility": "daemon", "severity": "warning", "topic": "", "message": "zpool scrub done"}],
+            '{"inode": 2, "offset": 10}',
+            NOW - 100,
+        )
+        view = services.get_logs_view(self.repo, None, NOW)
+        self.assertIsNone(view["device_id"])
+        self.assertEqual([ev["ts_utc"] for ev in view["events"]], [NOW - 10, NOW - 30, NOW - 60, NOW - 120])
+        self.assertEqual(view["events"][1]["device_id"], "nas-1")
+        self.assertEqual(view["events"][1]["device_name"], "nas")
+        self.assertEqual(view["events"][0]["device_name"], "edge-router")
+        self.assertEqual(view["severity_counts"], {"err": 2, "info": 1, "warning": 1})
+        # The router's collector is fresh, the NAS one is late: the fleet shows the best of them.
+        self.assertEqual(view["source_status"], "ok")
+
+        warnings = services.get_logs_view(self.repo, None, NOW, severity="warning", query_text="ZPOOL")
+        self.assertEqual([ev["device_id"] for ev in warnings["events"]], ["nas-1"])
+
+        # A single device's events keep their shape (no device fields).
+        self.assertNotIn("device_id", services.get_logs_view(self.repo, DEVICE, NOW)["events"][0])
+
+    def test_every_device_with_no_syslog_source_is_not_collected(self):
+        view = services.get_logs_view(self.repo, None, NOW)
+        self.assertEqual(view["events"], [])
+        self.assertEqual(view["source_status"], "na")
+        self.assertEqual(view["empty_reason"], "not_collected")
+
     def test_invalid_limit_is_rejected(self):
+        with self.assertRaises(ValueError):
+            services.get_logs_view(self.repo, None, NOW, limit=501)
         with self.assertRaises(ValueError):
             services.get_logs_view(self.repo, DEVICE, NOW, limit=0)
         with self.assertRaises(ValueError):
@@ -685,6 +718,14 @@ class TestQueryPlansUseIndexes(ApiTestCase):
             (DEVICE, "err", 50),
         )
         self.assertIn("SEARCH syslog_events USING INDEX idx_syslog_dev_sev_ts", syslog_sev_plan)
+
+        syslog_fleet_plan = self.explain_detail(
+            "SELECT ts_utc, facility, severity, topic, message, device_id FROM syslog_events "
+            "ORDER BY ts_utc DESC, id DESC LIMIT ?;",
+            (50,),
+        )
+        self.assertIn("idx_syslog_ts", syslog_fleet_plan)
+        self.assertNotIn("TEMP B-TREE", syslog_fleet_plan)
 
         flows_host_plan = self.explain_detail(
             "SELECT internal_host, SUM(bytes) FROM flows "

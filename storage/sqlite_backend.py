@@ -1502,9 +1502,15 @@ class SQLiteRepository(StorageRepository):
         return self.query_syslog_events(device_id, severity=None, query_text=None, limit=limit)
 
     def query_syslog_events(self, device_id, severity=None, query_text=None, limit=50):
-        """Return the newest syslog events matching optional severity and text (uses idx_syslog_dev_ts / idx_syslog_dev_sev_ts)."""
-        clauses = ["device_id = ?"]
-        params = [device_id]
+        """Return the newest syslog events matching optional severity and text (uses idx_syslog_dev_ts / idx_syslog_dev_sev_ts).
+
+        With device_id None the search covers every device (idx_syslog_ts) and each event also carries its device_id.
+        """
+        clauses = []
+        params = []
+        if device_id is not None:
+            clauses.append("device_id = ?")
+            params.append(device_id)
 
         if severity is not None and severity != "":
             clauses.append("severity = ?")
@@ -1515,11 +1521,12 @@ class SQLiteRepository(StorageRepository):
             params.append("%" + query_text.lower() + "%")
 
         params.append(int(limit))
-        where_sql = " AND ".join(clauses)
+        where_sql = ("WHERE " + " AND ".join(clauses) + " ") if clauses else ""
+        columns = "ts_utc, facility, severity, topic, message" + (", device_id" if device_id is None else "")
         sql = (
-            "SELECT ts_utc, facility, severity, topic, message "
+            "SELECT " + columns + " "
             "FROM syslog_events "
-            "WHERE " + where_sql + " "
+            + where_sql +
             "ORDER BY ts_utc DESC, id DESC "
             "LIMIT ?;"
         )
@@ -1576,19 +1583,22 @@ class SQLiteRepository(StorageRepository):
             conn.close()
 
     def count_syslog_by_severity(self, device_id, query_text=None):
-        """Count syslog events grouped by severity for a device (with optional text filter)."""
-        clauses = ["device_id = ?"]
-        params = [device_id]
+        """Count syslog events grouped by severity for a device, or for every device with device_id None (optional text filter)."""
+        clauses = []
+        params = []
+        if device_id is not None:
+            clauses.append("device_id = ?")
+            params.append(device_id)
 
         if query_text is not None and query_text != "":
             clauses.append("LOWER(message) LIKE ?")
             params.append("%" + query_text.lower() + "%")
 
-        where_sql = " AND ".join(clauses)
+        where_sql = ("WHERE " + " AND ".join(clauses) + " ") if clauses else ""
         sql = (
             "SELECT severity, COUNT(*) AS cnt "
             "FROM syslog_events "
-            "WHERE " + where_sql + " "
+            + where_sql +
             "GROUP BY severity "
             "ORDER BY severity ASC;"
         )

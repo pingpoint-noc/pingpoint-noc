@@ -58,6 +58,11 @@ def _token_version(conn):
             raise
 
 
+def _syslog_time_index(conn):
+    """Version 6: syslog events by time alone, for the newest events of every device (GET /api/logs)."""
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_syslog_ts ON syslog_events(ts_utc DESC, id DESC);")
+
+
 # (version, description, function(conn)); versions are 1, 2, 3, ... without gaps.
 MIGRATIONS = [
     (1, "baseline schema", _baseline),
@@ -65,6 +70,7 @@ MIGRATIONS = [
     (3, "proxmox guest usage", _guest_usage),
     (4, "interface speed change", _interface_speed_change),
     (5, "user token version (server-side logout)", _token_version),
+    (6, "syslog index by time", _syslog_time_index),
 ]
 
 

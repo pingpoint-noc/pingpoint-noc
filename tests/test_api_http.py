@@ -112,6 +112,16 @@ class TestHttpApi(unittest.TestCase):
         self.assertEqual(len(body["log_sparkline"]), 14)
         self.assertEqual(self.client.get("/api/devices/%s/logs?limit=0" % DEVICE).status_code, 400)
 
+    def test_logs_of_every_device(self):
+        response = self.client.get("/api/logs?severity=err")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertIsNone(body["device_id"])
+        self.assertTrue(body["events"])
+        self.assertEqual({ev["device_id"] for ev in body["events"]}, {DEVICE})
+        self.assertTrue(all(ev["device_name"] for ev in body["events"]))
+        self.assertEqual(self.client.get("/api/logs?limit=0").status_code, 400)
+
     def test_flows_top_and_host_endpoints(self):
         top_resp = self.client.get("/api/devices/%s/flows/top?range=15m" % DEVICE)
         self.assertEqual(top_resp.status_code, 200)

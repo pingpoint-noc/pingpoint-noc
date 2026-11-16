@@ -978,6 +978,14 @@ def create_app(db_path, clock=utc_now):
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
+    @app.get("/api/logs")
+    def fleet_logs(severity: str | None = None, q: str | None = None, limit: int = 50):
+        """Newest syslog events of every device (the Syslog view with "All machines")."""
+        try:
+            return services.get_logs_view(repo, None, clock(), severity=severity, query_text=q, limit=limit)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
     @app.get("/api/devices/{device_id}/config-changes")
     def device_config_changes(device_id: str, days: int = 7):
         """Configuration changes made on a device, read from its syslog (who, what, from where)."""

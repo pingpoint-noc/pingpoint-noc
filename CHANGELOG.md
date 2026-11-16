@@ -7,11 +7,15 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
 ## [Unreleased]
 
 ### Added
-- "All machines" entry in the Target list (opt-in, `device=all` in links): fleet views keep working, views that show one machine ask for one.
+- "All machines" entry in the Target list (`device=all` in links): fleet views keep working, Bandwidth, Flows and Timeline ask for a
+  machine, and Syslog mixes the newest events of every machine with a Machine column (`GET /api/logs`; Inspect on a line picks its machine).
+- Migration 6: index `idx_syslog_ts` on syslog events by time, for the stream of every machine.
 - The card of the selected machine pulses for a second when Topology opens.
 - The last machine picked is remembered in the browser.
 
 ### Changed
+- A browser that never picked a machine (or whose remembered machine is gone) opens on "All machines" when there is more than one;
+  a machine picked by hand is still remembered and wins.
 - No fade of the main area on first paint (the fade stays on view switches).
 - Picking a machine refetches only what depends on it (about half the requests, in parallel); the Target list lets go of the focus after a pointer pick.
 

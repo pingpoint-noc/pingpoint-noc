@@ -5,6 +5,7 @@ skips the whole class, so the normal suite stays green without them.
 Install with `pip install playwright` and `python -m playwright install chromium`.
 """
 
+import json
 import os
 from pathlib import Path
 import shutil
@@ -78,6 +79,7 @@ class ApiServer:
         self.base_url = "http://127.0.0.1:" + str(self.port)
         self.process = None
         self.log_file = None
+        self._default_machine = None
 
     def start(self):
         run_tool(["tools.seed_demo", "--db-path", str(self.db_path)])
@@ -112,6 +114,19 @@ class ApiServer:
             time.sleep(0.2)
         raise RuntimeError("API server did not answer in time:\n" + self.read_log())
 
+    def default_machine(self):
+        """The first machine (hierarchy order) with traffic or health data, read from the database; None if there is none."""
+        if self._default_machine is None:
+            from api import services
+            from storage import create_repository
+
+            # The same list, order and rule as the dashboard (/api/overview, firstDeviceWithData in overview.js).
+            devices = services.get_overview(create_repository("sqlite", self.db_path), int(time.time()))["devices"]
+            with_data = [d for d in devices if d.get("has_snmp") or d.get("has_ipfix") or d.get("has_telemetry")]
+            pick = (with_data or devices or [{"id": ""}])[0]["id"]
+            self._default_machine = pick
+        return self._default_machine or None
+
     def read_log(self):
         self.log_file.flush()
         return (self.tmp / "api.log").read_text(encoding="utf-8", errors="replace")
@@ -142,6 +157,7 @@ class BrowserTestCase(unittest.TestCase):
     BYPASS_CSP = True
 
     server = None
+    active_server = None  # the per-test server while SERVER_PER_TEST is on
     playwright = None
     browser = None
 
@@ -161,7 +177,19 @@ class BrowserTestCase(unittest.TestCase):
 
         def new_context(*args, **kwargs):
             kwargs.setdefault("bypass_csp", bypass)
-            return real_new_context(*args, **kwargs)
+            # A browser that never picked a machine opens on "All machines". Most tests are about one machine, so a context
+            # starts as if it had picked the first machine with data (what the dashboard opened on before "All" became the
+            # default); remember_machine=False gives a browser with empty storage.
+            remember = kwargs.pop("remember_machine", True)
+            context = real_new_context(*args, **kwargs)
+            server = cls.active_server or cls.server
+            machine = server.default_machine() if (remember and server is not None) else None
+            if machine:
+                context.add_init_script(
+                    "try { if (!localStorage.getItem('mini-noc-device')) localStorage.setItem('mini-noc-device', %s); } catch (e) {}"
+                    % json.dumps(machine)
+                )
+            return context
 
         cls.browser.new_context = new_context
         if not cls.SERVER_PER_TEST:
@@ -189,10 +217,14 @@ class BrowserTestCase(unittest.TestCase):
             self.server = ApiServer(self.WITH_USER, self.SERVER_ENV)
             self.addCleanup(self.server.stop)
             self.server.start()
+            type(self).active_server = self.server
+            self.addCleanup(setattr, type(self), "active_server", None)
 
-    def open_page(self, color_scheme="dark", path="/"):
-        """A fresh context (empty storage) on the dashboard; closed automatically after the test."""
-        context = self.browser.new_context(color_scheme=color_scheme, viewport={"width": 1400, "height": 900})
+    def open_page(self, color_scheme="dark", path="/", remember_machine=True):
+        """A fresh context on the dashboard (see new_context above for the remembered machine); closed after the test."""
+        context = self.browser.new_context(
+            color_scheme=color_scheme, viewport={"width": 1400, "height": 900}, remember_machine=remember_machine
+        )
         self.addCleanup(context.close)
         page = context.new_page()
         page.set_default_timeout(10000)

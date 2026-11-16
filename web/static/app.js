@@ -2083,13 +2083,19 @@ async function loadGlobalNodesKpi() {
   }
 }
 
-// First target when nobody picked one (the last one picked in this browser wins while it still exists): the first device (hierarchy order) that reports traffic or health data. A router watched
-// by ping only would leave the bandwidth and flow panels empty on the very first screen.
+// First target when nobody picked one (the last one picked in this browser wins while it still exists): "All machines"
+// when there is more than one; a single machine is simply that machine.
 function pickDefaultDevice(devices) {
   var remembered = rememberedDevice(devices);
   if (remembered !== null) {
     return remembered;
   }
+  return devices.length > 1 ? ALL_VALUE : firstDeviceWithData(devices);
+}
+
+// The first device (hierarchy order) that reports traffic or health data. A router watched by ping only would leave the
+// bandwidth and flow panels empty.
+function firstDeviceWithData(devices) {
   var i = 0;
   for (i = 0; i < devices.length; i += 1) {
     var d = devices[i];
@@ -5593,7 +5599,9 @@ function logFilterKey() {
 }
 
 async function loadLogs() {
-  if (!STATE.deviceId) {
+  // With "All machines" the stream mixes every machine (GET /api/logs) and each line says which one wrote it.
+  var fleet = STATE.allMachines;
+  if (!STATE.deviceId && !fleet) {
     return;
   }
   try {
@@ -5604,221 +5612,248 @@ async function loadLogs() {
     if (STATE.logQuery) {
       params.push("q=" + encodeURIComponent(STATE.logQuery));
     }
-    var url = "/api/devices/" + encodeURIComponent(STATE.deviceId) + "/logs?" + params.join("&");
+    var url = (fleet ? "/api/logs?" : "/api/devices/" + encodeURIComponent(STATE.deviceId) + "/logs?") + params.join("&");
     var req = viewKey(logFilterKey());
     var data = await fetchJson(url);
-    if (isStale(req, logFilterKey())) {
+    if (isStale(req, logFilterKey()) || fleet !== STATE.allMachines) {
       return;
     }
 
     setFreshnessBadge("logs-freshness", data.source_status, data.as_of_utc);
-    setFreshnessBadge("overview-logs-freshness", data.source_status, data.as_of_utc);
-
-    var exportBase =
-      "/api/devices/" + encodeURIComponent(STATE.deviceId) +
-      "/export?dataset=logs&range=" + encodeURIComponent(STATE.range);
-    if (STATE.logSeverity) {
-      exportBase = exportBase + "&severity=" + encodeURIComponent(STATE.logSeverity);
+    if (fleet) {
+      var fleetTitle = document.getElementById("syslog-panel-title");
+      var fleetSub = document.getElementById("syslog-panel-subtitle");
+      if (fleetTitle) fleetTitle.textContent = "Syslog Stream: All machines";
+      if (fleetSub) fleetSub.textContent = "Newest events of every machine that sends syslog; pick a line's machine to see it alone";
+    } else {
+      renderDeviceLogCards(data);
     }
-    if (STATE.logQuery) {
-      exportBase = exportBase + "&q=" + encodeURIComponent(STATE.logQuery);
-    }
-    var csvLink = document.getElementById("export-logs-csv");
-    var jsonLink = document.getElementById("export-logs-json");
-    if (csvLink) csvLink.href = exportBase + "&format=csv";
-    if (jsonLink) jsonLink.href = exportBase + "&format=json&download=1";
-
-    // Modular Syslog Title
-    var syslogTitle = document.getElementById("syslog-panel-title");
-    var syslogSub = document.getElementById("syslog-panel-subtitle");
-    if (syslogTitle) {
-      if (STATE.isRouter) {
-        syslogTitle.textContent = "Syslog Stream: RouterOS";
-        if (syslogSub) {
-          syslogSub.textContent = "RouterOS system, firewall, and security logs received via UDP 514";
-        }
-      } else {
-        var devName = STATE.selectedDeviceName || STATE.deviceId;
-        syslogTitle.textContent = "Syslog Stream: " + devName;
-        if (syslogSub) {
-          if (STATE.isDns) {
-            syslogSub.textContent = "System & DNS events forwarded from " + devName + " via rsyslog";
-          } else {
-            syslogSub.textContent = "Host system events and application logs forwarded from " + devName + " via rsyslog";
-          }
-        }
-      }
-    }
-
-    var hostBwLogCount = document.getElementById("host-bw-log-count");
-    var hostBwLogSub = document.getElementById("host-bw-log-sub");
-    if (hostBwLogCount) {
-      hostBwLogCount.textContent = data.events.length + " events";
-    }
-    if (hostBwLogSub) {
-      if (data.events.length > 0) {
-        hostBwLogSub.textContent = "Last: " + formatLocal(data.events[0].ts_utc);
-      } else {
-        hostBwLogSub.textContent = "No events in window";
-      }
-    }
-
-    // Overview Side Feed
-    var ovLogs = document.getElementById("overview-logs-list");
-    if (ovLogs) {
-      var ovLogsHolder = beginRows(ovLogs);
-      var m = 0;
-      var maxLogs = Math.min(15, data.events.length);
-      for (m = 0; m < maxLogs; m += 1) {
-        var evObj = data.events[m];
-        var itemDiv = document.createElement("div");
-        itemDiv.className = "mini-list-item";
-        var sevBadgeClass = "badge-ok";
-        if (evObj.severity === "err" || evObj.severity === "crit" || evObj.severity === "alert" || evObj.severity === "emerg") {
-          sevBadgeClass = "badge-down";
-        } else if (evObj.severity === "warning") {
-          sevBadgeClass = "badge-stale";
-        }
-        itemDiv.innerHTML =
-          "<div class='mini-list-main'><span class='badge " + sevBadgeClass + "'>" + escapeHtml(evObj.severity) + "</span><span class='item-title' title='" + escapeHtml(evObj.message) + "'>" + escapeHtml(evObj.message) + "</span></div>" +
-          "<span class='item-meta'>" + escapeHtml(formatLocalFeed(evObj.ts_utc)) + "</span>";
-        ovLogsHolder.appendChild(itemDiv);
-      }
-      if (data.events.length === 0) {
-        ovLogs.innerHTML = "<div class='text-dim' style='padding:0.4rem;'>No recent syslog events.</div>";
-      } else {
-        commitRows(ovLogs, ovLogsHolder);
-      }
-    }
-
-    // Host Overview Telemetry Cards (Syslog)
-    var kpiHostLogsVal = document.getElementById("kpi-host-logs-val");
-    var kpiHostLogsCap = document.getElementById("kpi-host-logs-caption");
-    var ovHostLogCount = document.getElementById("ov-host-log-count");
-    var ovHostLogLast = document.getElementById("ov-host-log-last");
-
-    var errCount = 0;
-    var warnCount = 0;
-    var totalLogs = data.events.length;
-    if (data.severity_counts) {
-      if (data.severity_counts.err) {
-        errCount = data.severity_counts.err;
-      }
-      if (data.severity_counts.warning) {
-        warnCount = data.severity_counts.warning;
-      }
-      if (data.severity_counts.total) {
-        totalLogs = data.severity_counts.total;
-      }
-    }
-
-    if (kpiHostLogsVal) {
-      kpiHostLogsVal.textContent = String(totalLogs);
-    }
-    if (kpiHostLogsCap) {
-      kpiHostLogsCap.textContent = errCount + " errors · " + warnCount + " warnings";
-    }
-    if (ovHostLogCount) {
-      ovHostLogCount.textContent = totalLogs + " events (" + errCount + " errors)";
-    }
-    if (ovHostLogLast) {
-      if (data.events.length > 0) {
-        ovHostLogLast.textContent = "Last: " + formatLocal(data.events[0].ts_utc);
-      } else {
-        ovHostLogLast.textContent = "No events in window";
-      }
-    }
-
-    // Severity Breakdown Pills with Interactive Filtering
-    var pillsEl = document.getElementById("log-severity-pills");
-    if (pillsEl) {
-      var pillsHolder = beginRows(pillsEl);
-      var sevKeys = Object.keys(data.severity_counts);
-      var s = 0;
-      for (s = 0; s < sevKeys.length; s += 1) {
-        var sev = sevKeys[s];
-        var cnt = data.severity_counts[sev];
-        var pill = document.createElement("button");
-        pill.type = "button";
-        var pillClass = "badge-subtle";
-        if (sev === "err" || sev === "crit" || sev === "alert" || sev === "emerg") {
-          pillClass = "badge-down";
-        } else if (sev === "warning") {
-          pillClass = "badge-stale";
-        }
-        pill.className = "sev-pill badge " + pillClass;
-        pill.textContent = sev + ": " + cnt;
-        pill.setAttribute("data-sev", sev);
-        pill.addEventListener("click", function (e) {
-          var targetSev = e.currentTarget.getAttribute("data-sev");
-          var sel = document.getElementById("log-severity-select");
-          if (sel) sel.value = targetSev;
-          STATE.logSeverity = targetSev;
-          routeSync("replace");
-          loadLogs();
-        });
-        pillsHolder.appendChild(pill);
-      }
-      commitRows(pillsEl, pillsHolder);
-    }
-
-    var emptyBox = document.getElementById("logs-empty-reason");
-    if (emptyBox) {
-      if (data.empty_reason) {
-        emptyBox.textContent = explainEmptyReason(data.empty_reason, "syslog");
-        emptyBox.className = "empty-reason-card";
-      } else {
-        emptyBox.className = "empty-reason-card hidden";
-      }
-    }
-
-    var tbody = document.getElementById("logs-tbody");
-    if (tbody) {
-      var logsHolder = beginRows(tbody);
-      var i = 0;
-      for (i = 0; i < data.events.length; i += 1) {
-        var ev = data.events[i];
-        var tr = document.createElement("tr");
-        var sevClass = "badge-ok";
-        if (ev.severity === "err" || ev.severity === "crit" || ev.severity === "alert" || ev.severity === "emerg") {
-          sevClass = "badge-down";
-        } else if (ev.severity === "warning") {
-          sevClass = "badge-stale";
-        }
-        tr.innerHTML =
-          "<th>" + escapeHtml(formatLocal(ev.ts_utc)) + "</th>" +
-          "<td><span class='badge " + sevClass + "'>" + escapeHtml(ev.severity) + "</span></td>" +
-          "<td>" + escapeHtml(ev.facility) + "</td>" +
-          "<td>" + escapeHtml(ev.message) + "</td>" +
-          "<td><button type='button' class='btn btn-secondary btn-small jump-tl-btn' data-ts='" + escapeHtml(ev.ts_utc) + "'>Inspect &plusmn;</button></td>";
-        logsHolder.appendChild(tr);
-      }
-      commitRows(tbody, logsHolder);
-    }
-
-    var jumpBtns = document.querySelectorAll(".jump-tl-btn");
-    var j = 0;
-    for (j = 0; j < jumpBtns.length; j += 1) {
-      // buttons kept by commitRows already carry their listener
-      if (jumpBtns[j].listenerWired) {
-        continue;
-      }
-      jumpBtns[j].listenerWired = true;
-      jumpBtns[j].addEventListener("click", function (e) {
-        STATE.timelineAtUtc = Number(e.currentTarget.getAttribute("data-ts"));
-        switchTab("tab-timeline");
-        loadTimeline();
-        showToast("Centered Incident Timeline around " + formatLocal(STATE.timelineAtUtc));
-      });
-    }
-
-    // Render Syslog Activity Sparkline
-    if (data.log_sparkline) {
-      renderSparkline("spark-host-syslog", data.log_sparkline, "var(--color-warn)");
-    }
+    renderLogTable(data, fleet);
   } catch (err) {
     console.error("Failed to load syslog events:", err);
   }
+}
+
+// What only exists for one machine: export links, panel title, the Overview feed and the host cards.
+function renderDeviceLogCards(data) {
+  setFreshnessBadge("overview-logs-freshness", data.source_status, data.as_of_utc);
+
+  var exportBase =
+    "/api/devices/" + encodeURIComponent(STATE.deviceId) +
+    "/export?dataset=logs&range=" + encodeURIComponent(STATE.range);
+  if (STATE.logSeverity) {
+    exportBase = exportBase + "&severity=" + encodeURIComponent(STATE.logSeverity);
+  }
+  if (STATE.logQuery) {
+    exportBase = exportBase + "&q=" + encodeURIComponent(STATE.logQuery);
+  }
+  var csvLink = document.getElementById("export-logs-csv");
+  var jsonLink = document.getElementById("export-logs-json");
+  if (csvLink) csvLink.href = exportBase + "&format=csv";
+  if (jsonLink) jsonLink.href = exportBase + "&format=json&download=1";
+
+  // Modular Syslog Title
+  var syslogTitle = document.getElementById("syslog-panel-title");
+  var syslogSub = document.getElementById("syslog-panel-subtitle");
+  if (syslogTitle) {
+    if (STATE.isRouter) {
+      syslogTitle.textContent = "Syslog Stream: RouterOS";
+      if (syslogSub) {
+        syslogSub.textContent = "RouterOS system, firewall, and security logs received via UDP 514";
+      }
+    } else {
+      var devName = STATE.selectedDeviceName || STATE.deviceId;
+      syslogTitle.textContent = "Syslog Stream: " + devName;
+      if (syslogSub) {
+        if (STATE.isDns) {
+          syslogSub.textContent = "System & DNS events forwarded from " + devName + " via rsyslog";
+        } else {
+          syslogSub.textContent = "Host system events and application logs forwarded from " + devName + " via rsyslog";
+        }
+      }
+    }
+  }
+
+  var hostBwLogCount = document.getElementById("host-bw-log-count");
+  var hostBwLogSub = document.getElementById("host-bw-log-sub");
+  if (hostBwLogCount) {
+    hostBwLogCount.textContent = data.events.length + " events";
+  }
+  if (hostBwLogSub) {
+    if (data.events.length > 0) {
+      hostBwLogSub.textContent = "Last: " + formatLocal(data.events[0].ts_utc);
+    } else {
+      hostBwLogSub.textContent = "No events in window";
+    }
+  }
+
+  // Overview Side Feed
+  var ovLogs = document.getElementById("overview-logs-list");
+  if (ovLogs) {
+    var ovLogsHolder = beginRows(ovLogs);
+    var m = 0;
+    var maxLogs = Math.min(15, data.events.length);
+    for (m = 0; m < maxLogs; m += 1) {
+      var evObj = data.events[m];
+      var itemDiv = document.createElement("div");
+      itemDiv.className = "mini-list-item";
+      var sevBadgeClass = "badge-ok";
+      if (evObj.severity === "err" || evObj.severity === "crit" || evObj.severity === "alert" || evObj.severity === "emerg") {
+        sevBadgeClass = "badge-down";
+      } else if (evObj.severity === "warning") {
+        sevBadgeClass = "badge-stale";
+      }
+      itemDiv.innerHTML =
+        "<div class='mini-list-main'><span class='badge " + sevBadgeClass + "'>" + escapeHtml(evObj.severity) + "</span><span class='item-title' title='" + escapeHtml(evObj.message) + "'>" + escapeHtml(evObj.message) + "</span></div>" +
+        "<span class='item-meta'>" + escapeHtml(formatLocalFeed(evObj.ts_utc)) + "</span>";
+      ovLogsHolder.appendChild(itemDiv);
+    }
+    if (data.events.length === 0) {
+      ovLogs.innerHTML = "<div class='text-dim' style='padding:0.4rem;'>No recent syslog events.</div>";
+    } else {
+      commitRows(ovLogs, ovLogsHolder);
+    }
+  }
+
+  // Host Overview Telemetry Cards (Syslog)
+  var kpiHostLogsVal = document.getElementById("kpi-host-logs-val");
+  var kpiHostLogsCap = document.getElementById("kpi-host-logs-caption");
+  var ovHostLogCount = document.getElementById("ov-host-log-count");
+  var ovHostLogLast = document.getElementById("ov-host-log-last");
+
+  var errCount = 0;
+  var warnCount = 0;
+  var totalLogs = data.events.length;
+  if (data.severity_counts) {
+    if (data.severity_counts.err) {
+      errCount = data.severity_counts.err;
+    }
+    if (data.severity_counts.warning) {
+      warnCount = data.severity_counts.warning;
+    }
+    if (data.severity_counts.total) {
+      totalLogs = data.severity_counts.total;
+    }
+  }
+
+  if (kpiHostLogsVal) {
+    kpiHostLogsVal.textContent = String(totalLogs);
+  }
+  if (kpiHostLogsCap) {
+    kpiHostLogsCap.textContent = errCount + " errors · " + warnCount + " warnings";
+  }
+  if (ovHostLogCount) {
+    ovHostLogCount.textContent = totalLogs + " events (" + errCount + " errors)";
+  }
+  if (ovHostLogLast) {
+    if (data.events.length > 0) {
+      ovHostLogLast.textContent = "Last: " + formatLocal(data.events[0].ts_utc);
+    } else {
+      ovHostLogLast.textContent = "No events in window";
+    }
+  }
+
+  // Render Syslog Activity Sparkline
+  if (data.log_sparkline) {
+    renderSparkline("spark-host-syslog", data.log_sparkline, "var(--color-warn)");
+  }
+}
+
+// Severity pills, empty reason and the event table (with a Machine column when the stream mixes machines).
+function renderLogTable(data, fleet) {
+  // Severity Breakdown Pills with Interactive Filtering
+  var pillsEl = document.getElementById("log-severity-pills");
+  if (pillsEl) {
+    var pillsHolder = beginRows(pillsEl);
+    var sevKeys = Object.keys(data.severity_counts);
+    var s = 0;
+    for (s = 0; s < sevKeys.length; s += 1) {
+      var sev = sevKeys[s];
+      var cnt = data.severity_counts[sev];
+      var pill = document.createElement("button");
+      pill.type = "button";
+      var pillClass = "badge-subtle";
+      if (sev === "err" || sev === "crit" || sev === "alert" || sev === "emerg") {
+        pillClass = "badge-down";
+      } else if (sev === "warning") {
+        pillClass = "badge-stale";
+      }
+      pill.className = "sev-pill badge " + pillClass;
+      pill.textContent = sev + ": " + cnt;
+      pill.setAttribute("data-sev", sev);
+      pill.addEventListener("click", function (e) {
+        var targetSev = e.currentTarget.getAttribute("data-sev");
+        var sel = document.getElementById("log-severity-select");
+        if (sel) sel.value = targetSev;
+        STATE.logSeverity = targetSev;
+        routeSync("replace");
+        loadLogs();
+      });
+      pillsHolder.appendChild(pill);
+    }
+    commitRows(pillsEl, pillsHolder);
+  }
+
+  var emptyBox = document.getElementById("logs-empty-reason");
+  if (emptyBox) {
+    if (data.empty_reason) {
+      emptyBox.textContent = explainEmptyReason(data.empty_reason, "syslog");
+      emptyBox.className = "empty-reason-card";
+    } else {
+      emptyBox.className = "empty-reason-card hidden";
+    }
+  }
+
+  var tbody = document.getElementById("logs-tbody");
+  if (tbody) {
+    var logsHolder = beginRows(tbody);
+    var i = 0;
+    for (i = 0; i < data.events.length; i += 1) {
+      var ev = data.events[i];
+      var tr = document.createElement("tr");
+      var sevClass = "badge-ok";
+      if (ev.severity === "err" || ev.severity === "crit" || ev.severity === "alert" || ev.severity === "emerg") {
+        sevClass = "badge-down";
+      } else if (ev.severity === "warning") {
+        sevClass = "badge-stale";
+      }
+      var machineCell = fleet ? "<td class='col-machine'>" + escapeHtml(ev.device_name || ev.device_id) + "</td>" : "";
+      var deviceAttr = fleet ? " data-device='" + escapeHtml(ev.device_id) + "'" : "";
+      tr.innerHTML =
+        "<th>" + escapeHtml(formatLocal(ev.ts_utc)) + "</th>" +
+        machineCell +
+        "<td><span class='badge " + sevClass + "'>" + escapeHtml(ev.severity) + "</span></td>" +
+        "<td>" + escapeHtml(ev.facility) + "</td>" +
+        "<td>" + escapeHtml(ev.message) + "</td>" +
+        "<td><button type='button' class='btn btn-secondary btn-small jump-tl-btn' data-ts='" + escapeHtml(ev.ts_utc) + "'" + deviceAttr + ">Inspect &plusmn;</button></td>";
+      logsHolder.appendChild(tr);
+    }
+    commitRows(tbody, logsHolder);
+  }
+
+  var jumpBtns = document.querySelectorAll(".jump-tl-btn");
+  var j = 0;
+  for (j = 0; j < jumpBtns.length; j += 1) {
+    // buttons kept by commitRows already carry their listener
+    if (jumpBtns[j].listenerWired) {
+      continue;
+    }
+    jumpBtns[j].listenerWired = true;
+    jumpBtns[j].addEventListener("click", function (e) {
+      STATE.timelineAtUtc = Number(e.currentTarget.getAttribute("data-ts"));
+      // A line of the mixed stream: the timeline shows one machine, so pick the one that wrote it first.
+      var lineDevice = e.currentTarget.getAttribute("data-device");
+      var devSel = document.getElementById("device-select");
+      if (lineDevice && devSel) {
+        devSel.value = lineDevice;
+        devSel.dispatchEvent(new Event("change"));
+      }
+      switchTab("tab-timeline");
+      loadTimeline();
+      showToast("Centered Incident Timeline around " + formatLocal(STATE.timelineAtUtc));
+    });
+  }
+
 }
 
 // 6. INCIDENT TIMELINE CORRELATION
@@ -7676,7 +7711,7 @@ async function applyRoute(hash, initial) {
   ROUTE.applying += 1;
   try {
     var route = parseRoute(hash);
-    var device = route.device !== null && routeKnownDevice(route.device) ? route.device : (initial ? rememberedDevice(STATE.cacheDevices) : null) || routeDefaultDevice();
+    var device = route.device !== null && routeKnownDevice(route.device) ? route.device : (initial ? pickDefaultDevice(STATE.cacheDevices || []) : null) || routeDefaultDevice();
     if (route.device === ALL_ROUTE) {
       device = ALL_VALUE;
     }
