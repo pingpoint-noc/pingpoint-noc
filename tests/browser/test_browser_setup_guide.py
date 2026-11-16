@@ -41,6 +41,24 @@ class SetupGuideTest(BrowserTestCase):
         self.assertIn("Not started", text)
         self.assertTrue(page.is_visible("#setup-guide"))
 
+    def test_the_blurb_and_the_steps_do_not_touch_each_other(self):
+        page = self.open_guide(OPEN)
+        page.wait_for_function("document.querySelectorAll('#setup-guide-steps li').length === 4")
+        gaps = page.evaluate("""() => {
+          const top = e => e.getBoundingClientRect().top, bottom = e => e.getBoundingClientRect().bottom;
+          const blurb = document.querySelector('#setup-guide > .dest-blurb');
+          const steps = [...document.querySelectorAll('#setup-guide-steps > li')];
+          const out = [top(steps[0]) - bottom(blurb)];
+          for (let i = 1; i < steps.length; i += 1) out.push(top(steps[i]) - bottom(steps[i - 1]));
+          return out; }""")
+        for gap in gaps:
+            self.assertGreaterEqual(gap, 8)
+        # inside a step the text and the buttons are apart too
+        inner = page.evaluate("""() => { const li = document.querySelector('#setup-guide-steps > li');
+          const head = li.querySelector('.setup-step-head'), next = head.nextElementSibling;
+          return next.getBoundingClientRect().top - head.getBoundingClientRect().bottom; }""")
+        self.assertGreaterEqual(inner, 4)
+
     def test_the_guide_is_hidden_when_everything_is_done(self):
         done = {"complete": True, "steps": [dict(s, state="done") for s in OPEN["steps"]]}
         page = self.open_guide(done)

@@ -3330,6 +3330,9 @@ html.alerts-pending #alerts-section { min-height: var(--alerts-min-h, 0px); }
 #settings-panel .auth-audit h4 { margin: 0; }
 #settings-panel .settings-add-node-bar { margin-top: 0.5rem; padding: 1.25rem; }
 #settings-panel .settings-add-node-bar .settings-subheading { margin: 0 0 1rem; }
+/* Environment of this NOC: heading, blurb, table, label, text area and note are siblings; a gap keeps them apart. */
+#settings-panel :is(#setup-environment-bar, #setup-guide) { display: grid; gap: 0.75rem; }
+#settings-panel :is(#setup-environment-bar, #setup-guide) > * { margin: 0; }
 #settings-panel .settings-actions { gap: 0.75rem; }
 #settings-panel .settings-msg { min-height: 0; }
 #settings-panel .settings-msg:empty { display: none; }
@@ -4451,14 +4454,16 @@ button.coverage-gap:focus-visible { outline: 2px solid var(--border-focus); outl
 #resources-cards .kpi-sparkline-wrap .sparkline-svg { width: 100%; height: 100%; }
 
 /* Getting started (first-run guide in Settings) */
-.setup-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
-.setup-step { border: 1px solid var(--border-default); border-radius: 8px; padding: 0.7rem 0.9rem; }
+.setup-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+/* One step: head, text, proposals and buttons stacked with a fixed gap (buttons keep their own width). */
+.setup-step { border: 1px solid var(--border-default); border-radius: 8px; padding: 0.9rem 1rem; display: grid; gap: 0.5rem; justify-items: start; }
+.setup-step > .setup-step-head { justify-self: stretch; }
 .setup-step.setup-attention { border-color: var(--accent-soft-border); background: var(--accent-soft); }
 .setup-step-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; justify-content: space-between; }
-.setup-step .dest-blurb { margin: 0.25rem 0 0.4rem; }
+.setup-step .dest-blurb { margin: 0; }
 .setup-badge { font-size: var(--fs-xs); color: var(--text-dim); border: 1px solid var(--border-default); border-radius: 999px; padding: 0 0.5rem; }
 .setup-done .setup-badge { color: var(--color-ok); border-color: var(--color-ok-border); }
-.setup-proposal { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.25rem 0; font-size: var(--fs-sm, 0.85rem); }
+.setup-proposal { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0; font-size: var(--fs-sm, 0.85rem); }
 
 /* Resources by Machine */
 .table-fleet .fleet-cell { min-width: 11rem; }

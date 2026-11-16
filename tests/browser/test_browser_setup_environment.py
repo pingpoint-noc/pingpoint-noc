@@ -39,6 +39,15 @@ class SetupEnvironmentTest(BrowserTestCase):
         self.assertIn("Europe/Paris", text)
         self.assertTrue(page.get_attribute("#setup-env-lines", "readonly") is not None)
 
+    def test_the_blocks_do_not_touch_each_other(self):
+        """The blurb, the table, the label, the text area and the note are separated (the label used to sit on the table)."""
+        page = self.open_block()
+        boxes = page.evaluate("""() => ['#setup-environment-bar .dest-blurb', '#setup-environment-bar .table-container',
+          '#setup-environment-bar label', '#setup-env-lines', '#setup-env-note'].map(sel => {
+            const r = document.querySelector(sel).getBoundingClientRect(); return [r.top, r.bottom]; })""")
+        for (_, above_bottom), (below_top, _) in zip(boxes, boxes[1:]):
+            self.assertGreaterEqual(below_top - above_bottom, 8)
+
 
 if __name__ == "__main__":
     unittest.main()
