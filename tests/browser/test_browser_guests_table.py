@@ -147,12 +147,32 @@ class GuestsTableTest(BrowserTestCase):
         self.assertEqual(page.get_attribute("[data-ram-mode='pct']", "aria-pressed"), "true")
 
     def test_rows_stay_short_at_desktop_and_half_screen_widths(self):
-        for width in (1400, 960, 800):
+        for width in (1400, 960, 900):
             page = self.show(width)
             heights = self.row_heights(page)
             self.assertEqual(len(heights), 4, width)
             self.assertLessEqual(max(heights), 90, "%d px: %r" % (width, heights))
             self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width, width)
+
+    def test_below_900_px_each_guest_is_a_card_instead_of_a_sideways_scroll(self):
+        """At 800 px the box (about 670 px) cannot hold the 768 px table: it used to scroll sideways, now it is one card per guest."""
+        for width in (800, 720):
+            page = self.show(width)
+            self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"), width, width)
+            fits = page.evaluate("() => { const c = document.querySelector('.table-guests').closest('.table-container'); return [c.scrollWidth, c.clientWidth]; }")
+            self.assertLessEqual(fits[0], fits[1] + 1, "%d px: the cards still scroll sideways: %r" % (width, fits))
+            self.assertLessEqual(page.evaluate("document.querySelector('.table-guests thead').getBoundingClientRect().height"), 2)
+            heights = self.row_heights(page)
+            self.assertEqual(len(heights), 4, width)
+            self.assertLessEqual(max(heights), 200, "%d px: %r" % (width, heights))  # a card, not a 250 px row
+            labels = page.evaluate("[...document.querySelectorAll('#overview-pve-guests-tbody tr:nth-child(3) td')].map(td => td.getAttribute('data-label'))")
+            self.assertEqual(labels[:2], ["Name", "Status"], labels)
+            self.assertIn("RAM", labels)
+            # nothing sticks out of its card: the chip and the addresses are inside the row
+            inside = page.evaluate("""() => { const row = document.querySelector('#overview-pve-guests-tbody tr:nth-child(3)').getBoundingClientRect();
+              return [...document.querySelectorAll('#overview-pve-guests-tbody tr:nth-child(3) .guest-ip, #overview-pve-guests-tbody tr:nth-child(3) .ip-more')]
+                .every(e => { const r = e.getBoundingClientRect(); return r.left >= row.left - 1 && r.right <= row.right + 1; }); }""")
+            self.assertTrue(inside)
 
     def test_numbers_and_headers_do_not_wrap(self):
         page = self.show(960)

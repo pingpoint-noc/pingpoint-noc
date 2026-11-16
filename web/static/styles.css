@@ -4536,23 +4536,37 @@ body[data-all-machines="1"] #tab-syslog > #logs-panel { display: block; }
 .guests-header { flex-wrap: wrap; gap: 0.4rem 1rem; align-items: center; }
 .guests-header .overview-top-if-subtitle { flex: 1 1 14rem; }
 @media (min-width: 701px) {
-  /* Fixed column widths (a share of the table): the width of a column does not depend on what is in it, so switching the RAM
-     between bytes and percent, or a new guest with a long name, moves nothing. Below the minimum width the box scrolls sideways. */
-  .table-guests, .table-storage { table-layout: fixed; }
-  .table-guests { min-width: 48rem; }
-  .table-storage { min-width: 40rem; }
-  .table-guests col:nth-child(1) { width: 10%; }   .table-guests col:nth-child(2) { width: 12%; }  .table-guests col:nth-child(3) { width: 12%; }
-  .table-guests col:nth-child(4) { width: 8%; }    .table-guests col:nth-child(5) { width: 17.5%; } .table-guests col:nth-child(6) { width: 11%; }
-  .table-guests col:nth-child(7) { width: 15%; }   .table-guests col:nth-child(8) { width: 14.5%; }
+  /* Fixed column widths (a share of the table): the width of a column does not depend on what is in it, so a long value moves nothing.
+     Below the minimum width the box scrolls sideways. */
+  .table-storage { table-layout: fixed; min-width: 40rem; }
   .table-storage col:nth-child(1) { width: 17%; } .table-storage col:nth-child(2) { width: 9%; }  .table-storage col:nth-child(3) { width: 12%; }
   .table-storage col:nth-child(4) { width: 9%; }  .table-storage col:nth-child(5) { width: 20%; } .table-storage col:nth-child(6) { width: 12%; }
   .table-storage col:nth-child(7) { width: 21%; }
-  .table-guests th, .table-guests td { padding: 0.5rem 0.5rem; }
-  .table-guests thead th, .table-storage thead th { white-space: nowrap; }
-  /* Numbers and names stay on one line (a name like "infra-core" must not break at its hyphen); one that does not fit is cut with an
-     ellipsis. The addresses and the content types may wrap. */
-  .table-guests tbody :is(td:nth-child(2), td:nth-child(4), td:nth-child(5), td:nth-child(6), td:nth-child(8)), .table-guests tbody th,
+  .table-storage thead th { white-space: nowrap; }
   .table-storage tbody :is(td:nth-child(4), td:nth-child(5), td:nth-child(6)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+/* The guests table needs about 48rem: from 900 px up it is a table with fixed shares (switching the RAM between bytes and percent moves
+   nothing); below that, where the box cannot hold it, each guest is a small card (phones use the shared table-stack rules under 700 px). */
+@media (min-width: 900px) {
+  .table-guests { table-layout: fixed; min-width: 48rem; }
+  .table-guests col:nth-child(1) { width: 10%; }   .table-guests col:nth-child(2) { width: 12%; }  .table-guests col:nth-child(3) { width: 12%; }
+  .table-guests col:nth-child(4) { width: 8%; }    .table-guests col:nth-child(5) { width: 17.5%; } .table-guests col:nth-child(6) { width: 11%; }
+  .table-guests col:nth-child(7) { width: 15%; }   .table-guests col:nth-child(8) { width: 14.5%; }
+  .table-guests th, .table-guests td { padding: 0.5rem 0.5rem; }
+  .table-guests thead th { white-space: nowrap; }
+  /* Numbers and names stay on one line (a name like "infra-core" must not break at its hyphen); one that does not fit is cut with an
+     ellipsis. The addresses may wrap. */
+  .table-guests tbody :is(td:nth-child(2), td:nth-child(4), td:nth-child(5), td:nth-child(6), td:nth-child(8)), .table-guests tbody th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+@media (min-width: 701px) and (max-width: 899px) {
+  .table-guests thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .table-guests, .table-guests tbody { display: block; }
+  .table-guests tbody tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.2rem 0.8rem; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border-subtle); }
+  .table-guests tbody tr > * { display: block; min-width: 0; padding: 0.2rem 0; border: 0; text-align: left; overflow-wrap: anywhere; }
+  .table-guests tbody tr > *:first-child { grid-column: 1 / -1; font-weight: 600; display: flex; align-items: center; gap: 0.6rem; }
+  .table-guests tbody tr > *:first-child .cell-sub { display: inline; }
+  .table-guests tbody tr > [data-label]::before { content: attr(data-label); display: block; margin-bottom: 0.3rem; color: var(--text-dim); font-size: var(--fs-xs); font-weight: 400; }
+  .table-guests tbody tr > td[colspan] { grid-column: 1 / -1; text-align: center; }
 }
 .cell-sub { display: block; color: var(--text-dim); font-size: var(--fs-xs); }
 
