@@ -281,7 +281,9 @@ ignored, and walking through history still gives each entry its own target. **U4
 shown on load (the fade stays on view switches): FCP 48 -> 28 ms, target list 110 -> 56 ms, CLS 0.004 -> 0.021 (0.020 -> 0.021 with the CPU
 4x slower; limit 0.1). The 200 ms colour transition of the alert banner and the status badge pulse are untouched. **U5** picking a machine
 calls `refreshDevice()`: 20-21 calls become 10-11 (the fleet endpoints stay as they are until the next timer tick) and the per-machine
-loaders run in parallel. **U1** (16-11): an "All machines" entry in the Target list (opt-in; `device=all` in the link; the views that show one machine ask for one; the Overview drops the target panels) and **U2**: the card of the selected machine pulses for a second when Topology opens. Still open: "All" as the default of a fresh install and Syslog across all machines (see `DESIGN.md`).
+loaders run in parallel. **U1** (16-11): an "All machines" entry in the Target list (opt-in; `device=all` in the link; the views that show one machine ask for one; the Overview drops the target panels) and **U2**: the card of the selected machine pulses for a second when Topology opens. Done 16-11: "All" is the default of a browser that never picked a machine, and Syslog mixes every machine (see `DESIGN.md`).
+
+**U6, half-screen layout (16-11).** The hosted-guests table (Overview, Proxmox) wrapped every cell and printed every Docker bridge address (one row of ten lines): now two addresses plus a "+N" chip, vCPUs under the CPU figure, numbers and headers on one line, cards on a phone (`tests/browser/test_browser_guests_table.py`). Audit with the demo data at 960 px: no view overflows sideways; at 800 px two tables of Health & Inventory still scroll sideways (768 px in a 709 px box). Open: look at the other panels with real data (storage pools, topology cards, flows) at 800-1100 px, and the two Health tables.
 
 ### Scope decision: disk health and other host telemetry (accepted 2026-11-16 as G20)
 

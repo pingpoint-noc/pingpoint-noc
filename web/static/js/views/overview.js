@@ -1018,24 +1018,22 @@ function renderProxmoxOverview(data) {
       if (running && g.mem_used_bytes !== null && g.mem_used_bytes !== undefined && g.maxmem_bytes) {
         ramCell = escapeHtml(formatBytes(g.mem_used_bytes)) + " <span class='text-dim'>/ " + escapeHtml(formatBytes(g.maxmem_bytes)) + "</span>";
       }
-      // Link-local IPv6 (fe80::) says nothing useful here: show the addresses people use
-      var shownIps = (g.ip_addresses || "").split(",").filter(function (a) { return a && a.toLowerCase().indexOf("fe80:") !== 0; }).join(", ");
+      var ipCell = guestIpCell(g.ip_addresses);
       gTr.innerHTML =
         "<th>#" + escapeHtml(g.vmid) + "</th>" +
         "<td><span class='badge " + gTypeBadge + "'>" + escapeHtml((g.guest_type || "").toUpperCase()) + "</span></td>" +
         "<td>" + guestName + "</td>" +
         "<td><span class='badge " + gStatusBadge + "'>" + escapeHtml(g.status) + "</span></td>" +
-        "<td>" + escapeHtml(g.cpus || 1) + " vCPU</td>" +
-        "<td>" + cpuCell + "</td>" +
+        "<td>" + cpuCell + "<span class='cell-sub'>" + escapeHtml(g.cpus || 1) + " vCPU</span></td>" +
         "<td>" + ramCell + "</td>" +
         "<td>" + escapeHtml(formatBytes(g.maxdisk_bytes)) + "</td>" +
-        "<td>" + escapeHtml(shownIps || "--") + "</td>" +
+        "<td class='guest-ips'>" + ipCell + "</td>" +
         "<td>" + matchCell + "</td>";
       gHolder.appendChild(gTr);
     }
     if (guests.length === 0) {
       var emptyG = document.createElement("tr");
-      emptyG.innerHTML = "<td colspan='10' class='text-dim' style='text-align:center;'>No virtual guests found</td>";
+      emptyG.innerHTML = "<td colspan='9' class='text-dim' style='text-align:center;'>No virtual guests found</td>";
       gHolder.appendChild(emptyG);
     }
     commitRows(gTbody, gHolder);
@@ -1049,6 +1047,23 @@ function renderProxmoxOverview(data) {
       });
     }
   }
+}
+
+// The addresses of a guest as the guest agent reports them: the first two are shown (the first is the one people use) and the rest
+// sit behind a "+N" chip, because a container running Docker lists a bridge network per project and one row grew to ten lines.
+// Link-local IPv6 (fe80::) says nothing useful here and is left out.
+var GUEST_IPS_SHOWN = 2;
+function guestIpCell(raw) {
+  var all = (raw || "").split(",").map(function (a) { return a.trim(); }).filter(function (a) { return a && a.toLowerCase().indexOf("fe80:") !== 0; });
+  if (all.length === 0) {
+    return "<span class='text-dim'>--</span>";
+  }
+  var html = escapeHtml(all.slice(0, GUEST_IPS_SHOWN).join(", "));
+  if (all.length > GUEST_IPS_SHOWN) {
+    var more = all.length - GUEST_IPS_SHOWN;
+    html += " <span class='ip-more' tabindex='0' title='" + escapeHtml(all.join(", ")) + "' aria-label='" + escapeHtml("All addresses: " + all.join(", ")) + "'>+" + more + "</span>";
+  }
+  return html;
 }
 
 // Dedicated Modular Host Profile for non-SNMP targets (Linux containers, Pi-hole DNS)

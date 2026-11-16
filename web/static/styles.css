@@ -4494,6 +4494,18 @@ body[data-all-machines="1"] #tab-syslog .col-machine { display: table-cell; }
 body[data-all-machines="1"] #tab-syslog :is(.source-absent-note, #config-changes-panel, .export-button-group) { display: none; }
 body[data-all-machines="1"] #tab-syslog > #logs-panel { display: block; }
 
+/* Hosted guests (Overview, Proxmox): numbers and headers stay on one line, the table scrolls sideways before it breaks a row into
+   five lines, and a phone gets the same cards as the other tables (table-stack). The names and the addresses may wrap. */
+.guest-ips { overflow-wrap: anywhere; min-width: 8rem; }
+.ip-more { display: inline-block; padding: 0 0.4rem; border: 1px solid var(--border-default); border-radius: 999px; font-size: var(--fs-xs); color: var(--text-dim); cursor: help; }
+.ip-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (min-width: 701px) {
+  .table-guests th, .table-guests td { padding: 0.5rem 0.6rem; }
+  .table-guests thead th { white-space: nowrap; }
+  .table-guests tbody :is(td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(9)), .table-guests tbody th { white-space: nowrap; }
+}
+.cell-sub { display: block; color: var(--text-dim); font-size: var(--fs-xs); }
+
 /* U2: the card of the machine that was selected pulses for a second when Topology opens (only highlighted under reduced motion). */
 .topo-node.pulse .topo-node-card {
   stroke: var(--color-cyan);
