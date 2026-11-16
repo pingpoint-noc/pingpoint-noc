@@ -45,15 +45,64 @@ class GuestsTableTest(BrowserTestCase):
 
     def test_only_two_addresses_show_and_the_rest_are_in_a_chip(self):
         page = self.show(1400)
-        text = page.inner_text("#overview-pve-guests-tbody tr:nth-child(3) .guest-ips")
-        self.assertIn("192.168.1.72, 172.17.0.1", text)
-        self.assertNotIn("172.20.0.1", text)
+        shown = page.evaluate("[...document.querySelectorAll('#overview-pve-guests-tbody tr:nth-child(3) .guest-ip')].map(e => e.textContent)")
+        self.assertEqual(shown, ["192.168.1.72", "172.17.0.1"])
         chip = page.locator("#overview-pve-guests-tbody tr:nth-child(3) .ip-more")
         self.assertEqual(chip.inner_text(), "+14")  # 16 shown addresses (fe80 is left out) minus the two on screen
         title = chip.get_attribute("title")
         self.assertIn("172.30.0.1", title)
         self.assertNotIn("fe80", title)
         self.assertEqual(page.locator("#overview-pve-guests-tbody tr:nth-child(1) .ip-more").count(), 0)  # two addresses: no chip
+
+    def test_the_chip_is_level_with_the_addresses_and_spaced_from_them(self):
+        for width in (1400, 960, 800):
+            page = self.show(width)
+            box = page.evaluate("""() => { const row = document.querySelector('#overview-pve-guests-tbody tr:nth-child(3)');
+              const ips = [...row.querySelectorAll('.guest-ip')].map(e => e.getBoundingClientRect());
+              const chip = row.querySelector('.ip-more').getBoundingClientRect();
+              const last = ips[ips.length - 1], first = ips[0];
+              const below = chip.top >= last.bottom - 1;
+              return {below: below, chipHeight: chip.height, chipWidth: chip.width,
+                      overlaps: ips.some(r => r.right > chip.left && r.left < chip.right && r.top < chip.bottom && r.bottom > chip.top),
+                      // same line: centred on it and spaced from the last address; below: under the first address, left edges level
+                      lineOffset: Math.abs((chip.top + chip.height / 2) - (last.top + last.height / 2)), gap: chip.left - last.right,
+                      leftOffset: Math.abs(chip.left - first.left), drop: chip.top - last.bottom}; }""")
+            self.assertFalse(box["overlaps"], "%d px: %r" % (width, box))
+            if box["below"]:
+                self.assertLessEqual(box["leftOffset"], 2, "%d px: the chip is not under the first address: %r" % (width, box))
+                self.assertTrue(0 <= box["drop"] <= 8, "%d px: %r" % (width, box))
+            else:
+                self.assertLessEqual(box["lineOffset"], 3, "%d px: the chip is off the line of the address: %r" % (width, box))
+                self.assertGreaterEqual(box["gap"], 4, "%d px: the chip touches the address: %r" % (width, box))
+            self.assertTrue(18 <= box["chipHeight"] <= 24 and box["chipWidth"] >= 24, box)
+
+    def test_the_ram_can_be_shown_as_a_percentage_and_the_choice_is_kept(self):
+        page = self.show(1400)
+        cell = "#overview-pve-guests-tbody tr:first-child td:nth-child(6)"
+        self.assertIn("MB / 2.00 GB", page.inner_text(cell))  # default: used / total
+        self.assertEqual(page.get_attribute("[data-ram-mode='bytes']", "aria-pressed"), "true")
+        page.click("[data-ram-mode='pct']")
+        self.assertEqual(page.inner_text(cell).strip(), "45 %")  # 962.26 MB of 2 GiB
+        self.assertIn("MB / 2.00 GB", page.get_attribute(cell + " span", "title"))
+        self.assertEqual(page.get_attribute("[data-ram-mode='pct']", "aria-pressed"), "true")
+        self.assertEqual(page.get_attribute("[data-ram-mode='bytes']", "aria-pressed"), "false")
+        # a stopped guest has no use to show
+        self.assertEqual(page.inner_text("#overview-pve-guests-tbody tr:nth-child(4) td:nth-child(6)").strip(), "--")
+        self.assertEqual(page.evaluate("localStorage.getItem('mini-noc-guest-ram')"), "pct")
+        # the time range is not touched by this switch
+        self.assertEqual(page.evaluate("STATE.range"), "15m")
+        page.click("[data-ram-mode='bytes']")
+        self.assertIn("MB / 2.00 GB", page.inner_text(cell))
+
+    def test_the_percentage_choice_is_there_after_a_reload(self):
+        page = self.show(1400)
+        page.click("[data-ram-mode='pct']")
+        page.reload()
+        page.wait_for_function("typeof renderProxmoxOverview === 'function' && STATE.cacheDeviceDetail !== undefined")
+        page.add_style_tag(content="#overview-proxmox-wrap.hidden { display: block !important; }")
+        page.evaluate("(guests) => renderProxmoxOverview({metrics: {}, guest_summary: {}, storages: [], guests: guests})", GUESTS)
+        self.assertEqual(page.inner_text("#overview-pve-guests-tbody tr:first-child td:nth-child(6)").strip(), "45 %")
+        self.assertEqual(page.get_attribute("[data-ram-mode='pct']", "aria-pressed"), "true")
 
     def test_rows_stay_short_at_desktop_and_half_screen_widths(self):
         for width in (1400, 960, 800):

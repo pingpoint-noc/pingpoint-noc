@@ -426,9 +426,13 @@
 
             <!-- Virtual Guests Section -->
             <div class="overview-top-if-section" style="margin-top: 1.5rem;">
-              <div class="overview-top-if-header">
+              <div class="overview-top-if-header guests-header">
                 <strong>Hosted Virtual Guests (VMs &amp; LXC)</strong>
                 <span class="overview-top-if-subtitle">Discovered guests, resource allocations, and automatic NOC inventory mapping</span>
+                <div class="seg-toggle" role="group" aria-label="How to show the RAM of each guest">
+                  <button type="button" class="seg-btn active" data-ram-mode="bytes" aria-pressed="true" title="Memory in use and allocated, in bytes">Used / total</button>
+                  <button type="button" class="seg-btn" data-ram-mode="pct" aria-pressed="false" title="Share of the allocated memory in use">%</button>
+                </div>
               </div>
               <div tabindex="0" role="region" aria-labelledby="pve-guests-table-caption" class="table-container">
                 <table class="data-table table-stack table-stack-dense table-guests">

@@ -409,6 +409,14 @@ function initDashboard() {
     }
   });
 
+  // RAM of the hosted guests: used / total or percent.
+  document.addEventListener("click", function (e) {
+    var ramBtn = e.target.closest ? e.target.closest("[data-ram-mode]") : null;
+    if (ramBtn) {
+      setGuestRamMode(ramBtn.getAttribute("data-ram-mode"));
+    }
+  });
+
   // Manual Refresh
   var refreshBtn = document.getElementById("refresh-btn");
   if (refreshBtn) {

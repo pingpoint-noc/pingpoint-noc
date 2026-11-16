@@ -2798,6 +2798,8 @@ function renderProxmoxOverview(data) {
   var guestSummary = data.guest_summary || {};
   var storages = data.storages || [];
   var guests = data.guests || [];
+  STATE.cachePveData = data;  // the RAM switch draws the table again from it
+  syncGuestRamButtons();
 
   // KPIs
   var kpiCpuVal = document.getElementById("kpi-pve-cpu-val");
@@ -2916,12 +2918,9 @@ function renderProxmoxOverview(data) {
       }
       var running = g.status === "running";
       var cpuCell = "<span class='text-dim'>--</span>";
-      var ramCell = "<span class='text-dim'>" + escapeHtml(formatBytes(g.maxmem_bytes)) + "</span>";
+      var ramCell = guestRamCell(g, running);
       if (running && g.cpu_frac !== null && g.cpu_frac !== undefined) {
         cpuCell = escapeHtml((g.cpu_frac * 100).toFixed(g.cpu_frac >= 0.1 ? 0 : 1)) + " %";
-      }
-      if (running && g.mem_used_bytes !== null && g.mem_used_bytes !== undefined && g.maxmem_bytes) {
-        ramCell = escapeHtml(formatBytes(g.mem_used_bytes)) + " <span class='text-dim'>/ " + escapeHtml(formatBytes(g.maxmem_bytes)) + "</span>";
       }
       var ipCell = guestIpCell(g.ip_addresses);
       gTr.innerHTML =
@@ -2963,12 +2962,73 @@ function guestIpCell(raw) {
   if (all.length === 0) {
     return "<span class='text-dim'>--</span>";
   }
-  var html = escapeHtml(all.slice(0, GUEST_IPS_SHOWN).join(", "));
+  // Each address is one block that never breaks in the middle; the blocks and the chip wrap as a group and share one centre line.
+  var html = "<div class='guest-ips-list'>";
+  all.slice(0, GUEST_IPS_SHOWN).forEach(function (ip) {
+    html += "<span class='guest-ip'>" + escapeHtml(ip) + "</span>";
+  });
   if (all.length > GUEST_IPS_SHOWN) {
     var more = all.length - GUEST_IPS_SHOWN;
-    html += " <span class='ip-more' tabindex='0' title='" + escapeHtml(all.join(", ")) + "' aria-label='" + escapeHtml("All addresses: " + all.join(", ")) + "'>+" + more + "</span>";
+    html += "<span class='ip-more' tabindex='0' title='" + escapeHtml(all.join(", ")) + "' aria-label='" + escapeHtml("All addresses: " + all.join(", ")) + "'>+" + more + "</span>";
   }
-  return html;
+  return html + "</div>";
+}
+
+// How the RAM column reads: "used / total" in bytes (default) or the share of the allocated memory in use. Kept in this browser.
+var GUEST_RAM_KEY = "mini-noc-guest-ram";
+function guestRamMode() {
+  if (STATE.guestRamMode) {
+    return STATE.guestRamMode;
+  }
+  var stored = "bytes";
+  try {
+    stored = window.localStorage.getItem(GUEST_RAM_KEY) === "pct" ? "pct" : "bytes";
+  } catch (e) {
+    // storage blocked: the default applies
+  }
+  STATE.guestRamMode = stored;
+  return stored;
+}
+
+function syncGuestRamButtons() {
+  var mode = guestRamMode();
+  var buttons = document.querySelectorAll("[data-ram-mode]");
+  var i = 0;
+  for (i = 0; i < buttons.length; i += 1) {
+    var on = buttons[i].getAttribute("data-ram-mode") === mode;
+    buttons[i].classList.toggle("active", on);
+    buttons[i].setAttribute("aria-pressed", on ? "true" : "false");
+  }
+}
+
+function setGuestRamMode(mode) {
+  STATE.guestRamMode = mode === "pct" ? "pct" : "bytes";
+  try {
+    window.localStorage.setItem(GUEST_RAM_KEY, STATE.guestRamMode);
+  } catch (e) {
+    // the choice just is not kept
+  }
+  if (STATE.cachePveData) {
+    renderProxmoxOverview(STATE.cachePveData);
+  } else {
+    syncGuestRamButtons();
+  }
+}
+
+function guestRamCell(g, running) {
+  var haveUse = running && g.mem_used_bytes !== null && g.mem_used_bytes !== undefined && g.maxmem_bytes;
+  var sizes = escapeHtml(haveUse ? formatBytes(g.mem_used_bytes) + " / " + formatBytes(g.maxmem_bytes) : formatBytes(g.maxmem_bytes));
+  if (guestRamMode() === "pct") {
+    if (!haveUse) {
+      return "<span class='text-dim' title='" + sizes + " allocated'>--</span>";
+    }
+    var pct = (g.mem_used_bytes / g.maxmem_bytes) * 100;
+    return "<span title='" + sizes + "'>" + escapeHtml(pct.toFixed(pct >= 10 ? 0 : 1)) + " %</span>";
+  }
+  if (haveUse) {
+    return escapeHtml(formatBytes(g.mem_used_bytes)) + " <span class='text-dim'>/ " + escapeHtml(formatBytes(g.maxmem_bytes)) + "</span>";
+  }
+  return "<span class='text-dim'>" + escapeHtml(formatBytes(g.maxmem_bytes)) + "</span>";
 }
 
 // Dedicated Modular Host Profile for non-SNMP targets (Linux containers, Pi-hole DNS)
@@ -11371,6 +11431,14 @@ function initDashboard() {
     if (btn && devSel) {
       devSel.value = btn.getAttribute("data-id");
       devSel.dispatchEvent(new Event("change"));
+    }
+  });
+
+  // RAM of the hosted guests: used / total or percent.
+  document.addEventListener("click", function (e) {
+    var ramBtn = e.target.closest ? e.target.closest("[data-ram-mode]") : null;
+    if (ramBtn) {
+      setGuestRamMode(ramBtn.getAttribute("data-ram-mode"));
     }
   });
 
