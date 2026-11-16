@@ -984,7 +984,7 @@ function renderProxmoxOverview(data) {
         "<td>" + escapeHtml(usedPct) + "</td>" +
         "<td>" + escapeHtml(formatBytes(st.used_bytes)) + " / " + escapeHtml(formatBytes(st.total_bytes)) + "</td>" +
         "<td>" + escapeHtml(formatBytes(st.avail_bytes)) + "</td>" +
-        "<td class='text-dim'>" + escapeHtml(st.content || "--") + "</td>";
+        "<td class='text-dim'>" + escapeHtml((st.content || "--").split(",").join(", ")) + "</td>";  // a space after each comma: it wraps between words, not inside one
       stHolder.appendChild(tr);
     }
     if (storages.length === 0) {

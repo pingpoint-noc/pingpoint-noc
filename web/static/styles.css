@@ -4553,7 +4553,6 @@ body[data-all-machines="1"] #tab-syslog > #logs-panel { display: block; }
      ellipsis. The addresses and the content types may wrap. */
   .table-guests tbody :is(td:nth-child(2), td:nth-child(4), td:nth-child(5), td:nth-child(6), td:nth-child(8)), .table-guests tbody th,
   .table-storage tbody :is(td:nth-child(4), td:nth-child(5), td:nth-child(6)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .table-storage tbody td:nth-child(7) { overflow-wrap: anywhere; }
 }
 .cell-sub { display: block; color: var(--text-dim); font-size: var(--fs-xs); }
 

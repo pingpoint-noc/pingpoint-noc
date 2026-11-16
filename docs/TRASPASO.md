@@ -43,7 +43,7 @@ Hecho y subido a `main`:
 
 1. Opcional: exportar el Syslog de todos los equipos (hoy la exportación es por equipo y se oculta con «All»).
 2. **Resto de la instalación de cero:** el enrolado con `bootstrap.sh` contra el NOC recién instalado y `bootstrap_pve.sh` en un Proxmox real ya están probados (el segundo destapó un fallo: `pveum user list` imprime una tabla y el `grep` nunca encontraba al usuario; arreglado). Falta probar el mensaje de prueba de las notificaciones. adguard no necesita agente: es una sonda DNS dentro del CT 100.
-3. **Media pantalla (U6):** la tabla de invitados está hecha; faltan los otros paneles con datos reales a 800-1100 px y dos tablas de Health a 800 px (`ROADMAP.md`).
+3. **Media pantalla (U6):** hechas con datos reales a 960-1100 px las tablas de invitados, almacenes, colectores y salud de equipos (reparto fijo de columnas, RAM en bytes o %, errores y discos recortados con tooltip). Siguen a 800 px la consola de Syslog y las tablas de Capacity & Trends, Coverage y flota de Health (`ROADMAP.md`). Para medir contra el NOC real: usuario `viewer` temporal con `PYTHONPATH=/opt/pingpoint` y `tools.manage_users --db-path`, inicio de sesión por la pantalla `#gate-username`, y borrarlo al acabar.
 4. **G20 (salud de discos, opt-in)** y el resto de ideas G1-G19 de `ROADMAP.md` (escalado de alertas, sondas HTTP/TCP y caducidad TLS, trampas SNMP...). F1: SCTP/TCP, plantillas de opciones, comparar con `nfdump`.
 5. **Fases 7 y 8** del plan (sondas HTTP/TCP, documentación en inglés); PyPI y la imagen de contenedor solo con el OK del mantenedor y tras reestructurar bajo un paquete único.
 

@@ -115,10 +115,21 @@ class GuestsTableTest(BrowserTestCase):
                 for index, (a, b) in enumerate(zip(before[name], after[name])):
                     self.assertAlmostEqual(a, b, delta=1.0, msg="%d px, %s table, measure %d: %r -> %r" % (width, name, index, before[name], after[name]))
 
+    def test_content_types_wrap_between_words_not_inside_them(self):
+        page = self.show(960)
+        text = page.inner_text(".table-storage tbody tr:first-child td:nth-child(7)")
+        self.assertIn("vztmpl, images, import", text)
+        broken = page.evaluate("""() => { const td = document.querySelector('.table-storage tbody tr:first-child td:nth-child(7)');
+          const r = document.createRange(); const words = td.textContent.split(/[ ,]+/).filter(Boolean); let worst = 0;
+          for (const w of words) { const i = td.textContent.indexOf(w); const range = document.createRange(); const node = td.firstChild;
+            range.setStart(node, i); range.setEnd(node, i + w.length); worst = Math.max(worst, new Set([...range.getClientRects()].map(x => Math.round(x.top))).size); }
+          return worst; }""")
+        self.assertEqual(broken, 1, "a word is split over two lines")
+
     def test_the_storage_sizes_stay_on_one_line(self):
         page = self.show(960)
         heights = page.evaluate("[...document.querySelectorAll('.table-storage tbody tr')].map(r => r.getBoundingClientRect().height)")
-        self.assertTrue(all(20 < h <= 70 for h in heights), heights)
+        self.assertTrue(all(20 < h <= 90 for h in heights), heights)
         # "74.55 GB / 100.09 GB" is one line of text (the cell itself stretches to the row, which the content types can make tall)
         lines = page.evaluate("""() => [4, 5, 6].map(n => { const r = document.createRange();
           r.selectNodeContents(document.querySelector('.table-storage tbody tr td:nth-child(' + n + ')'));
