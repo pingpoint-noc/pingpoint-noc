@@ -4494,6 +4494,26 @@ body[data-all-machines="1"] #tab-syslog .col-machine { display: table-cell; }
 body[data-all-machines="1"] #tab-syslog :is(.source-absent-note, #config-changes-panel, .export-button-group) { display: none; }
 body[data-all-machines="1"] #tab-syslog > #logs-panel { display: block; }
 
+/* Health tables: the same rule as below (fixed shares, numbers on one line) so a long error message or a host with twenty mount points
+   cannot push the other columns out. The error is cut at two lines and the disks at three, with the whole text in the tooltip. */
+.cell-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.cell-clamp-3 { -webkit-line-clamp: 3; line-clamp: 3; }
+@media (max-width: 700px) { .cell-clamp { display: block; -webkit-line-clamp: unset; line-clamp: unset; } }  /* a phone card shows the whole text */
+@media (min-width: 701px) {
+  .table-collectors, .table-host-health { table-layout: fixed; }
+  .table-collectors { min-width: 46rem; }
+  .table-host-health { min-width: 50rem; }
+  .table-collectors col:nth-child(1) { width: 10%; } .table-collectors col:nth-child(2) { width: 12%; } .table-collectors col:nth-child(3) { width: 10%; }
+  .table-collectors col:nth-child(4) { width: 17%; } .table-collectors col:nth-child(5) { width: 8%; }  .table-collectors col:nth-child(6) { width: 9%; }
+  .table-collectors col:nth-child(7) { width: 34%; }
+  .table-host-health col:nth-child(1) { width: 12%; } .table-host-health col:nth-child(2) { width: 11%; } .table-host-health col:nth-child(3) { width: 7%; }
+  .table-host-health col:nth-child(4) { width: 11%; } .table-host-health col:nth-child(5) { width: 22%; } .table-host-health col:nth-child(6) { width: 27%; }
+  .table-host-health col:nth-child(7) { width: 10%; }
+  .table-collectors thead th, .table-host-health thead th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .table-collectors tbody :is(td:nth-child(5), td:nth-child(6)), .table-host-health tbody :is(td:nth-child(3), td:nth-child(4), td:nth-child(7)) { white-space: nowrap; }
+  .table-host-health .health-disk { margin-right: 0.6rem; }
+}
+
 /* Hosted guests (Overview, Proxmox): numbers and headers stay on one line, the table scrolls sideways before it breaks a row into
    five lines, and a phone gets the same cards as the other tables (table-stack). The names and the addresses may wrap. */
 .guest-ips { min-width: 9rem; }
@@ -4516,11 +4536,24 @@ body[data-all-machines="1"] #tab-syslog > #logs-panel { display: block; }
 .guests-header { flex-wrap: wrap; gap: 0.4rem 1rem; align-items: center; }
 .guests-header .overview-top-if-subtitle { flex: 1 1 14rem; }
 @media (min-width: 701px) {
-  .table-guests th, .table-guests td { padding: 0.5rem 0.6rem; }
-  .table-guests thead th { white-space: nowrap; }
-  .table-guests tbody :is(td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(9)), .table-guests tbody th { white-space: nowrap; }
-  /* A name like "infra-core" must not break at its hyphen; a very long one is cut with an ellipsis (its title has it all). */
-  .table-guests tbody td:nth-child(3) { white-space: nowrap; max-width: 11rem; overflow: hidden; text-overflow: ellipsis; }
+  /* Fixed column widths (a share of the table): the width of a column does not depend on what is in it, so switching the RAM
+     between bytes and percent, or a new guest with a long name, moves nothing. Below the minimum width the box scrolls sideways. */
+  .table-guests, .table-storage { table-layout: fixed; }
+  .table-guests { min-width: 48rem; }
+  .table-storage { min-width: 40rem; }
+  .table-guests col:nth-child(1) { width: 10%; }   .table-guests col:nth-child(2) { width: 12%; }  .table-guests col:nth-child(3) { width: 12%; }
+  .table-guests col:nth-child(4) { width: 8%; }    .table-guests col:nth-child(5) { width: 17.5%; } .table-guests col:nth-child(6) { width: 11%; }
+  .table-guests col:nth-child(7) { width: 15%; }   .table-guests col:nth-child(8) { width: 14.5%; }
+  .table-storage col:nth-child(1) { width: 17%; } .table-storage col:nth-child(2) { width: 9%; }  .table-storage col:nth-child(3) { width: 12%; }
+  .table-storage col:nth-child(4) { width: 9%; }  .table-storage col:nth-child(5) { width: 20%; } .table-storage col:nth-child(6) { width: 12%; }
+  .table-storage col:nth-child(7) { width: 21%; }
+  .table-guests th, .table-guests td { padding: 0.5rem 0.5rem; }
+  .table-guests thead th, .table-storage thead th { white-space: nowrap; }
+  /* Numbers and names stay on one line (a name like "infra-core" must not break at its hyphen); one that does not fit is cut with an
+     ellipsis. The addresses and the content types may wrap. */
+  .table-guests tbody :is(td:nth-child(2), td:nth-child(4), td:nth-child(5), td:nth-child(6), td:nth-child(8)), .table-guests tbody th,
+  .table-storage tbody :is(td:nth-child(4), td:nth-child(5), td:nth-child(6)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .table-storage tbody td:nth-child(7) { overflow-wrap: anywhere; }
 }
 .cell-sub { display: block; color: var(--text-dim); font-size: var(--fs-xs); }
 

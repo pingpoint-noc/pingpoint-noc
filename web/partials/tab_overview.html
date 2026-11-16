@@ -406,8 +406,9 @@
                 <span class="overview-top-if-subtitle">Allocated storage volumes reported via Proxmox storage API</span>
               </div>
               <div tabindex="0" role="region" aria-labelledby="pve-storage-table-caption" class="table-container">
-                <table class="data-table">
+                <table class="data-table table-stack table-stack-dense table-storage">
                   <caption id="pve-storage-table-caption" class="visually-hidden">Proxmox storage pools and utilization</caption>
+                  <colgroup><col><col><col><col><col><col><col></colgroup>
                   <thead>
                     <tr>
                       <th>Pool</th>
@@ -437,10 +438,10 @@
               <div tabindex="0" role="region" aria-labelledby="pve-guests-table-caption" class="table-container">
                 <table class="data-table table-stack table-stack-dense table-guests">
                   <caption id="pve-guests-table-caption" class="visually-hidden">Proxmox hosted virtual guests and correlation</caption>
+                  <colgroup><col><col><col><col><col><col><col><col></colgroup>
                   <thead>
                     <tr>
-                      <th>VMID</th>
-                      <th>Type</th>
+                      <th>VMID / Type</th>
                       <th>Name</th>
                       <th>Status</th>
                       <th>CPU</th>

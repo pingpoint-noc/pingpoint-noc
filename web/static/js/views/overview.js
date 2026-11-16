@@ -1019,8 +1019,7 @@ function renderProxmoxOverview(data) {
       }
       var ipCell = guestIpCell(g.ip_addresses);
       gTr.innerHTML =
-        "<th>#" + escapeHtml(g.vmid) + "</th>" +
-        "<td><span class='badge " + gTypeBadge + "'>" + escapeHtml((g.guest_type || "").toUpperCase()) + "</span></td>" +
+        "<th>#" + escapeHtml(g.vmid) + "<span class='cell-sub'><span class='badge " + gTypeBadge + "'>" + escapeHtml((g.guest_type || "").toUpperCase()) + "</span></span></th>" +
         "<td>" + guestName + "</td>" +
         "<td><span class='badge " + gStatusBadge + "'>" + escapeHtml(g.status) + "</span></td>" +
         "<td>" + cpuCell + "<span class='cell-sub'>" + escapeHtml(g.cpus || 1) + " vCPU</span></td>" +
@@ -1032,7 +1031,7 @@ function renderProxmoxOverview(data) {
     }
     if (guests.length === 0) {
       var emptyG = document.createElement("tr");
-      emptyG.innerHTML = "<td colspan='9' class='text-dim' style='text-align:center;'>No virtual guests found</td>";
+      emptyG.innerHTML = "<td colspan='8' class='text-dim' style='text-align:center;'>No virtual guests found</td>";
       gHolder.appendChild(emptyG);
     }
     commitRows(gTbody, gHolder);

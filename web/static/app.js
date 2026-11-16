@@ -2924,8 +2924,7 @@ function renderProxmoxOverview(data) {
       }
       var ipCell = guestIpCell(g.ip_addresses);
       gTr.innerHTML =
-        "<th>#" + escapeHtml(g.vmid) + "</th>" +
-        "<td><span class='badge " + gTypeBadge + "'>" + escapeHtml((g.guest_type || "").toUpperCase()) + "</span></td>" +
+        "<th>#" + escapeHtml(g.vmid) + "<span class='cell-sub'><span class='badge " + gTypeBadge + "'>" + escapeHtml((g.guest_type || "").toUpperCase()) + "</span></span></th>" +
         "<td>" + guestName + "</td>" +
         "<td><span class='badge " + gStatusBadge + "'>" + escapeHtml(g.status) + "</span></td>" +
         "<td>" + cpuCell + "<span class='cell-sub'>" + escapeHtml(g.cpus || 1) + " vCPU</span></td>" +
@@ -2937,7 +2936,7 @@ function renderProxmoxOverview(data) {
     }
     if (guests.length === 0) {
       var emptyG = document.createElement("tr");
-      emptyG.innerHTML = "<td colspan='9' class='text-dim' style='text-align:center;'>No virtual guests found</td>";
+      emptyG.innerHTML = "<td colspan='8' class='text-dim' style='text-align:center;'>No virtual guests found</td>";
       gHolder.appendChild(emptyG);
     }
     commitRows(gTbody, gHolder);
@@ -6219,7 +6218,7 @@ async function loadHealth() {
           "<td>" + escapeHtml(formatLocal(c.last_success_utc)) + "</td>" +
           "<td>" + escapeHtml(formatDuration(c.age_seconds)) + "</td>" +
           "<td>" + escapeHtml(c.consecutive_errors) + "</td>" +
-          "<td>" + escapeHtml(errText) + "</td>";
+          "<td><div class='cell-clamp' title='" + escapeHtml(errText) + "'>" + escapeHtml(errText) + "</div></td>";
         collectorsHolder.appendChild(tr);
       }
       commitRows(tbody, collectorsHolder);
@@ -6276,7 +6275,7 @@ function hostHealthDisks(dev, limits) {
     html += "<span class='health-disk " + tone + "' data-disk='" + escapeHtml(disk.label) + "' title='alert above " +
       limits.disk_pct + " %'>" + escapeHtml(disk.label) + " " + Number(disk.used_pct).toFixed(1) + " %</span>";
   }
-  return "<td data-label='Disks' class='health-disks'>" + html + "</td>";
+  return "<td data-label='Disks' class='health-disks'><div class='cell-clamp cell-clamp-3'>" + html + "</div></td>";
 }
 
 function hostHealthServices(dev) {

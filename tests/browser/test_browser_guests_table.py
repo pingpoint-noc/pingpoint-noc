@@ -17,6 +17,12 @@ def guest(vmid, name, kind, ips, running=True, matched=True):
             "matched_device_id": name if matched else None}
 
 
+STORAGES = [
+    {"storage_name": "local", "storage_type": "dir", "status": "active", "used_bytes": 74_550_000_000, "total_bytes": 100_090_000_000,
+     "avail_bytes": 21_060_000_000, "content": "vztmpl,images,import,backup,rootdir,snippets,iso"},
+    {"storage_name": "truenas-backups", "storage_type": "dir", "status": "active", "used_bytes": 54_640_000_000, "total_bytes": 297_220_000_000,
+     "avail_bytes": 242_580_000_000, "content": "backup"},
+]
 GUESTS = [guest(100, "infra-core", "lxc", ["192.168.1.70", "172.21.0.1"]), guest(101, "TrueNAS", "qemu", []),
           guest(102, "media", "lxc", DOCKER), guest(106, "agente", "qemu", [], running=False, matched=False)]
 
@@ -34,7 +40,7 @@ class GuestsTableTest(BrowserTestCase):
         # The block is only shown for a Proxmox host, and the page hides it again whenever it reloads a device that is not one:
         # a rule that wins over that keeps it on screen for the measurements.
         page.add_style_tag(content="#overview-proxmox-wrap.hidden { display: block !important; }")
-        page.evaluate("(guests) => renderProxmoxOverview({metrics: {}, guest_summary: {}, storages: [], guests: guests})", GUESTS)
+        page.evaluate("([guests, storages]) => renderProxmoxOverview({metrics: {}, guest_summary: {}, storages: storages, guests: guests})", [GUESTS, STORAGES])
         page.wait_for_function("document.querySelector('.table-guests').getBoundingClientRect().height > 0")
         return page
 
@@ -78,7 +84,7 @@ class GuestsTableTest(BrowserTestCase):
 
     def test_the_ram_can_be_shown_as_a_percentage_and_the_choice_is_kept(self):
         page = self.show(1400)
-        cell = "#overview-pve-guests-tbody tr:first-child td:nth-child(6)"
+        cell = "#overview-pve-guests-tbody tr:first-child td:nth-child(5)"
         self.assertIn("MB / 2.00 GB", page.inner_text(cell))  # default: used / total
         self.assertEqual(page.get_attribute("[data-ram-mode='bytes']", "aria-pressed"), "true")
         page.click("[data-ram-mode='pct']")
@@ -87,12 +93,37 @@ class GuestsTableTest(BrowserTestCase):
         self.assertEqual(page.get_attribute("[data-ram-mode='pct']", "aria-pressed"), "true")
         self.assertEqual(page.get_attribute("[data-ram-mode='bytes']", "aria-pressed"), "false")
         # a stopped guest has no use to show
-        self.assertEqual(page.inner_text("#overview-pve-guests-tbody tr:nth-child(4) td:nth-child(6)").strip(), "--")
+        self.assertEqual(page.inner_text("#overview-pve-guests-tbody tr:nth-child(4) td:nth-child(5)").strip(), "--")
         self.assertEqual(page.evaluate("localStorage.getItem('mini-noc-guest-ram')"), "pct")
         # the time range is not touched by this switch
         self.assertEqual(page.evaluate("STATE.range"), "15m")
         page.click("[data-ram-mode='bytes']")
         self.assertIn("MB / 2.00 GB", page.inner_text(cell))
+
+    def test_switching_the_ram_mode_moves_nothing_in_either_table(self):
+        """The columns and the width of both tables of the panel stay put when the RAM changes from bytes to percent."""
+        script = """() => { const grab = sel => { const t = document.querySelector(sel);
+          return [t.closest('.table-container').getBoundingClientRect().width, t.getBoundingClientRect().width,
+                  ...[...t.querySelectorAll('thead th')].map(th => th.getBoundingClientRect().left), t.getBoundingClientRect().height]; };
+          return {guests: grab('.table-guests'), storage: grab('.table-storage')}; }"""
+        for width in (1400, 960):
+            page = self.show(width)
+            before = page.evaluate(script)
+            page.click("[data-ram-mode='pct']")
+            after = page.evaluate(script)
+            for name in ("guests", "storage"):
+                for index, (a, b) in enumerate(zip(before[name], after[name])):
+                    self.assertAlmostEqual(a, b, delta=1.0, msg="%d px, %s table, measure %d: %r -> %r" % (width, name, index, before[name], after[name]))
+
+    def test_the_storage_sizes_stay_on_one_line(self):
+        page = self.show(960)
+        heights = page.evaluate("[...document.querySelectorAll('.table-storage tbody tr')].map(r => r.getBoundingClientRect().height)")
+        self.assertTrue(all(20 < h <= 70 for h in heights), heights)
+        # "74.55 GB / 100.09 GB" is one line of text (the cell itself stretches to the row, which the content types can make tall)
+        lines = page.evaluate("""() => [4, 5, 6].map(n => { const r = document.createRange();
+          r.selectNodeContents(document.querySelector('.table-storage tbody tr td:nth-child(' + n + ')'));
+          return new Set([...r.getClientRects()].map(x => Math.round(x.top))).size; })""")
+        self.assertEqual(lines, [1, 1, 1])
 
     def test_the_percentage_choice_is_there_after_a_reload(self):
         page = self.show(1400)
@@ -101,7 +132,7 @@ class GuestsTableTest(BrowserTestCase):
         page.wait_for_function("typeof renderProxmoxOverview === 'function' && STATE.cacheDeviceDetail !== undefined")
         page.add_style_tag(content="#overview-proxmox-wrap.hidden { display: block !important; }")
         page.evaluate("(guests) => renderProxmoxOverview({metrics: {}, guest_summary: {}, storages: [], guests: guests})", GUESTS)
-        self.assertEqual(page.inner_text("#overview-pve-guests-tbody tr:first-child td:nth-child(6)").strip(), "45 %")
+        self.assertEqual(page.inner_text("#overview-pve-guests-tbody tr:first-child td:nth-child(5)").strip(), "45 %")
         self.assertEqual(page.get_attribute("[data-ram-mode='pct']", "aria-pressed"), "true")
 
     def test_rows_stay_short_at_desktop_and_half_screen_widths(self):
@@ -117,8 +148,8 @@ class GuestsTableTest(BrowserTestCase):
         lines = page.evaluate("""() => [...document.querySelectorAll('.table-guests thead th')].map(th => th.getBoundingClientRect().height)""")
         self.assertTrue(min(lines) > 20, lines)
         self.assertLessEqual(max(lines), 45, lines)
-        ram = page.evaluate("document.querySelector('#overview-pve-guests-tbody tr:first-child td:nth-child(6)').getBoundingClientRect().height")
-        self.assertTrue(20 < ram <= 60, ram)
+        ram = page.evaluate("document.querySelector('#overview-pve-guests-tbody tr:first-child td:nth-child(5)').getBoundingClientRect().height")
+        self.assertTrue(20 < ram <= 70, ram)
 
     def test_every_column_fits_without_sideways_scrolling_at_half_screen(self):
         """At 960 px the last column ("NOC node") used to be cut off and needed a sideways scroll."""
@@ -134,7 +165,7 @@ class GuestsTableTest(BrowserTestCase):
         self.assertTrue(page.is_visible("#overview-pve-guests-tbody tr:first-child"))
         # the header row is clipped to 1 px (Playwright still calls that "visible"): the cards carry the names instead
         self.assertLessEqual(page.evaluate("document.querySelector('.table-guests thead').getBoundingClientRect().height"), 2)
-        label = page.get_attribute("#overview-pve-guests-tbody tr:first-child td:nth-child(6)", "data-label")
+        label = page.get_attribute("#overview-pve-guests-tbody tr:first-child td:nth-child(5)", "data-label")
         self.assertEqual(label, "RAM")
 
 

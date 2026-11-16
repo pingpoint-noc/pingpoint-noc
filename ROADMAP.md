@@ -283,7 +283,12 @@ shown on load (the fade stays on view switches): FCP 48 -> 28 ms, target list 11
 calls `refreshDevice()`: 20-21 calls become 10-11 (the fleet endpoints stay as they are until the next timer tick) and the per-machine
 loaders run in parallel. **U1** (16-11): an "All machines" entry in the Target list (opt-in; `device=all` in the link; the views that show one machine ask for one; the Overview drops the target panels) and **U2**: the card of the selected machine pulses for a second when Topology opens. Done 16-11: "All" is the default of a browser that never picked a machine, and Syslog mixes every machine (see `DESIGN.md`).
 
-**U6, half-screen layout (16-11).** The hosted-guests table (Overview, Proxmox) wrapped every cell and printed every Docker bridge address (one row of ten lines): now two addresses plus a "+N" chip, vCPUs under the CPU figure, numbers and headers on one line, cards on a phone (`tests/browser/test_browser_guests_table.py`). Audit with the demo data at 960 px: no view overflows sideways; at 800 px two tables of Health & Inventory still scroll sideways (768 px in a 709 px box). Open: look at the other panels with real data (storage pools, topology cards, flows) at 800-1100 px, and the two Health tables.
+**U6, half-screen layout (16-11).** The hosted-guests table (Overview, Proxmox) wrapped every cell and printed every Docker bridge address (one row of ten lines): now two addresses plus a "+N" chip, vCPUs under the CPU figure, numbers and headers on one line, cards on a phone (`tests/browser/test_browser_guests_table.py`). Audit with the demo data at 960 px: no view overflows sideways; at 800 px two tables of Health & Inventory still scroll sideways (768 px in a 709 px box). Second pass against the real NOC (signed-in temporary viewer, 1100 / 960 / 800 px): Health had two tables that scrolled sideways at 960 px
+(a long collector error and a host with twenty mount points pushed the other columns out; the five services stacked one per line). Now the
+guests, storage pools, collector and device-health tables use fixed column shares (so switching the RAM between bytes and percent, or a long
+value, moves nothing), the error is cut at two lines and the disks at three with the whole text in the tooltip, and the guests' VMID and
+type share one column (`tests/browser/test_browser_health_tables.py`). Still open at 800 px: the Syslog console (764 px in a 709 px box, a
+log line is as wide as it is), and the Capacity & Trends, Coverage and fleet tables of Health.
 
 ### Scope decision: disk health and other host telemetry (accepted 2026-11-16 as G20)
 

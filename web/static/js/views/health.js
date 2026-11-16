@@ -60,7 +60,7 @@ async function loadHealth() {
           "<td>" + escapeHtml(formatLocal(c.last_success_utc)) + "</td>" +
           "<td>" + escapeHtml(formatDuration(c.age_seconds)) + "</td>" +
           "<td>" + escapeHtml(c.consecutive_errors) + "</td>" +
-          "<td>" + escapeHtml(errText) + "</td>";
+          "<td><div class='cell-clamp' title='" + escapeHtml(errText) + "'>" + escapeHtml(errText) + "</div></td>";
         collectorsHolder.appendChild(tr);
       }
       commitRows(tbody, collectorsHolder);
@@ -117,7 +117,7 @@ function hostHealthDisks(dev, limits) {
     html += "<span class='health-disk " + tone + "' data-disk='" + escapeHtml(disk.label) + "' title='alert above " +
       limits.disk_pct + " %'>" + escapeHtml(disk.label) + " " + Number(disk.used_pct).toFixed(1) + " %</span>";
   }
-  return "<td data-label='Disks' class='health-disks'>" + html + "</td>";
+  return "<td data-label='Disks' class='health-disks'><div class='cell-clamp cell-clamp-3'>" + html + "</div></td>";
 }
 
 function hostHealthServices(dev) {
