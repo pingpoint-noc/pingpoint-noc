@@ -5897,8 +5897,8 @@ function renderLogTable(data, fleet) {
         "<th>" + escapeHtml(formatLocal(ev.ts_utc)) + "</th>" +
         machineCell +
         "<td><span class='badge " + sevClass + "'>" + escapeHtml(ev.severity) + "</span></td>" +
-        "<td>" + escapeHtml(ev.facility) + "</td>" +
-        "<td>" + escapeHtml(ev.message) + "</td>" +
+        "<td class='col-facility'>" + escapeHtml(ev.facility) + "</td>" +
+        "<td class='col-message'>" + escapeHtml(ev.message) + "</td>" +
         "<td><button type='button' class='btn btn-secondary btn-small jump-tl-btn' data-ts='" + escapeHtml(ev.ts_utc) + "'" + deviceAttr + ">Inspect &plusmn;</button></td>";
       logsHolder.appendChild(tr);
     }
@@ -6300,7 +6300,7 @@ function hostHealthServices(dev) {
 
 // One row per device (K113): the former block of cards per device took ~120 px each and the tab 5000 px.
 // 6b. RESOURCES BY MACHINE (/api/resources/fleet): one row per host, hypervisor, virtual machine and container
-var FLEET = { rows: [], sortKey: "cpu", sortDir: -1 };
+var FLEET = { rows: [], sortKey: "cpu", sortDir: -1, healthOpen: {} };
 var FLEET_KIND = { host: "HOST", hypervisor: "PROXMOX", vm: "VM", ct: "CT" };
 
 function fleetTone(pct) {
@@ -6337,31 +6337,39 @@ function fleetCell(label, pct, series, detail) {
     fleetSpark(series) + (detail ? "<span class='fleet-detail text-dim'>" + escapeHtml(detail) + "</span>" : "") + "</span></td>";
 }
 
-// G20: "5 disks" summary of a machine's disks, ZFS pools and md arrays, or a dash when its agent does not report them. The tooltip
-// lists every one (state, temperature, wear, bad sectors).
-function fleetHealthCell(health) {
+// G20: a summary of a machine's disks, ZFS pools and md arrays that opens into the list of every one (state, temperature, wear, bad
+// sectors). It is a <details>, so a tap or Enter opens it and the list is real text for a phone, a keyboard or a screen reader. A machine with
+// something failing is open by itself; what a person opened or closed is remembered per machine across refreshes.
+function fleetHealthLine(item) {
+  var parts = [item.kind === "disk" ? (item.ok ? "OK" : "FAILING") : item.state];
+  if (item.temp_c !== null && item.temp_c !== undefined) {
+    parts.push(item.temp_c + " \u00b0C");
+  }
+  if (item.wear_pct !== null && item.wear_pct !== undefined) {
+    parts.push("wear " + item.wear_pct + " %");
+  }
+  if (item.bad_blocks) {
+    parts.push(item.bad_blocks + " bad sectors");
+  }
+  var hot = item.ok && item.temp_c !== null && item.temp_c !== undefined && item.temp_c >= 60;
+  return "<li class='" + (item.ok ? (hot ? "fleet-warn" : "") : "fleet-crit") + "'><span class='fleet-health-name'>" + escapeHtml(item.label) + "</span>: " +
+    escapeHtml(parts.join(", ")) + "</li>";
+}
+
+function fleetHealthCell(health, rowKey) {
   if (!health) {
     return "<td data-label='Disk health' class='text-dim'>&mdash;</td>";
   }
-  var lines = health.items.map(function (item) {
-    var parts = [item.kind === "disk" ? (item.ok ? "OK" : "FAILING") : item.state];
-    if (item.temp_c !== null && item.temp_c !== undefined) {
-      parts.push(item.temp_c + " °C");
-    }
-    if (item.wear_pct !== null && item.wear_pct !== undefined) {
-      parts.push("wear " + item.wear_pct + " %");
-    }
-    if (item.bad_blocks) {
-      parts.push(item.bad_blocks + " bad sectors");
-    }
-    return item.label + ": " + parts.join(", ");
-  });
   var tone = health.failing > 0 ? "fleet-crit" : (health.max_temp_c !== null && health.max_temp_c >= 60 ? "fleet-warn" : "");
   var detail = health.total + (health.total === 1 ? " disk" : " disks") +
-    (health.max_temp_c !== null && health.max_temp_c !== undefined ? " · " + health.max_temp_c + " °C" : "");
-  return "<td data-label='Disk health' class='fleet-cell " + tone + "' title='" + escapeHtml(lines.join("\n")) + "'><span class='fleet-body'>" +
-    "<span class='fleet-figure'>" + (health.failing > 0 ? health.failing + " failing" : "OK") + "</span>" +
-    "<span class='fleet-detail text-dim'>" + escapeHtml(detail) + "</span></span></td>";
+    (health.max_temp_c !== null && health.max_temp_c !== undefined ? " \u00b7 " + health.max_temp_c + " \u00b0C" : "");
+  var chosen = FLEET.healthOpen[rowKey];
+  var open = chosen === undefined ? health.failing > 0 : chosen;
+  return "<td data-label='Disk health' class='fleet-cell fleet-health " + tone + "'>" +
+    "<details class='fleet-health-details' data-row='" + escapeHtml(rowKey) + "'" + (open ? " open" : "") + ">" +
+    "<summary><span class='fleet-body'><span class='fleet-figure'>" + (health.failing > 0 ? health.failing + " failing" : "OK") + "</span>" +
+    "<span class='fleet-detail text-dim'>" + escapeHtml(detail) + "</span></span></summary>" +
+    "<ul class='fleet-health-list'>" + health.items.map(fleetHealthLine).join("") + "</ul></details></td>";
 }
 
 function fleetSortValue(row, key) {
@@ -6411,7 +6419,7 @@ function renderFleet() {
       fleetCell("CPU", row.cpu_pct, row.cpu_series, row.vcpus ? row.vcpus + " vCPU" : "") +
       fleetCell("Memory", row.mem_pct, row.mem_series, memDetail) +
       fleetCell("Disk", row.disk_pct, null, "") +
-      (hasHealth ? fleetHealthCell(row.disk_health) : "") +
+      (hasHealth ? fleetHealthCell(row.disk_health, row.key) : "") +
       "<td data-label='Source' class='text-dim'>" + escapeHtml(row.source === "proxmox" ? "Proxmox API" : (row.source === "agent" ? "Agent" : "SNMP")) + "</td>" + open;
     holder.appendChild(tr);
   });
@@ -6467,6 +6475,13 @@ function wireFleet() {
       selectDevice(opener.getAttribute("data-device"));
     }
   });
+  // "toggle" does not bubble: listen while it travels down. Remember the choice so a refresh of the rows does not undo it.
+  panel.addEventListener("toggle", function (ev) {
+    var details = ev.target;
+    if (details && details.classList && details.classList.contains("fleet-health-details")) {
+      FLEET.healthOpen[details.getAttribute("data-row")] = details.open;
+    }
+  }, true);
   var range = document.getElementById("fleet-range");
   if (range) {
     range.addEventListener("change", loadFleetResources);

@@ -227,8 +227,8 @@ function renderLogTable(data, fleet) {
         "<th>" + escapeHtml(formatLocal(ev.ts_utc)) + "</th>" +
         machineCell +
         "<td><span class='badge " + sevClass + "'>" + escapeHtml(ev.severity) + "</span></td>" +
-        "<td>" + escapeHtml(ev.facility) + "</td>" +
-        "<td>" + escapeHtml(ev.message) + "</td>" +
+        "<td class='col-facility'>" + escapeHtml(ev.facility) + "</td>" +
+        "<td class='col-message'>" + escapeHtml(ev.message) + "</td>" +
         "<td><button type='button' class='btn btn-secondary btn-small jump-tl-btn' data-ts='" + escapeHtml(ev.ts_utc) + "'" + deviceAttr + ">Inspect &plusmn;</button></td>";
       logsHolder.appendChild(tr);
     }

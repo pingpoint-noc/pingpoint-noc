@@ -11,7 +11,7 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
   SMART (overall result, temperature, bad-sector counters; NVMe wear) through `smartctl`, ZFS pool health and `mdadm` state with plain `sh`/`awk`,
   at most every 10 minutes (`DISK_HEALTH_INTERVAL`) and without waking a sleeping disk. `mininoc-agent.sh --disk-health-json` prints what it sees.
   Stored as ordinary device metrics (no migration), shown in a new *Disk health* column of Resources by Machine (hidden until a machine reports
-  it) and judged by four rules, all with a toggle and a guidance entry: `disk_health_failed` (critical: SMART failing, pool or array not
+  it; it opens into one line per disk, pool or array with a tap or Enter, and opens by itself when something fails) and judged by four rules, all with a toggle and a guidance entry: `disk_health_failed` (critical: SMART failing, pool or array not
   healthy), `disk_temperature_high` (60 C, settable), `disk_wear_high` (90 %, settable) and `disk_bad_blocks_increase` (a rise in the last
   24 h, never the value itself). The demo NAS has a hot disk and a degraded pool.
 - "All machines" entry in the Target list (`device=all` in links): fleet views keep working, Bandwidth, Flows and Timeline ask for a
@@ -21,6 +21,8 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
 - The last machine picked is remembered in the browser.
 
 ### Fixed
+- Half-screen layout (701-1000 px): the Health tables (collectors, device health, Resources by Machine, coverage) and the Syslog console no
+  longer scroll sideways. The Facility column of the console gives way to the message, which breaks long unbroken text instead of widening the page.
 - `tools.preflight` on a fresh install: "Health" no longer fails because `/api/health` needs a session (it warns and takes
   `--token` or `MININOC_PREFLIGHT_TOKEN`); "ICMP data" warns instead of failing while no device is monitored; with the native flow
   receiver and no nfdump the flow-expiry checks give way to one "Flows" line instead of two warnings.

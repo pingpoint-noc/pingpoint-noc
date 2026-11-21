@@ -4478,6 +4478,18 @@ button.coverage-gap:focus-visible { outline: 2px solid var(--border-focus); outl
 .fleet-warn .fleet-figure { color: var(--color-warn); }
 .fleet-crit .fleet-bar > span { background: var(--color-danger); }
 .fleet-crit .fleet-figure { color: var(--color-danger); font-weight: 600; }
+/* G20: the Disk health cell is a disclosure: a summary that opens into one line per disk, pool or array. */
+.fleet-health-details > summary { cursor: pointer; list-style: none; border-radius: var(--radius-sm, 4px); }
+.fleet-health-details > summary::-webkit-details-marker { display: none; }
+.fleet-health-details > summary::after { content: "\25BE"; margin-left: 0.4rem; color: var(--text-dim); font-size: var(--fs-xs); }
+.fleet-health-details[open] > summary::after { content: "\25B4"; }
+.fleet-health-details > summary:focus-visible { outline: 2px solid var(--accent-solid); outline-offset: 2px; }
+.fleet-health-list { list-style: none; margin: 0.35rem 0 0; padding: 0; font-size: var(--fs-xs); line-height: 1.45; text-align: left; }
+.fleet-health-list li { padding: 0.1rem 0; overflow-wrap: anywhere; }
+.fleet-health-list li.fleet-crit { color: var(--color-danger); font-weight: 600; }
+.fleet-health-name { color: var(--text-dim); }
+.fleet-health-list li.fleet-crit .fleet-health-name { color: inherit; }
+@media (max-width: 700px) { .fleet-health-list { text-align: right; } }
 .fleet-sort { font: inherit; font-weight: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; }
 .fleet-sort.is-active::after { content: " \2193"; }
 .fleet-sort.is-active[aria-sort="ascending"]::after { content: " \2191"; }
@@ -4584,3 +4596,19 @@ body[data-all-machines="1"] #tab-syslog > #logs-panel { display: block; }
 @media (prefers-reduced-motion: reduce) {
   .topo-node.pulse .topo-node-card { animation: none; }
 }
+
+/* Half screen (U6, 701-1000 px): tighter cells so the wide Health tables fit their box instead of scrolling sideways. The miniature
+   charts in Resources by Machine are decorative (the figure beside them says the same), so they give way first. */
+@media (min-width: 701px) and (max-width: 1000px) {
+  .data-table th, .data-table td { padding-inline: 0.45rem; }
+  .data-table thead th { letter-spacing: 0.02em; }
+  .table-fleet .fleet-cell { min-width: 0; }
+  .table-fleet .fleet-spark { display: none; }
+  .table-fleet .fleet-bar { width: 3rem; }
+  .table-collectors, .table-host-health { min-width: 0; }
+  /* Syslog: the fixed columns take 455-595 px, so the facility (the least useful one) gives way to the message. */
+  .table-logs .col-facility { display: none; }
+}
+/* A path or an id with no spaces is as wide as it is: let the message break anywhere instead of widening the console. */
+.table-logs td.col-message { overflow-wrap: anywhere; }
+.fleet-health-list li.fleet-warn { color: var(--color-warn); }

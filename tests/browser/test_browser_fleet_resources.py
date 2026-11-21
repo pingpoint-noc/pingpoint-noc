@@ -82,7 +82,9 @@ class FleetResourcesTest(BrowserTestCase):
         self.assertTrue(page.evaluate("document.getElementById('fleet-health-th').hidden"))
         self.assertEqual(page.evaluate("document.querySelectorAll('#fleet-tbody td[data-label=\"Disk health\"]').length"), 0)
 
-    def test_a_machine_with_disk_health_shows_a_summary_a_tooltip_and_the_others_a_dash(self):
+    CELL = "#fleet-tbody tr:first-child td[data-label='Disk health']"
+
+    def test_a_machine_with_disk_health_shows_a_summary_and_the_others_a_dash(self):
         page = self.open_panel(self.with_health(web=self.HEALTH))
         page.wait_for_function("document.querySelectorAll('#fleet-tbody tr').length === 3")
         self.assertFalse(page.evaluate("document.getElementById('fleet-health-th').hidden"))
@@ -93,18 +95,55 @@ class FleetResourcesTest(BrowserTestCase):
         self.assertIn("3 disks", by_name["web"])
         self.assertIn("41", by_name["web"])
         self.assertEqual(by_name["db"].strip(), "—")
-        tip = page.get_attribute("#fleet-tbody tr:first-child td[data-label='Disk health']", "title")
-        self.assertIn("KINGSTON NVMe SN-2", tip)
-        self.assertIn("wear 7 %", tip)
-        self.assertIn("tank", tip)
 
-    def test_a_failing_pool_is_flagged_and_named_in_the_tooltip(self):
+    def test_every_disk_is_listed_without_hovering_once_the_cell_is_opened(self):
+        """A tooltip does not exist on a phone or for a keyboard: the list opens with a tap or Enter and is real text."""
+        page = self.open_panel(self.with_health(web=self.HEALTH))
+        page.wait_for_function("document.querySelectorAll('#fleet-tbody tr').length === 3")
+        self.assertFalse(page.is_visible(self.CELL + " .fleet-health-list"))  # healthy: closed until asked for
+        page.click(self.CELL + " summary")
+        text = page.inner_text(self.CELL + " .fleet-health-list")
+        self.assertIn("WDC WD10EZEX SN-1", text)
+        self.assertIn("33 °C", text)
+        self.assertIn("KINGSTON NVMe SN-2", text)
+        self.assertIn("wear 7 %", text)
+        self.assertIn("1 bad sectors", text)
+        self.assertIn("tank", text)
+        self.assertEqual(page.evaluate("document.querySelectorAll('#fleet-tbody tr:first-child .fleet-health-list li').length"), 3)
+
+    def test_a_hot_disk_is_marked_in_the_list_even_though_it_is_healthy(self):
+        hot = dict(self.HEALTH, max_temp_c=61, items=[dict(self.HEALTH["items"][0], temp_c=61)] + self.HEALTH["items"][1:])
+        page = self.open_panel(self.with_health(web=hot))
+        page.wait_for_function("document.querySelectorAll('#fleet-tbody tr').length === 3")
+        page.click(self.CELL + " summary")
+        self.assertIn("fleet-warn", page.locator(self.CELL + " .fleet-health-list li").first.get_attribute("class"))
+        self.assertIn("fleet-warn", page.get_attribute(self.CELL, "class"))
+
+    def test_the_cell_opens_from_the_keyboard(self):
+        page = self.open_panel(self.with_health(web=self.HEALTH))
+        page.wait_for_function("document.querySelectorAll('#fleet-tbody tr').length === 3")
+        page.focus(self.CELL + " summary")
+        page.keyboard.press("Enter")
+        self.assertTrue(page.is_visible(self.CELL + " .fleet-health-list"))
+
+    def test_a_failing_pool_is_flagged_and_its_list_is_open_by_itself(self):
         page = self.open_panel(self.with_health(web=self.FAILING))
         page.wait_for_function("document.querySelectorAll('#fleet-tbody tr').length === 3")
-        cell = "#fleet-tbody tr:first-child td[data-label='Disk health']"
-        self.assertIn("1 failing", page.inner_text(cell))
-        self.assertIn("fleet-crit", page.get_attribute(cell, "class"))
-        self.assertIn("tank: degraded", page.get_attribute(cell, "title"))
+        self.assertIn("1 failing", page.inner_text(self.CELL))
+        self.assertIn("fleet-crit", page.get_attribute(self.CELL, "class"))
+        self.assertTrue(page.is_visible(self.CELL + " .fleet-health-list"))  # a fault must not hide behind a click
+        self.assertIn("tank: degraded", page.inner_text(self.CELL + " .fleet-health-list"))
+        self.assertTrue(page.locator(self.CELL + " .fleet-health-list li").first.inner_text().startswith("tank"))  # the failing one first
+
+    def test_a_choice_to_open_or_close_survives_a_refresh_of_the_table(self):
+        page = self.open_panel(self.with_health(web=self.HEALTH, idle=self.FAILING))
+        page.wait_for_function("document.querySelectorAll('#fleet-tbody tr').length === 3")
+        page.click(self.CELL + " summary")  # open the healthy one
+        page.click("#fleet-tbody tr:nth-child(3) td[data-label='Disk health'] summary")  # close the failing one that opened by itself
+        page.select_option("#fleet-range", "7d")  # reloads the rows
+        page.wait_for_timeout(500)
+        self.assertTrue(page.is_visible(self.CELL + " .fleet-health-list"))
+        self.assertFalse(page.is_visible("#fleet-tbody tr:nth-child(3) td[data-label='Disk health'] .fleet-health-list"))
 
     def test_the_column_sorts_the_failing_machines_first(self):
         page = self.open_panel(self.with_health(db=self.FAILING, idle=self.HEALTH))

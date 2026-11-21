@@ -288,8 +288,10 @@ loaders run in parallel. **U1** (16-11): an "All machines" entry in the Target l
 (a long collector error and a host with twenty mount points pushed the other columns out; the five services stacked one per line). Now the
 guests, storage pools, collector and device-health tables use fixed column shares (so switching the RAM between bytes and percent, or a long
 value, moves nothing), the error is cut at two lines and the disks at three with the whole text in the tooltip, and the guests' VMID and
-type share one column (`tests/browser/test_browser_health_tables.py`). Still open at 800 px: the Syslog console (764 px in a 709 px box, a
-log line is as wide as it is), and the Capacity & Trends, Coverage and fleet tables of Health.
+type share one column (`tests/browser/test_browser_health_tables.py`). Closed 21-11 (`tests/browser/test_browser_half_screen.py`): in the 701-1000 px band every data table has tighter cells, the collector and
+device-health tables drop their fixed minimum width, Resources by Machine loses its decorative miniatures and the cell minimum, and the Syslog
+console hides the Facility column and lets a message break anywhere (a path with no spaces is as wide as it is). Measured on the demo at 800 and
+960 px: no panel and no page scrolls sideways. Not re-measured on the real NOC, whose log lines and collector errors are longer.
 
 ### Scope decision: disk health and other host telemetry (accepted 2026-11-16 as G20)
 
