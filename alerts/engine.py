@@ -2088,7 +2088,7 @@ def evaluate_disk_forecast_rule(repo, now_ts, rule_toggles=None):
     message = ""
     if enabled:
         try:
-            forecast = services.get_capacity_view(repo, now_ts)["disk"]["forecast"]
+            forecast = services.get_capacity_view(repo, now_ts, include_sources=False)["disk"]["forecast"]
         except Exception as exc:  # a failed read must not stop the other rules
             LOGGER.warning("disk_full_forecast skipped: %s", exc)
             return

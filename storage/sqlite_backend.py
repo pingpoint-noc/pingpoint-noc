@@ -3542,6 +3542,31 @@ class SQLiteRepository(StorageRepository):
         finally:
             conn.close()
 
+    def get_device_metrics_buckets(self, device_id, metric_name, start_ts_utc, end_ts_utc, buckets):
+        """The samples of a metric in [start, end] averaged into at most `buckets` equal slices of time, per label, oldest first.
+
+        The averaging happens inside SQLite: a 7 day range of a 15 s metric is 40 000 rows, and building a Python dict for each of them
+        just to keep 48 points cost about 0.35 s per machine and metric."""
+        start, end, buckets = int(start_ts_utc), int(end_ts_utc), max(1, int(buckets))
+        conn = self.open_read()
+        try:
+            where = "device_id = ? AND metric_name = ? AND ts_utc >= ? AND ts_utc <= ? AND value IS NOT NULL"
+            params = (device_id, metric_name, start, end)
+            if conn.execute("SELECT COUNT(*) FROM device_metrics WHERE " + where + ";", params).fetchone()[0] <= buckets:
+                # fewer samples than slices: there is nothing to reduce, keep them as they are
+                rows = conn.execute(
+                    "SELECT label, ts_utc, value FROM device_metrics WHERE " + where + " ORDER BY label ASC, ts_utc ASC;", params
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT label, MAX(ts_utc) AS ts_utc, AVG(value) AS value FROM device_metrics WHERE " + where +
+                    " GROUP BY label, (ts_utc - ?) * ? / (? - ? + 1) ORDER BY label ASC, ts_utc ASC;",
+                    params + (start, buckets, end, start),
+                ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
     # Tables the size cap trims, with their timestamp column. They hold nearly all the bytes.
     SIZE_CAP_TABLES = (
         ("interface_samples", "ts_utc"),

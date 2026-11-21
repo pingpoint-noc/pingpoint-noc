@@ -62,6 +62,24 @@ class DiskFullForecastTest(unittest.TestCase):
         self.fill(500e9, 800e9)  # 100 GB a day, 200 GB left: 2 days
         self.assertEqual(self.run_rule()[0]["severity"], "critical")
 
+    def test_the_rule_does_not_measure_the_data_sources_every_cycle(self):
+        """The forecast only needs the hourly disk samples. Measuring every table (COUNT and dbstat over a database of a gigabyte) in each
+        30 s cycle cost 5-20 s of CPU on the reference NOC."""
+        self.fill(600e9, 700e9)
+        with mock.patch.object(self.repo, "get_source_storage", side_effect=AssertionError("the sources were measured")):
+            alerts = self.run_rule()
+        self.assertEqual(len(alerts), 1)
+
+    def test_the_capacity_view_can_leave_the_sources_out_and_keeps_the_forecast(self):
+        from api import services
+
+        self.fill(600e9, 700e9)
+        with mock.patch.object(self.repo, "get_source_storage", side_effect=AssertionError("the sources were measured")):
+            view = services.get_capacity_view(self.repo, NOW, include_sources=False)
+        self.assertEqual(view["sources"], [])
+        self.assertTrue(view["disk"]["forecast"]["available"])
+        self.assertTrue(services.get_capacity_view(self.repo, NOW)["sources"] is not None)
+
     def test_a_slow_growth_stays_quiet(self):
         self.fill(400e9, 401e9)  # 0.3 GB a day
         self.assertEqual(self.run_rule(), [])

@@ -135,9 +135,9 @@ function hostHealthServices(dev) {
       cls = "badge-down";
     }
     html += "<span class='badge " + cls + "' title='" + escapeHtml(svc.description || svc.status) + "'>" +
-      escapeHtml(svc.service_name) + (svc.status !== "active" ? " (" + escapeHtml(svc.status) + ")" : "") + "</span> ";
+      escapeHtml(svc.service_name) + (svc.status !== "active" ? " (" + escapeHtml(svc.status) + ")" : "") + "</span>";
   }
-  return "<td data-label='Services'>" + html + "</td>";
+  return "<td data-label='Services'><span class='svc-pills'>" + html + "</span></td>";
 }
 
 // One row per device (K113): the former block of cards per device took ~120 px each and the tab 5000 px.

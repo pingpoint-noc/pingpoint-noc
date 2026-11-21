@@ -1009,14 +1009,18 @@ button.btn { font-family: "NOC Button", var(--font-sans); }
 /* The stats are cells of one strip, not a grid of identical cards: 1 px dividers come from the gap over the strip's own colour. */
 .kpi-ribbon {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
-  gap: 1px;
+  /* Four slots, always: a card has the same width whether the machine shows three of them or four (auto-fit made them stretch and shrink
+     as one picked another machine). A free slot stays empty. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
   margin-bottom: 1rem;
-  background: var(--border-default);
+  background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
+
+.kpi-ribbon > .kpi-card:not(.hidden) { outline: 1px solid var(--border-default); outline-offset: -0.5px; }
 
 .kpi-card {
   background: var(--bg-surface);
@@ -1194,17 +1198,13 @@ button.btn { font-family: "NOC Button", var(--font-sans); }
   color: var(--text-muted);
   min-width: 0;
   text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .kpi-caption {
   font-size: var(--fs-xs);
   color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 /* ==========================================================================
@@ -2337,8 +2337,6 @@ tr.if-row.selected-row { background-color: var(--bg-active); }
   /* Share the row by card count (4 NOC indicators, 3 for the device) and let both shrink: a group must never be wider
      than its share, or its last card gets cut off. */
   .kpi-group { flex: 1 1 0; }
-  .kpi-group-noc { flex-grow: 4; }
-  .kpi-group-target { flex-grow: 3; }
   /* Both headers are the same height whatever they hold (the "Runs on Proxmox" link sits inside the device one), so the
      two ribbons below start on the same line. */
   .kpi-row .overview-section-header { margin: 0 0 0.35rem 0; gap: 0.75rem; height: 2.4rem; box-sizing: border-box; padding-bottom: 0; align-items: center; }
@@ -2349,15 +2347,14 @@ tr.if-row.selected-row { background-color: var(--bg-active); }
      captions line up across the cards even when a title wraps to two lines next to its sparkline. */
   .kpi-row .kpi-ribbon {
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
-    gap: 0 1px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-flow: row;
+    gap: 0;
     margin-bottom: 0;
   }
   .kpi-row .kpi-card {
     display: grid;
-    grid-row: 1 / span 3;
+    grid-row: span 3;
     grid-template-rows: subgrid;
     row-gap: 0;
     align-content: stretch;
@@ -4616,3 +4613,7 @@ body[data-all-machines="1"] #tab-syslog > #logs-panel { display: block; }
 /* A path or an id with no spaces is as wide as it is: let the message break anywhere instead of widening the console. */
 .table-logs td.col-message { overflow-wrap: anywhere; }
 .fleet-health-list li.fleet-warn { color: var(--color-warn); }
+
+/* The service pills of Device Health: one flex row that wraps with a gap in both directions (inline badges touched when they wrapped). */
+.svc-pills { display: flex; flex-wrap: wrap; gap: 0.35rem 0.4rem; align-items: center; }
+@media (max-width: 700px) { .svc-pills { justify-content: flex-end; } }

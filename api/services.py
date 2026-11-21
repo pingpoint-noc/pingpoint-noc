@@ -1305,13 +1305,17 @@ def get_source_storage_view(repo, now_ts, retention_days=DEFAULT_RETENTION_DAYS,
 
 
 def get_capacity_view(
-    repo, now_ts, max_db_bytes=0, warn_days=CAPACITY_WARN_DAYS, retention_days=DEFAULT_RETENTION_DAYS, sources_max_age=0
+    repo, now_ts, max_db_bytes=0, warn_days=CAPACITY_WARN_DAYS, retention_days=DEFAULT_RETENTION_DAYS, sources_max_age=0,
+    include_sources=True,
 ):
     """Size of the database and free disk space now, their growth per day and days until the limit.
 
     The growth is a least-squares line through the hourly samples of the last 7 days (written by the
     retention job). Days to the cap are days until the size cap starts deleting the oldest data, not
     until data is lost without warning. With too few samples there is no forecast, only the reason.
+
+    include_sources=False leaves out the per-source table sizes (counting every table and reading dbstat is the slow part): the alert
+    engine only needs the forecast and asks for it every cycle.
     """
     start = now_ts - CAPACITY_WINDOW_DAYS * 86400
     series = {}
@@ -1410,7 +1414,7 @@ def get_capacity_view(
             "status": disk_status,
             "forecast": disk_forecast,
         },
-        "sources": get_source_storage_view(repo, now_ts, retention_days, max_age=sources_max_age),
+        "sources": get_source_storage_view(repo, now_ts, retention_days, max_age=sources_max_age) if include_sources else [],
         "sources_retention_days": retention_days,
     }
 
@@ -3156,10 +3160,10 @@ def _fleet_device_usage(repo, device, start, now_ts):
     disk = max(disks) if disks else latest.get("pve_rootfs_used_pct")
     cpu_metric = "cpu_load_pct" if latest.get("cpu_load_pct") is not None else "pve_cpu_usage"
     mem_metric = "memory_used_pct" if latest.get("memory_used_pct") is not None else "pve_mem_used_pct"
-    cpu_points = _points(repo.get_device_metrics_series(device_id, cpu_metric, start, int(now_ts)))
+    cpu_points = _points(repo.get_device_metrics_buckets(device_id, cpu_metric, start, int(now_ts), FLEET_SPARK_POINTS))
     if cpu_metric == "pve_cpu_usage":
         cpu_points = [{"ts_utc": p["ts_utc"], "value": p["value"] * 100.0} for p in cpu_points]
-    mem_points = _points(repo.get_device_metrics_series(device_id, mem_metric, start, int(now_ts)))
+    mem_points = _points(repo.get_device_metrics_buckets(device_id, mem_metric, start, int(now_ts), FLEET_SPARK_POINTS))
     return {
         "cpu_pct": cpu, "mem_pct": mem, "disk_pct": disk,
         "mem_used_bytes": latest.get("mem_used_bytes", latest.get("pve_mem_used_bytes")),
@@ -3191,9 +3195,8 @@ def get_fleet_resources_view(repo, now_ts, range_name="24h"):
             latest[(row["metric_name"], row["label"])] = float(row["value"])
         history = {}
         for metric in ("pve_guest_cpu_pct", "pve_guest_mem_used_pct"):
-            for r in repo.get_device_metrics_series(hyp["id"], metric, start, now_ts):
-                if r["value"] is not None:
-                    history.setdefault((metric, r["label"]), []).append({"ts_utc": int(r["ts_utc"]), "value": float(r["value"])})
+            for r in repo.get_device_metrics_buckets(hyp["id"], metric, start, now_ts, FLEET_SPARK_POINTS):
+                history.setdefault((metric, r["label"]), []).append({"ts_utc": int(r["ts_utc"]), "value": float(r["value"])})
         for g in guests:
             label = str(g["vmid"])
             running = g.get("status") == "running"

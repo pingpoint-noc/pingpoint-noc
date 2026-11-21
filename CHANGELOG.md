@@ -21,6 +21,14 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
 - The last machine picked is remembered in the browser.
 
 ### Fixed
+- The indicator cards of the selected machine have one width whatever the machine: four fixed slots per ribbon (a free slot stays empty), both
+  ribbons the same width, side by side from 1280 px as before (stacked below). A DNS machine with four cards used to squeeze the last two to 58 px and cut
+  their text, and picking another machine moved everything. The small print of a card now wraps instead of being cut.
+- The service pills of Device Health keep a gap between them and between lines when they wrap.
+- The alert engine no longer measures every table of the database (row counts and `dbstat`) in each cycle just to read the disk forecast
+  (`get_capacity_view(..., include_sources=False)`): with `disk_full_forecast` on, that was 5-20 s of CPU every 30 s on a database of a gigabyte.
+- Resources by Machine reduces the history of its miniatures inside SQLite (`get_device_metrics_buckets`, at most 48 averaged slices) instead of
+  building a Python row for every sample: the 7 day range took 8 s for nine machines, mostly Python. A series with fewer samples than slices is kept as it is.
 - `get_latest_metric_rows` (used by the alert engine every cycle and by the Health, Overview and fleet views) now seeks the newest sample of
   each metric by index instead of joining the names with the table, which made SQLite read every row of the device: 0.4-0.9 s per call on a
   6-million-row table, enough to keep a small container at 100 % CPU and raise `host_cpu_high` on the NOC itself. The cost no longer grows

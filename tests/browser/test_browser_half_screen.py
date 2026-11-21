@@ -47,9 +47,9 @@ class HalfScreenTest(BrowserTestCase):
             route.fulfill(response=response, json=body)
 
         page.route("**/api/host-health*", patch)
-        page.wait_for_function("typeof switchTab === 'function'")
-        page.evaluate("() => { switchTab('tab-health'); document.querySelectorAll('details.health-group').forEach(d => d.open = true); }")
-        page.wait_for_function("document.querySelectorAll('#host-health-tbody tr th').length > 0")
+        page.wait_for_function("typeof switchTab === 'function' && typeof loadHostHealth === 'function'")
+        page.evaluate("() => { switchTab('tab-health'); document.querySelectorAll('details.health-group').forEach(d => d.open = true); return loadHostHealth(); }")
+        page.wait_for_function("[...document.querySelectorAll('#host-health-tbody tr th')].some(e => e.textContent.includes('proxmox.local'))")
         page.wait_for_timeout(400)
         self.assertEqual(
             page.evaluate("[...document.querySelectorAll('#host-health-tbody tr th')].filter(e => e.scrollWidth > e.clientWidth + 1).length"), 0)
