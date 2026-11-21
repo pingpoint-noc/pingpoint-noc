@@ -8,6 +8,10 @@ Di **«quiero seguir»** (o pega esto) en un chat nuevo dentro de este repo:
 
 > Quiero seguir con PingPoint NOC. Lee `AGENTS.md`, `docs/TRASPASO.md` y la sección «Session of 2026-11-15» de `ROADMAP.md`. Comprueba con `git log origin/main..HEAD` qué hay sin subir; el CT de referencia lleva lo último de `main` (Syslog global y «All» por defecto). No hagas push, etiquetas ni despliegues sin que te lo pida. Antes de dar algo por bueno corre la suite completa.
 
+## Estado (21-11-2026)
+
+- **Ruido de `syslog_burst` (21-11, subido y desplegado en el CT de referencia):** el filtro por defecto ignora también el ciclo de vida normal de los contenedores (veth y puentes, montajes, scopes, shims, aviso overlayfs), el cierre de sesiones ssh y dos líneas informativas de systemd; los avisos y errores de dockerd y los «using the force» siguen contando. El texto de la alerta dice «usual». Repetido sobre un día de syslog real: de 31 y 22 minutos con 50 líneas o más a 0.
+
 ## Estado (16-11-2026)
 
 Hecho y subido a `main`:
