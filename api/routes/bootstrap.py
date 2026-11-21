@@ -11,6 +11,7 @@ import os
 import re
 import time
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -54,6 +55,18 @@ class ServiceTelemetryItem(BaseModel):
     description: str = Field(default="", max_length=256)
 
 
+class DiskHealthItem(BaseModel):
+    """G20: one disk, ZFS pool or md array as the agent read it (only when the host opted in)."""
+
+    kind: Literal["disk", "zfs", "md"]
+    name: str = Field(min_length=1, max_length=128)
+    ok: bool
+    state: str = Field(default="", max_length=16)
+    temp_c: int | None = Field(default=None, ge=0, le=150)
+    wear_pct: int | None = Field(default=None, ge=0, le=255)
+    bad_blocks: int | None = Field(default=None, ge=0)
+
+
 class NodeMetricsPayload(BaseModel):
     cpu_load_pct: float | None = None
     loadavg_1m: float | None = None
@@ -65,6 +78,7 @@ class NodeMetricsPayload(BaseModel):
     mem_free_bytes: int | None = None
     uptime_seconds: int | None = None
     disks: list[DiskTelemetryItem] = Field(default=[], max_length=64)
+    disk_health: list[DiskHealthItem] = Field(default=[], max_length=64)
 
 
 class NodeTelemetryPayload(BaseModel):

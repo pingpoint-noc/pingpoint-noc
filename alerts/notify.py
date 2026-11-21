@@ -60,6 +60,10 @@ KNOWN_RULE_IDS = (
     "pve_storage_high",
     "syslog_burst",
     "disk_full_forecast",
+    "disk_health_failed",
+    "disk_temperature_high",
+    "disk_wear_high",
+    "disk_bad_blocks_increase",
 )
 
 

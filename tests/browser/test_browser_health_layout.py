@@ -79,7 +79,7 @@ class HealthGroupsTest(BrowserTestCase):
         self.assertLessEqual(max(heights["collectors"]), 115, "healthy collector row")
         self.assertLessEqual(max(heights["host"]), 190, "device health row")
         self.assertLessEqual(max(heights["icmp"]), 165, "reachability row")
-        self.assertLessEqual(page.evaluate(HEIGHT), 4050)  # 5261 px before K120 on the demo
+        self.assertLessEqual(page.evaluate(HEIGHT), 4300)  # 5261 px before K120 on the demo; the demo NAS gained disk-health data (G20) and a row in two tables
 
     def test_a_failing_collector_keeps_every_field_on_a_phone(self):
         page = self.open_health(390)

@@ -6337,9 +6337,39 @@ function fleetCell(label, pct, series, detail) {
     fleetSpark(series) + (detail ? "<span class='fleet-detail text-dim'>" + escapeHtml(detail) + "</span>" : "") + "</span></td>";
 }
 
+// G20: "5 disks" summary of a machine's disks, ZFS pools and md arrays, or a dash when its agent does not report them. The tooltip
+// lists every one (state, temperature, wear, bad sectors).
+function fleetHealthCell(health) {
+  if (!health) {
+    return "<td data-label='Disk health' class='text-dim'>&mdash;</td>";
+  }
+  var lines = health.items.map(function (item) {
+    var parts = [item.kind === "disk" ? (item.ok ? "OK" : "FAILING") : item.state];
+    if (item.temp_c !== null && item.temp_c !== undefined) {
+      parts.push(item.temp_c + " °C");
+    }
+    if (item.wear_pct !== null && item.wear_pct !== undefined) {
+      parts.push("wear " + item.wear_pct + " %");
+    }
+    if (item.bad_blocks) {
+      parts.push(item.bad_blocks + " bad sectors");
+    }
+    return item.label + ": " + parts.join(", ");
+  });
+  var tone = health.failing > 0 ? "fleet-crit" : (health.max_temp_c !== null && health.max_temp_c >= 60 ? "fleet-warn" : "");
+  var detail = health.total + (health.total === 1 ? " disk" : " disks") +
+    (health.max_temp_c !== null && health.max_temp_c !== undefined ? " · " + health.max_temp_c + " °C" : "");
+  return "<td data-label='Disk health' class='fleet-cell " + tone + "' title='" + escapeHtml(lines.join("\n")) + "'><span class='fleet-body'>" +
+    "<span class='fleet-figure'>" + (health.failing > 0 ? health.failing + " failing" : "OK") + "</span>" +
+    "<span class='fleet-detail text-dim'>" + escapeHtml(detail) + "</span></span></td>";
+}
+
 function fleetSortValue(row, key) {
   if (key === "name") {
     return row.name.toLowerCase();
+  }
+  if (key === "health") {
+    return row.disk_health ? row.disk_health.failing * 1000 + (row.disk_health.max_temp_c || 0) : -1;
   }
   var value = key === "cpu" ? row.cpu_pct : (key === "mem" ? row.mem_pct : row.disk_pct);
   return value === null || value === undefined ? -1 : value;
@@ -6359,6 +6389,12 @@ function renderFleet() {
     }
     return x > y ? FLEET.sortDir : 0;
   });
+  // The Disk health column only exists once some machine reports it (the agent's opt-in), so it never empties a table for nothing.
+  var hasHealth = FLEET.rows.some(function (row) { return !!row.disk_health; });
+  var healthHead = document.getElementById("fleet-health-th");
+  if (healthHead) {
+    healthHead.hidden = !hasHealth;
+  }
   var holder = beginRows(tbody);
   rows.forEach(function (row) {
     var tr = document.createElement("tr");
@@ -6375,6 +6411,7 @@ function renderFleet() {
       fleetCell("CPU", row.cpu_pct, row.cpu_series, row.vcpus ? row.vcpus + " vCPU" : "") +
       fleetCell("Memory", row.mem_pct, row.mem_series, memDetail) +
       fleetCell("Disk", row.disk_pct, null, "") +
+      (hasHealth ? fleetHealthCell(row.disk_health) : "") +
       "<td data-label='Source' class='text-dim'>" + escapeHtml(row.source === "proxmox" ? "Proxmox API" : (row.source === "agent" ? "Agent" : "SNMP")) + "</td>" + open;
     holder.appendChild(tr);
   });
@@ -8466,7 +8503,9 @@ var RULE_THRESHOLD_FIELDS = [
   { id: "set-thresh-icmp-latency", key: "alert_icmp_latency_ms" },
   { id: "set-thresh-syslog-burst", key: "alert_syslog_burst_threshold" },
   { id: "set-thresh-syslog-burst-window", key: "alert_syslog_burst_window_seconds" },
-  { id: "set-thresh-pve-storage", key: "alert_pve_storage_pct" }
+  { id: "set-thresh-pve-storage", key: "alert_pve_storage_pct" },
+  { id: "set-thresh-disk-temp", key: "alert_disk_temp_c" },
+  { id: "set-thresh-disk-wear", key: "alert_disk_wear_pct" }
 ];
 
 var RULE_TOGGLE_FIELDS = [
@@ -8489,7 +8528,11 @@ var RULE_TOGGLE_FIELDS = [
   { id: "toggle-rule-host-service-down", key: "rule_host_service_down_enabled" },
   { id: "toggle-rule-syslog-burst", key: "rule_syslog_burst_enabled" },
   { id: "toggle-rule-disk-full-forecast", key: "rule_disk_full_forecast_enabled" },
-  { id: "toggle-rule-pve-storage-high", key: "rule_pve_storage_high_enabled" }
+  { id: "toggle-rule-pve-storage-high", key: "rule_pve_storage_high_enabled" },
+  { id: "toggle-rule-disk-health-failed", key: "rule_disk_health_failed_enabled" },
+  { id: "toggle-rule-disk-temperature-high", key: "rule_disk_temperature_high_enabled" },
+  { id: "toggle-rule-disk-wear-high", key: "rule_disk_wear_high_enabled" },
+  { id: "toggle-rule-disk-bad-blocks-increase", key: "rule_disk_bad_blocks_increase_enabled" }
 ];
 
 var SERVER_WRITABLE = false;
@@ -9558,7 +9601,8 @@ var MAINTENANCE_RULES = [
   "high_bandwidth", "interface_down", "interface_flapping", "interface_errors", "interface_speed_drop", "failed_logins", "stale_source",
   "flow_port_scan", "flow_rare_connection", "flow_new_destination", "dns_service_down", "dns_blocklist_dropped",
   "host_cpu_high", "host_memory_high", "host_disk_high", "host_service_down", "icmp_loss_high", "icmp_latency_high",
-  "pve_storage_high", "syslog_burst", "disk_full_forecast"
+  "pve_storage_high", "syslog_burst", "disk_full_forecast",
+  "disk_health_failed", "disk_temperature_high", "disk_wear_high", "disk_bad_blocks_increase"
 ];
 
 async function createMaintenanceWindow() {

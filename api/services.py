@@ -1894,6 +1894,26 @@ ALERT_GUIDANCE = {
         "check": "Health & Inventory > Capacity: the disk forecast and the space used by each source; then the host itself (logs, backups, the flow store).",
         "links": [{"view": "health", "anchor": "capacity-panel"}],
     },
+    "disk_health_failed": {
+        "why": "A disk reports a failing health status (SMART), or a ZFS pool or RAID array is degraded, faulted or rebuilding. Data may be at risk: a second failure can lose it.",
+        "check": "Health & Inventory > Resources by Machine: the disk health of this machine. Then on the host: smartctl -a on the disk, zpool status or cat /proc/mdstat. Back up what matters before replacing the disk.",
+        "links": [{"view": "health", "anchor": "fleet-panel"}],
+    },
+    "disk_temperature_high": {
+        "why": "A disk is hotter than the threshold (60 C by default). Heat shortens a disk's life and often means a stopped fan or a blocked airflow.",
+        "check": "Health & Inventory > Resources by Machine: the disk health of this machine. Then the case airflow, fans and dust; it clears when the disk is a few degrees below the line.",
+        "links": [{"view": "health", "anchor": "fleet-panel"}],
+    },
+    "disk_wear_high": {
+        "why": "An NVMe drive has used most of its rated life (90 % by default). It still works, but it is time to plan its replacement.",
+        "check": "Health & Inventory > Resources by Machine: the disk health of this machine. Then smartctl -a on the drive and plan a replacement and a backup.",
+        "links": [{"view": "health", "anchor": "fleet-panel"}],
+    },
+    "disk_bad_blocks_increase": {
+        "why": "The count of bad sectors of a disk (reallocated, pending or uncorrectable) rose during the last 24 hours. A steady count is not judged: only a rise, which is often the first sign of a failing disk.",
+        "check": "Health & Inventory > Resources by Machine: the disk health of this machine. Then smartctl -a on the disk; if it keeps rising, back up and replace it. It clears after a day without further rises.",
+        "links": [{"view": "health", "anchor": "fleet-panel"}],
+    },
     "host_memory_high": {
         "why": "The device RAM is almost full. A router that runs out of memory drops connections or restarts.",
         "check": "Health & Inventory: the device health panel; then the device itself (large tables, logs or a leak).",
@@ -2289,6 +2309,38 @@ def infer_guest(device_settings, parent_type):
     return None
 
 
+# G20: the state of a ZFS pool or md array, stored as a number so it fits device_metrics. 0 is healthy; the alert engine turns
+# the code back into the word (STORAGE_STATE_NAMES) for the message.
+STORAGE_STATE_CODES = {
+    "online": 0, "clean": 0,
+    "degraded": 1,
+    "faulted": 2, "inactive": 2,
+    "offline": 3, "unavail": 4, "removed": 5, "suspended": 6,
+    "recovering": 7,
+}
+STORAGE_STATE_NAMES = {0: "healthy", 1: "degraded", 2: "faulted", 3: "offline", 4: "unavailable", 5: "removed", 6: "suspended", 7: "rebuilding"}
+
+
+def _disk_health_rows(items):
+    """Turn the agent's disk_health list into device_metrics rows (disks by name, pools and arrays as "zfs:name" / "md:name")."""
+    rows = []
+    for item in items or []:
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        if item.get("kind") == "disk":
+            rows.append({"metric_name": "disk_health_ok", "label": name, "value": 1.0 if item.get("ok") else 0.0})
+            for key, metric in (("temp_c", "disk_temp_c"), ("wear_pct", "disk_wear_pct"), ("bad_blocks", "disk_bad_blocks")):
+                if item.get(key) is not None:
+                    rows.append({"metric_name": metric, "label": name, "value": float(item[key])})
+        else:
+            code = STORAGE_STATE_CODES.get(str(item.get("state") or "").lower())
+            if code is None:
+                code = 0 if item.get("ok") else STORAGE_STATE_CODES["faulted"]
+            rows.append({"metric_name": "storage_pool_state", "label": "%s:%s" % (item.get("kind"), name), "value": float(code)})
+    return rows
+
+
 def record_node_telemetry(
     repo,
     payload_dict,
@@ -2348,6 +2400,14 @@ def record_node_telemetry(
             metrics_to_record.append({"metric_name": "disk_total_bytes", "label": d_label, "value": float(d["total_bytes"])})
         if d.get("used_bytes") is not None:
             metrics_to_record.append({"metric_name": "disk_used_bytes", "label": d_label, "value": float(d["used_bytes"])})
+
+    # Disk health (G20): only present when the host opted in, and only on some pushes (an agent sends it every 10 minutes). One a
+    # minute is accepted per device, so a stolen node token cannot turn 64 items per push into thousands of rows a minute.
+    disk_health = metrics_obj.get("disk_health") or []
+    if disk_health:
+        last_rows = newest_disk_health_rows(repo, device["id"], now_ts)
+        if not last_rows or int(now_ts) - last_rows[0]["ts_utc"] >= DISK_HEALTH_MIN_INTERVAL_SECONDS:
+            metrics_to_record.extend(_disk_health_rows(disk_health))
 
     # Services
     services_list = payload_dict.get("services") or []
@@ -3025,6 +3085,56 @@ def _points(rows):
     return [{"ts_utc": int(r["ts_utc"]), "value": float(r["value"])} for r in rows if r["value"] is not None]
 
 
+# G20: a disk-health push older than this is not shown or judged (the agent reads the disks every 10 minutes by default).
+DISK_HEALTH_MAX_AGE_SECONDS = 3600
+DISK_HEALTH_MIN_INTERVAL_SECONDS = 60
+DISK_HEALTH_METRICS = ("disk_health_ok", "disk_temp_c", "disk_wear_pct", "disk_bad_blocks", "storage_pool_state")
+
+
+def newest_disk_health_rows(repo, device_id, now_ts):
+    """The rows of the newest disk-health push of a device, or [] when it never sent one or the last one is too old.
+
+    One push writes all its rows with the same time, so a metric the newest push left out (its disk was removed) keeps no older
+    value alive."""
+    rows = repo.get_latest_metric_rows(device_id, DISK_HEALTH_METRICS)
+    newest = max((row["ts_utc"] for row in rows), default=0)
+    if not rows or int(now_ts) - newest > DISK_HEALTH_MAX_AGE_SECONDS:
+        return []
+    return [row for row in rows if row["ts_utc"] == newest]
+
+
+def _fleet_disk_health(repo, device_id, now_ts):
+    """What a machine's disks, ZFS pools and md arrays look like now, for its row in the fleet view (None without data)."""
+    rows = newest_disk_health_rows(repo, device_id, now_ts)
+    if not rows:
+        return None
+    items = {}
+    for row in rows:
+        metric, label, value = row["metric_name"], row["label"], row["value"]
+        if metric == "storage_pool_state":
+            kind, _, name = label.partition(":")
+            code = int(value)
+            items[label] = {"label": name or label, "kind": kind, "ok": code == 0, "state": STORAGE_STATE_NAMES.get(code, "faulted"),
+                            "temp_c": None, "wear_pct": None, "bad_blocks": None}
+            continue
+        item = items.setdefault(label, {"label": label, "kind": "disk", "ok": True, "state": "",
+                                        "temp_c": None, "wear_pct": None, "bad_blocks": None})
+        if metric == "disk_health_ok":
+            item["ok"] = value >= 1
+        elif metric == "disk_temp_c":
+            item["temp_c"] = int(value)
+        elif metric == "disk_wear_pct":
+            item["wear_pct"] = int(value)
+        elif metric == "disk_bad_blocks":
+            item["bad_blocks"] = int(value)
+    ordered = sorted(items.values(), key=lambda i: (i["ok"], i["label"].lower()))
+    temps = [i["temp_c"] for i in ordered if i["temp_c"] is not None]
+    return {
+        "total": len(ordered), "failing": sum(1 for i in ordered if not i["ok"]),
+        "max_temp_c": max(temps) if temps else None, "items": ordered, "as_of_utc": int(rows[0]["ts_utc"]),
+    }
+
+
 def _fleet_device_usage(repo, device, start, now_ts):
     """CPU, memory and disk of a device from its agent or SNMP (or, for a hypervisor, from its own API) with 2 miniature series."""
     device_id = device["id"]
@@ -3055,6 +3165,7 @@ def _fleet_device_usage(repo, device, start, now_ts):
         "mem_used_bytes": latest.get("mem_used_bytes", latest.get("pve_mem_used_bytes")),
         "mem_total_bytes": latest.get("mem_total_bytes", latest.get("pve_mem_total_bytes")),
         "cpu_series": _spark(cpu_points), "mem_series": _spark(mem_points), "as_of_utc": newest,
+        "disk_health": _fleet_disk_health(repo, device_id, now_ts),
     }
 
 
@@ -3111,7 +3222,7 @@ def get_fleet_resources_view(repo, now_ts, range_name="24h"):
                     "mem_used_bytes": mem_used, "mem_total_bytes": mem_total,
                     "cpu_series": _spark(history.get(("pve_guest_cpu_pct", label), [])),
                     "mem_series": _spark(history.get(("pve_guest_mem_used_pct", label), [])),
-                    "as_of_utc": g.get("updated_utc"), "source": "proxmox",
+                    "as_of_utc": g.get("updated_utc"), "source": "proxmox", "disk_health": None,
                 }
             rows.append(dict(
                 usage, key="pve:%s:%s" % (hyp["id"], label), name=g.get("name") or ("#" + label),

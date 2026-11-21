@@ -179,9 +179,39 @@ function fleetCell(label, pct, series, detail) {
     fleetSpark(series) + (detail ? "<span class='fleet-detail text-dim'>" + escapeHtml(detail) + "</span>" : "") + "</span></td>";
 }
 
+// G20: "5 disks" summary of a machine's disks, ZFS pools and md arrays, or a dash when its agent does not report them. The tooltip
+// lists every one (state, temperature, wear, bad sectors).
+function fleetHealthCell(health) {
+  if (!health) {
+    return "<td data-label='Disk health' class='text-dim'>&mdash;</td>";
+  }
+  var lines = health.items.map(function (item) {
+    var parts = [item.kind === "disk" ? (item.ok ? "OK" : "FAILING") : item.state];
+    if (item.temp_c !== null && item.temp_c !== undefined) {
+      parts.push(item.temp_c + " °C");
+    }
+    if (item.wear_pct !== null && item.wear_pct !== undefined) {
+      parts.push("wear " + item.wear_pct + " %");
+    }
+    if (item.bad_blocks) {
+      parts.push(item.bad_blocks + " bad sectors");
+    }
+    return item.label + ": " + parts.join(", ");
+  });
+  var tone = health.failing > 0 ? "fleet-crit" : (health.max_temp_c !== null && health.max_temp_c >= 60 ? "fleet-warn" : "");
+  var detail = health.total + (health.total === 1 ? " disk" : " disks") +
+    (health.max_temp_c !== null && health.max_temp_c !== undefined ? " · " + health.max_temp_c + " °C" : "");
+  return "<td data-label='Disk health' class='fleet-cell " + tone + "' title='" + escapeHtml(lines.join("\n")) + "'><span class='fleet-body'>" +
+    "<span class='fleet-figure'>" + (health.failing > 0 ? health.failing + " failing" : "OK") + "</span>" +
+    "<span class='fleet-detail text-dim'>" + escapeHtml(detail) + "</span></span></td>";
+}
+
 function fleetSortValue(row, key) {
   if (key === "name") {
     return row.name.toLowerCase();
+  }
+  if (key === "health") {
+    return row.disk_health ? row.disk_health.failing * 1000 + (row.disk_health.max_temp_c || 0) : -1;
   }
   var value = key === "cpu" ? row.cpu_pct : (key === "mem" ? row.mem_pct : row.disk_pct);
   return value === null || value === undefined ? -1 : value;
@@ -201,6 +231,12 @@ function renderFleet() {
     }
     return x > y ? FLEET.sortDir : 0;
   });
+  // The Disk health column only exists once some machine reports it (the agent's opt-in), so it never empties a table for nothing.
+  var hasHealth = FLEET.rows.some(function (row) { return !!row.disk_health; });
+  var healthHead = document.getElementById("fleet-health-th");
+  if (healthHead) {
+    healthHead.hidden = !hasHealth;
+  }
   var holder = beginRows(tbody);
   rows.forEach(function (row) {
     var tr = document.createElement("tr");
@@ -217,6 +253,7 @@ function renderFleet() {
       fleetCell("CPU", row.cpu_pct, row.cpu_series, row.vcpus ? row.vcpus + " vCPU" : "") +
       fleetCell("Memory", row.mem_pct, row.mem_series, memDetail) +
       fleetCell("Disk", row.disk_pct, null, "") +
+      (hasHealth ? fleetHealthCell(row.disk_health) : "") +
       "<td data-label='Source' class='text-dim'>" + escapeHtml(row.source === "proxmox" ? "Proxmox API" : (row.source === "agent" ? "Agent" : "SNMP")) + "</td>" + open;
     holder.appendChild(tr);
   });

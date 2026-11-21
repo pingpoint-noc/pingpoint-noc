@@ -19,6 +19,97 @@ NODE_TOKEN="${NODE_TOKEN:-}"
 DEVICE_ID="${DEVICE_ID:-$( (hostname -s 2>/dev/null || uname -n) | tr -cd 'A-Za-z0-9._-')}"
 HOSTNAME="${HOSTNAME:-$( (hostname 2>/dev/null || uname -n) | tr -cd 'A-Za-z0-9._-')}"
 
+# Disk health (G20), only when the host opted in (DISK_HEALTH=yes in agent.conf, set by `MININOC_DISK_HEALTH=yes bash bootstrap.sh`).
+# It needs root for smartctl, which this agent already is. Disks are read at most every DISK_HEALTH_INTERVAL seconds; a disk that is
+# asleep is skipped (smartctl -n standby) rather than woken.
+DISK_HEALTH="${DISK_HEALTH:-no}"
+DISK_HEALTH_INTERVAL="${DISK_HEALTH_INTERVAL:-600}"
+DISK_HEALTH_STAMP="${DISK_HEALTH_STAMP:-/var/lib/mininoc/disk-health.stamp}"
+MDSTAT="${MDSTAT:-/proc/mdstat}"
+
+# One JSON object for one disk, from the text smartctl prints (no jq: ATA attributes 5, 187, 197 and 198 add up to "bad_blocks";
+# NVMe gives its own counters). Nothing is printed for a disk that is asleep or that smartctl cannot read.
+smart_item() {
+    dev="$1"
+    txt=$(smartctl -n standby -i -H -A "$dev" 2>/dev/null) || true
+    case "$txt" in
+        '' | *STANDBY* | *"SLEEP mode"*) return 0 ;;
+    esac
+    printf '%s\n' "$txt" | awk -v dev="${dev##*/}" '
+        function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+        function clean(s) { gsub(/[^A-Za-z0-9._ -]/, "", s); gsub(/  +/, " ", s); return trim(s) }
+        BEGIN { ok = -1; temp = -1; wear = -1; bad = -1; crit = 0; dev = clean(dev) }
+        /^(Device Model|Model Number|Product):/ { sub(/^[^:]*:/, ""); if (model == "") model = clean($0); next }
+        /^Serial [Nn]umber:/ { sub(/^[^:]*:/, ""); serial = clean($0); next }
+        /SMART overall-health self-assessment test result:/ { ok = ($NF == "PASSED") ? 1 : 0 }
+        /^SMART Health Status:/ { ok = ($NF == "OK") ? 1 : 0 }
+        /^Critical Warning:/ { if ($3 != "0x00") crit = 1 }
+        /^Temperature:/ { temp = $2 + 0 }
+        /^Current Drive Temperature:/ { temp = $4 + 0 }
+        /^Percentage Used:/ { wear = $3 + 0 }
+        /^Media and Data Integrity Errors:/ { bad = $NF + 0 }
+        $1 ~ /^[0-9]+$/ && NF >= 10 {
+            raw = $10 + 0
+            if (raw > 150 && ($1 == 194 || $1 == 190)) raw = raw % 256  # some makers pack min/max next to the current value
+            if ($1 == 194 || ($1 == 190 && temp < 0)) temp = raw
+            if ($1 == 5 || $1 == 187 || $1 == 197 || $1 == 198) bad = (bad < 0 ? 0 : bad) + raw
+        }
+        END {
+            if (ok < 0 && temp < 0 && wear < 0 && bad < 0) exit
+            if (ok < 0) ok = 1
+            if (crit) ok = 0
+            # a number the NOC would refuse (and so drop the whole push) is left out, not sent
+            if (temp > 150) temp = -1
+            if (wear > 255) wear = -1
+            if (bad > 2147483647) bad = 2147483647
+            name = (serial != "") ? model " " serial : model " " dev
+            name = substr(trim(name), 1, 128)
+            printf "{\"kind\":\"disk\",\"name\":\"%s\",\"ok\":%s", name, ok ? "true" : "false"
+            if (temp >= 0) printf ",\"temp_c\":%d", temp
+            if (wear >= 0) printf ",\"wear_pct\":%d", wear
+            if (bad >= 0) printf ",\"bad_blocks\":%d", bad
+            printf "}\n"
+        }' || true
+}
+
+zfs_items() {
+    command -v zpool >/dev/null 2>&1 || return 0
+    zpool list -H -o name,health 2>/dev/null | awk -F'\t' 'NF >= 2 {
+        n = $1; s = $2
+        gsub(/[^A-Za-z0-9._-]/, "", n); gsub(/[^A-Za-z0-9_-]/, "", s)
+        if (n == "") next
+        printf "{\"kind\":\"zfs\",\"name\":\"%s\",\"ok\":%s,\"state\":\"%s\"}\n", n, (s == "ONLINE") ? "true" : "false", s
+    }' || true
+}
+
+# Linux software RAID: [UU] is healthy, [U_] is degraded, "recovery"/"resync"/"reshape" is a rebuild in progress (a periodic
+# "check" of a clean array is normal and is not reported).
+md_items() {
+    [ -r "$MDSTAT" ] || return 0
+    awk '
+        function flush() { if (name != "") printf "{\"kind\":\"md\",\"name\":\"%s\",\"ok\":%s,\"state\":\"%s\"}\n", name, ok ? "true" : "false", state; name = "" }
+        /^md[0-9]+ :/ { flush(); name = $1; state = "clean"; ok = 1; if ($3 == "inactive") { state = "inactive"; ok = 0 }; next }
+        name != "" && /[[][0-9]+\/[0-9]+[]] [[][U_]+[]]/ { if (match($0, /[[][U_]+[]]/) && index(substr($0, RSTART, RLENGTH), "_")) { state = "degraded"; ok = 0 } }
+        name != "" && /(recovery|resync|reshape) *=/ { state = "recovering"; ok = 0 }
+        END { flush() }' "$MDSTAT" || true
+}
+
+# The JSON list of every disk, ZFS pool and md array this host can see ([] when there is nothing).
+disk_health_json() {
+    smart=""
+    if command -v smartctl >/dev/null 2>&1; then
+        smart=$(smartctl --scan 2>/dev/null | awk '$1 ~ /^\// { print $1 }' | while read -r d; do smart_item "$d"; done) || true
+    fi
+    all=$(printf '%s\n%s\n%s\n' "$smart" "$(zfs_items)" "$(md_items)" | grep -v '^$' | paste -sd, - 2>/dev/null) || true
+    printf '[%s]' "$all"
+}
+
+if [ "${1:-}" = "--disk-health-json" ]; then
+    disk_health_json
+    echo
+    exit 0
+fi
+
 if [ -z "$NODE_TOKEN" ]; then
     echo "[!] No NODE_TOKEN defined in $CONF" >&2
     exit 1
@@ -159,11 +250,30 @@ VIRT=$(printf '%s' "$VIRT" | tr -cd 'a-z0-9_-' | cut -c1-24)
 
 TS_NOW=$(date +%s)
 
-PAYLOAD=$(printf '{"device_id":"%s","hostname":"%s","virt":"%s","ts_utc":%s,"metrics":{"cpu_load_pct":%s,"loadavg_1m":%s,"loadavg_5m":%s,"loadavg_15m":%s,"memory_used_pct":%s,"mem_total_bytes":%s,"mem_used_bytes":%s,"mem_free_bytes":%s,"uptime_seconds":%s,"disks":[%s]},"services":[%s]}' \
+# 8. Disk health (opt-in, at most once per DISK_HEALTH_INTERVAL; the other pushes simply leave the field out)
+DISK_HEALTH_FIELD=""
+if [ "$DISK_HEALTH" = "yes" ]; then
+    last=0
+    if [ -r "$DISK_HEALTH_STAMP" ]; then read -r last < "$DISK_HEALTH_STAMP" || last=0; fi
+    case "$last" in
+        '' | *[!0-9]*) last=0 ;;
+    esac
+    case "$DISK_HEALTH_INTERVAL" in
+        '' | *[!0-9]*) DISK_HEALTH_INTERVAL=600 ;;
+    esac
+    if [ $((TS_NOW - last)) -ge "$DISK_HEALTH_INTERVAL" ]; then
+        DISK_HEALTH_FIELD=",\"disk_health\":$(disk_health_json)"
+        if [ ! -L "$DISK_HEALTH_STAMP" ]; then
+            mkdir -p "$(dirname "$DISK_HEALTH_STAMP")" 2>/dev/null && echo "$TS_NOW" > "$DISK_HEALTH_STAMP" 2>/dev/null || true
+        fi
+    fi
+fi
+
+PAYLOAD=$(printf '{"device_id":"%s","hostname":"%s","virt":"%s","ts_utc":%s,"metrics":{"cpu_load_pct":%s,"loadavg_1m":%s,"loadavg_5m":%s,"loadavg_15m":%s,"memory_used_pct":%s,"mem_total_bytes":%s,"mem_used_bytes":%s,"mem_free_bytes":%s,"uptime_seconds":%s,"disks":[%s]%s},"services":[%s]}' \
     "$DEVICE_ID" "$HOSTNAME" "$VIRT" "$TS_NOW" \
     "$CPU_PCT" "$LOAD1" "$LOAD5" "$LOAD15" \
     "$MEM_USED_PCT" "$MEM_TOTAL" "$MEM_USED" "$MEM_FREE" \
-    "$UPTIME_SEC" "$DISKS_CONTENT" "$SERVICES_JSON")
+    "$UPTIME_SEC" "$DISKS_CONTENT" "$DISK_HEALTH_FIELD" "$SERVICES_JSON")
 
 if command -v curl >/dev/null 2>&1; then
     curl -fsS --max-time 5 -X POST "$NOC_URL" \

@@ -238,6 +238,31 @@ def seed_demo_database(db_path="data/demo.db", samples_dir=SAMPLES_DIR, now_ts=N
     for icmp_id, _loss, _avg, _peak, _jitter in icmp_profiles:
         repo.record_collector_success("icmp", icmp_id, now_ts)
 
+    # Disk health (G20): the demo NAS has an agent that opted in. One disk runs hot (61 C), one drive has an old, steady bad-sector
+    # count (no alert: only a rise warns) and the ZFS pool is degraded.
+    for step in range(20):
+        ts_disks = now_ts - (19 - step) * 30
+        repo.record_device_metrics(
+            "demo-nas",
+            ts_disks,
+            [
+                {"metric_name": "cpu_load_pct", "label": "", "value": 7.0 + step % 4},
+                {"metric_name": "memory_used_pct", "label": "", "value": 41.0},
+                {"metric_name": "disk_used_pct", "label": "/", "value": 52.0},
+                {"metric_name": "disk_health_ok", "label": "Demo HDD A SN-0001", "value": 1.0},
+                {"metric_name": "disk_temp_c", "label": "Demo HDD A SN-0001", "value": 61.0},
+                {"metric_name": "disk_bad_blocks", "label": "Demo HDD A SN-0001", "value": 0.0},
+                {"metric_name": "disk_health_ok", "label": "Demo SSD B SN-0002", "value": 1.0},
+                {"metric_name": "disk_temp_c", "label": "Demo SSD B SN-0002", "value": 34.0},
+                {"metric_name": "disk_bad_blocks", "label": "Demo SSD B SN-0002", "value": 1.0},
+                {"metric_name": "disk_health_ok", "label": "Demo NVMe C SN-0003", "value": 1.0},
+                {"metric_name": "disk_temp_c", "label": "Demo NVMe C SN-0003", "value": 38.0},
+                {"metric_name": "disk_wear_pct", "label": "Demo NVMe C SN-0003", "value": 12.0},
+                {"metric_name": "storage_pool_state", "label": "zfs:tank", "value": 1.0},
+            ],
+        )
+    repo.touch_device_telemetry("demo-nas", now_ts)
+
     repo.record_collector_success("retention", HOST_DEVICE_ID, now_ts - 120)
     # The ICMP rules wait for a breach to last (120 s loss, 300 s latency); the demo has one evaluation, so its lossy and slow hosts
     # would stay pending. No wait for the demo, and the caller's own setting is put back.

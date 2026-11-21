@@ -111,7 +111,10 @@ container: [`docs/montar-contenedor.md`](docs/montar-contenedor.md).
 
 Onboarding devices takes one command: `curl -s http://<noc>:8080/api/bootstrap.sh | sudo MININOC_ENROLL_TOKEN=<token> bash` for Linux hosts (the install generates the token; administrators see it in the web),
 `curl -s http://<noc>:8080/api/bootstrap-pve.sh | sudo MININOC_ENROLL_TOKEN=<token> bash` for Proxmox VE hypervisors, and a `.rsc` template for the router
-that a person applies (the NOC never changes the router). Details in
+that a person applies (the NOC never changes the router). **Disk health** (SMART status and temperature, NVMe wear, ZFS pool and `mdadm` state)
+is off until a host opts in, because `smartctl` needs root: run the same command with `MININOC_DISK_HEALTH=yes` (it is kept on a re-run and turned off
+with `=no`; install `smartmontools` for SMART). It shows as a column in *Resources by Machine* and raises `disk_health_failed`, `disk_temperature_high`,
+`disk_wear_high` and `disk_bad_blocks_increase` (a rise, never the count itself). Details in
 [`docs/automatizacion-y-onboarding.md`](docs/automatizacion-y-onboarding.md),
 [`docs/diseno-integracion-proxmox.md`](docs/diseno-integracion-proxmox.md) and
 [`docs/diseno-salud-hosts-linux.md`](docs/diseno-salud-hosts-linux.md). To trigger controlled incidents while verifying:

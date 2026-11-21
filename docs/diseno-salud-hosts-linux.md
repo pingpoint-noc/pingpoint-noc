@@ -363,3 +363,14 @@ Seguiremos estrictamente el ciclo TDD (Rojo $\rightarrow$ Verde):
 4. **Integración con Alertas:** Conexión directa con las 3 reglas de K78 (`host_cpu_high`, `host_memory_high`, `host_disk_high`) y adición de la nueva regla `host_service_down` para supervisar la disponibilidad real de aplicaciones.
 5. **Cero CDN:** Renderizado puramente nativo en Health y Topology con CSS temático y JavaScript modular.
 
+---
+
+## 11. Ampliación G20: salud de discos (opt-in)
+
+El agente puede informar además del estado de los discos, de los pools ZFS y de los arrays `mdadm`. Está **apagado** salvo que el equipo lo pida: `MININOC_DISK_HEALTH=yes bash bootstrap.sh` escribe `DISK_HEALTH="yes"` en `/etc/mininoc/agent.conf` (otra pasada sin la variable lo conserva; `=no` lo apaga). `smartctl` necesita root y el agente ya lo es; si falta `smartmontools` se siguen mirando ZFS y `mdadm`.
+
+- **Lectura:** como mucho cada `DISK_HEALTH_INTERVAL` segundos (600 por defecto; la marca está en `/var/lib/mininoc/disk-health.stamp`) y sin despertar discos dormidos (`smartctl -n standby`). Solo se lee el *texto* de las herramientas, con `awk`: sin `jq` ni Python. `mininoc-agent.sh --disk-health-json` imprime lo que ve, sin token ni envío.
+- **Payload:** `metrics.disk_health`, lista de hasta 64 elementos `{kind: disk|zfs|md, name, ok, state?, temp_c?, wear_pct?, bad_blocks?}`. Solo viaja en las pasadas que leen los discos.
+- **Almacén:** filas de `device_metrics` por disco (`disk_health_ok`, `disk_temp_c`, `disk_wear_pct`, `disk_bad_blocks`) y `storage_pool_state` con etiqueta `zfs:<pool>` o `md:<array>` (0 sano, 1 degradado, 2 fallo, 7 reconstruyendo...). No hay migración. Cuenta solo la última lectura y solo durante una hora.
+- **Reglas:** `disk_health_failed` (crítica), `disk_temperature_high` (60 °C, con 3 °C de margen para no oscilar), `disk_wear_high` (90 %) y `disk_bad_blocks_increase` (aviso si el contador de sectores malos **sube** respecto al mínimo de las últimas 24 h; nunca por su valor).
+- **Interfaz:** columna *Disk health* en *Resources by Machine* (oculta mientras ninguna máquina informe), con un tooltip por disco.

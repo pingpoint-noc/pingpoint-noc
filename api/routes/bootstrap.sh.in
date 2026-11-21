@@ -2,6 +2,7 @@
 # Mini-NOC onboarding for a Linux host or container: forwards its syslog to the collector and registers it.
 #   install:    curl -fsS "http://<noc>:<port>/api/bootstrap.sh" | sudo bash
 #   uninstall:  curl -fsS "http://<noc>:<port>/api/bootstrap.sh" | sudo bash -s -- --uninstall
+#   disk health (SMART, ZFS, mdadm; opt-in, needs root): curl -fsS "http://<noc>:<port>/api/bootstrap.sh" | sudo MININOC_DISK_HEALTH=yes bash
 # Safe to run again: it rewrites the same file. Exit code 0 = forwarding set and host registered, 1 = something failed.
 set -euo pipefail
 
@@ -58,7 +59,7 @@ if [ "$ACTION" = "uninstall" ]; then
         systemctl daemon-reload >/dev/null 2>&1 || true
     fi
     rm -f /usr/local/bin/mininoc-agent.sh /etc/cron.d/mininoc-telemetry
-    rm -rf /etc/mininoc
+    rm -rf /etc/mininoc /var/lib/mininoc
     if restart_rsyslog; then
         ok "Telemetry agent and syslog forwarding to $NOC_IP removed. The host stays in the inventory until it is deleted in Health & Inventory."
     else
@@ -202,12 +203,27 @@ DEV_ID=$(printf '%s\n' "$RESPONSE" | sed -n 's/.*"device_id"[[:space:]]*:[[:spac
 
 say "Configuring periodic Linux telemetry agent..."
 mkdir -p /etc/mininoc
+
+# Disk health (SMART, ZFS, mdadm) is opt-in because smartctl needs root: MININOC_DISK_HEALTH=yes turns it on, =no turns it off,
+# and running the script again without the variable keeps what the host had.
+DISK_HEALTH_NOW=$(sed -n -E 's/^DISK_HEALTH="?(yes|no)"?$/\1/p' /etc/mininoc/agent.conf 2>/dev/null | tail -n 1 || true)
+case "${MININOC_DISK_HEALTH:-}" in
+    yes|no) DISK_HEALTH_NOW="$MININOC_DISK_HEALTH" ;;
+    "") ;;
+    *) warn "MININOC_DISK_HEALTH must be yes or no (got '${MININOC_DISK_HEALTH}'): leaving disk health as it was."; ;;
+esac
+[ -n "$DISK_HEALTH_NOW" ] || DISK_HEALTH_NOW="no"
+if [ "$DISK_HEALTH_NOW" = "yes" ] && ! command -v smartctl >/dev/null 2>&1; then
+    warn "Disk health is on but smartctl is missing: install smartmontools for SMART data. ZFS pools and mdadm arrays are still checked."
+fi
+
 cat <<EOF > /etc/mininoc/agent.conf
 # Mini-NOC Telemetry Agent Configuration
 NOC_URL="http://$NOC_HOST:$NOC_PORT/api/nodes/telemetry"
 NODE_TOKEN="$NODE_TOKEN"
 DEVICE_ID="$DEV_ID"
 HOSTNAME="$HOST_NAME"
+DISK_HEALTH="$DISK_HEALTH_NOW"
 EOF
 chmod 600 /etc/mininoc/agent.conf
 

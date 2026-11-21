@@ -7,6 +7,13 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
 ## [Unreleased]
 
 ### Added
+- Disk health (G20), opt-in per host with `MININOC_DISK_HEALTH=yes bash bootstrap.sh` (kept on a re-run, `=no` turns it off): the agent reads
+  SMART (overall result, temperature, bad-sector counters; NVMe wear) through `smartctl`, ZFS pool health and `mdadm` state with plain `sh`/`awk`,
+  at most every 10 minutes (`DISK_HEALTH_INTERVAL`) and without waking a sleeping disk. `mininoc-agent.sh --disk-health-json` prints what it sees.
+  Stored as ordinary device metrics (no migration), shown in a new *Disk health* column of Resources by Machine (hidden until a machine reports
+  it) and judged by four rules, all with a toggle and a guidance entry: `disk_health_failed` (critical: SMART failing, pool or array not
+  healthy), `disk_temperature_high` (60 C, settable), `disk_wear_high` (90 %, settable) and `disk_bad_blocks_increase` (a rise in the last
+  24 h, never the value itself). The demo NAS has a hot disk and a degraded pool.
 - "All machines" entry in the Target list (`device=all` in links): fleet views keep working, Bandwidth, Flows and Timeline ask for a
   machine, and Syslog mixes the newest events of every machine with a Machine column (`GET /api/logs`; Inspect on a line picks its machine).
 - Migration 6: index `idx_syslog_ts` on syslog events by time, for the stream of every machine.

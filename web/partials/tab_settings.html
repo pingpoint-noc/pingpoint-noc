@@ -422,6 +422,22 @@
                 <input id="toggle-rule-pve-storage-high" type="checkbox" checked>
                 <label for="toggle-rule-pve-storage-high">Proxmox Storage (<code>pve_storage_high</code>)</label>
               </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-disk-health-failed" type="checkbox" checked>
+                <label for="toggle-rule-disk-health-failed">Disk, Pool or Array Failed (<code>disk_health_failed</code>; hosts with disk health on)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-disk-temperature-high" type="checkbox" checked>
+                <label for="toggle-rule-disk-temperature-high">Disk Temperature (<code>disk_temperature_high</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-disk-wear-high" type="checkbox" checked>
+                <label for="toggle-rule-disk-wear-high">Disk Wear (<code>disk_wear_high</code>)</label>
+              </div>
+              <div class="settings-field settings-check">
+                <input id="toggle-rule-disk-bad-blocks-increase" type="checkbox" checked>
+                <label for="toggle-rule-disk-bad-blocks-increase">Bad Sectors Rising (<code>disk_bad_blocks_increase</code>)</label>
+              </div>
             </div>
 
             <h4 class="settings-subheading">Detection Thresholds</h4>
@@ -536,6 +552,16 @@
                 <label for="set-thresh-pve-storage">Proxmox Storage (%)</label>
                 <input id="set-thresh-pve-storage" class="form-input" type="number" min="10" max="100" step="1">
                 <small>Default: 85 %. Usage of a Proxmox VE storage at or above which pve_storage_high fires.</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-disk-temp">Disk Temperature (&deg;C)</label>
+                <input id="set-thresh-disk-temp" class="form-input" type="number" min="30" max="90" step="1">
+                <small>Default: 60 &deg;C. A disk at or above it fires disk_temperature_high (needs disk health on the host).</small>
+              </div>
+              <div class="settings-field">
+                <label for="set-thresh-disk-wear">Disk Wear (%)</label>
+                <input id="set-thresh-disk-wear" class="form-input" type="number" min="50" max="100" step="1">
+                <small>Default: 90 %. NVMe life used at or above which disk_wear_high fires.</small>
               </div>
             </div>
           </section>

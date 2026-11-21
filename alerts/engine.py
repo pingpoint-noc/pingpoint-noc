@@ -24,7 +24,7 @@ from alerts.holds import HoldContext, dependency_depth
 from alerts.notify import build_notifiers
 from urllib.parse import quote
 
-from api.services import ALERT_GUIDANCE, compute_rates_from_samples
+from api.services import ALERT_GUIDANCE, STORAGE_STATE_NAMES, compute_rates_from_samples, newest_disk_health_rows
 from storage import create_repository
 
 
@@ -102,6 +102,13 @@ DEFAULT_HOST_MEMORY_PCT = 90
 DEFAULT_HOST_DISK_PCT = 90
 # A health sample older than this is not evidence of the present (stale_source reports the silent collector).
 HOST_METRIC_MAX_AGE_SECONDS = 600
+# Disk health (G20): the agent reads the disks every 10 minutes by default, so a sample stays valid for an hour. A disk that is hot or
+# worn is a warning; one that failed its SMART check, or a pool or array that is not healthy, is critical. Sector counters are never judged
+# by their value, only by a rise inside this window (an SSD that logged one uncorrectable error last year must not warn forever).
+DEFAULT_DISK_TEMP_C = 60
+DEFAULT_DISK_WEAR_PCT = 90
+DISK_TEMP_CLEAR_MARGIN_C = 3
+DISK_BAD_BLOCKS_WINDOW_SECONDS = 86400
 # ICMP (K80): loss of the last sample of five pings (two lost packets reach 40 %) and the mean RTT.
 DEFAULT_ICMP_LOSS_PCT = 40  # a sample is 5 pings (20 % per ping): 40 % = two lost pings, one is routine ICMP rate limiting
 DEFAULT_ICMP_LATENCY_MS = 150
@@ -138,6 +145,10 @@ RULE_TOGGLE_KEYS = (
     "rule_syslog_burst_enabled",
     "rule_disk_full_forecast_enabled",
     "rule_interface_speed_drop_enabled",
+    "rule_disk_health_failed_enabled",
+    "rule_disk_temperature_high_enabled",
+    "rule_disk_wear_high_enabled",
+    "rule_disk_bad_blocks_increase_enabled",
 )
 # Rules that are off until someone turns them on: a new forecast rule must not wake anyone before its limits are reviewed.
 DEFAULT_OFF_TOGGLES = frozenset({"rule_disk_full_forecast_enabled"})
@@ -204,6 +215,8 @@ def load_effective_settings(repo, cli_defaults=None):
                 "alert_host_cpu_hold_seconds": "host_cpu_hold_seconds",
                 "alert_host_memory_pct": "host_memory_pct",
                 "alert_host_disk_pct": "host_disk_pct",
+                "alert_disk_temp_c": "disk_temp_c",
+                "alert_disk_wear_pct": "disk_wear_pct",
                 "alert_icmp_loss_pct": "icmp_loss_pct",
                 "alert_icmp_latency_ms": "icmp_latency_ms",
                 "alert_syslog_burst_threshold": "syslog_burst_threshold",
@@ -251,6 +264,8 @@ def load_effective_settings(repo, cli_defaults=None):
         "host_cpu_hold_seconds": get_val("alert_host_cpu_hold_seconds", DEFAULT_HOST_CPU_HOLD_SECONDS),
         "host_memory_pct": get_val("alert_host_memory_pct", DEFAULT_HOST_MEMORY_PCT),
         "host_disk_pct": get_val("alert_host_disk_pct", DEFAULT_HOST_DISK_PCT),
+        "disk_temp_c": get_val("alert_disk_temp_c", DEFAULT_DISK_TEMP_C),
+        "disk_wear_pct": get_val("alert_disk_wear_pct", DEFAULT_DISK_WEAR_PCT),
         "icmp_loss_pct": get_val("alert_icmp_loss_pct", DEFAULT_ICMP_LOSS_PCT),
         "icmp_latency_ms": get_val("alert_icmp_latency_ms", DEFAULT_ICMP_LATENCY_MS),
         "pve_storage_pct": get_val("alert_pve_storage_pct", DEFAULT_PVE_STORAGE_PCT),
@@ -1851,6 +1866,92 @@ def evaluate_host_health_rules(
         )
 
 
+def _reconcile_target_family(repo, device_id, rule_id, severity, wanted, now_ts):
+    """Reconcile every target of one rule: those in `wanted` ({target: message}) fire, and any open alert whose target is not
+    in it (a disk that was removed, a value that came back) resolves."""
+    open_targets = set()
+    for status in ("firing", "pending"):
+        for alert in repo.list_alerts(device_id=device_id, status=status):
+            if alert["rule_id"] == rule_id:
+                open_targets.add(alert["target"])
+    for target in sorted(set(wanted) | open_targets):
+        message = wanted.get(target, "")
+        reconcile_alert(
+            repo=repo, device_id=device_id, rule_id=rule_id, target=target, severity=severity,
+            is_triggered=bool(message), now_ts=now_ts, hold_seconds=0, message=message,
+        )
+    return open_targets
+
+
+def evaluate_disk_health_rules(
+    repo,
+    device_id,
+    now_ts,
+    temp_c=DEFAULT_DISK_TEMP_C,
+    wear_pct=DEFAULT_DISK_WEAR_PCT,
+    rule_toggles=None,
+):
+    """Evaluate disk_health_failed, disk_temperature_high, disk_wear_high and disk_bad_blocks_increase (G20).
+
+    The values come from the telemetry agent of a host that opted in; a host that never reports them has nothing to evaluate.
+    Samples older than DISK_HEALTH_MAX_AGE_SECONDS (api.services) count as no data and a disk that is no longer reported resolves."""
+
+    def enabled(key):
+        return rule_toggles is None or rule_toggles.get(key, True)
+
+    # Only the newest push counts, and only while it is recent: a disk that was removed or a silent agent resolves its alerts.
+    values = {}
+    for row in newest_disk_health_rows(repo, device_id, now_ts):
+        values.setdefault(row["metric_name"], {})[row["label"]] = row["value"]
+
+    # Failed SMART check (critical), or a ZFS pool / md array that is not healthy (critical)
+    wanted = {}
+    if enabled("rule_disk_health_failed_enabled"):
+        for label, ok in values.get("disk_health_ok", {}).items():
+            if ok < 1:
+                wanted["disk:" + label] = "Disk %s reports a failing health status (SMART)" % label
+        for label, code in values.get("storage_pool_state", {}).items():
+            if code != 0:
+                kind, _, name = label.partition(":")
+                state = STORAGE_STATE_NAMES.get(int(code), "faulted")
+                wanted["pool:" + label] = "%s %s is %s" % ("ZFS pool" if kind == "zfs" else "RAID array", name or label, state)
+    _reconcile_target_family(repo, device_id, "disk_health_failed", "critical", wanted, now_ts)
+
+    # Temperature: it stays open until the disk is a few degrees below the line, so one that hovers around it does not flap.
+    open_hot = set()
+    for status in ("firing", "pending"):
+        for alert in repo.list_alerts(device_id=device_id, status=status):
+            if alert["rule_id"] == "disk_temperature_high":
+                open_hot.add(alert["target"])
+    wanted = {}
+    if enabled("rule_disk_temperature_high_enabled"):
+        for label, temp in values.get("disk_temp_c", {}).items():
+            line = temp_c - (DISK_TEMP_CLEAR_MARGIN_C if ("disk:" + label) in open_hot else 0)
+            if temp >= line:
+                wanted["disk:" + label] = "Disk %s is at %d °C (threshold %d °C)" % (label, temp, temp_c)
+    _reconcile_target_family(repo, device_id, "disk_temperature_high", "warning", wanted, now_ts)
+
+    # Wear (NVMe "percentage used")
+    wanted = {}
+    if enabled("rule_disk_wear_high_enabled"):
+        for label, wear in values.get("disk_wear_pct", {}).items():
+            if wear >= wear_pct:
+                wanted["disk:" + label] = "Disk %s has used %d %% of its rated life (threshold %d %%)" % (label, wear, wear_pct)
+    _reconcile_target_family(repo, device_id, "disk_wear_high", "warning", wanted, now_ts)
+
+    # Bad sectors: a RISE in the last day, never the value itself
+    wanted = {}
+    if enabled("rule_disk_bad_blocks_increase_enabled") and "disk_bad_blocks" in values:
+        readings = {}
+        for row in repo.get_device_metrics_series(device_id, "disk_bad_blocks", now_ts - DISK_BAD_BLOCKS_WINDOW_SECONDS, now_ts):
+            readings.setdefault(row["label"], []).append(row["value"])
+        for label, latest in values["disk_bad_blocks"].items():
+            history = readings.get(label, [])
+            if history and latest > min(history):
+                wanted["disk:" + label] = "Disk %s: bad sector count rose from %d to %d in the last 24 h" % (label, min(history), latest)
+    _reconcile_target_family(repo, device_id, "disk_bad_blocks_increase", "warning", wanted, now_ts)
+
+
 def icmp_hold_seconds(variable, default):
     """Seconds a breach must persist (MININOC_ALERT_ICMP_LOSS_HOLD_SECONDS / MININOC_ALERT_ICMP_LATENCY_HOLD_SECONDS; 0 = at once)."""
     try:
@@ -2038,6 +2139,8 @@ def evaluate_once(
     syslog_burst_window_seconds=DEFAULT_SYSLOG_BURST_WINDOW_SECONDS,
     syslog_burst_factor=DEFAULT_SYSLOG_BURST_FACTOR,
     bw_utilization_pct=0,
+    disk_temp_c=DEFAULT_DISK_TEMP_C,
+    disk_wear_pct=DEFAULT_DISK_WEAR_PCT,
 ):
     """Run all alert rules across all monitored devices at now_ts."""
     if now_ts is None:
@@ -2054,7 +2157,7 @@ def evaluate_once(
             host_cpu_pct, host_cpu_hold_seconds, host_memory_pct, host_disk_pct,
             icmp_loss_pct, icmp_latency_ms, pve_storage_pct,
             syslog_burst_threshold, syslog_burst_window_seconds, syslog_burst_factor,
-            bw_utilization_pct,
+            bw_utilization_pct, disk_temp_c, disk_wear_pct,
         )
         release_held_notices(repo, now_ts)
     finally:
@@ -2080,6 +2183,8 @@ def evaluate_all_devices(
     syslog_burst_window_seconds=DEFAULT_SYSLOG_BURST_WINDOW_SECONDS,
     syslog_burst_factor=DEFAULT_SYSLOG_BURST_FACTOR,
     bw_utilization_pct=0,
+    disk_temp_c=DEFAULT_DISK_TEMP_C,
+    disk_wear_pct=DEFAULT_DISK_WEAR_PCT,
 ):
     """The body of one evaluation cycle (split out so evaluate_once can flush the grouped notices after it)."""
     devices = repo.list_monitored_devices()
@@ -2137,6 +2242,14 @@ def evaluate_all_devices(
             cpu_hold_seconds=host_cpu_hold_seconds,
             memory_pct=host_memory_pct,
             disk_pct=host_disk_pct,
+            rule_toggles=rule_toggles,
+        )
+        evaluate_disk_health_rules(
+            repo,
+            device_id,
+            now_ts,
+            temp_c=disk_temp_c,
+            wear_pct=disk_wear_pct,
             rule_toggles=rule_toggles,
         )
         evaluate_icmp_rules(
@@ -2226,6 +2339,8 @@ def evaluate_once_guarded(
     syslog_burst_window_seconds=DEFAULT_SYSLOG_BURST_WINDOW_SECONDS,
     syslog_burst_factor=DEFAULT_SYSLOG_BURST_FACTOR,
     bw_utilization_pct=0,
+    disk_temp_c=DEFAULT_DISK_TEMP_C,
+    disk_wear_pct=DEFAULT_DISK_WEAR_PCT,
 ):
     """Run evaluate_once and catch any database lock or runtime error so the daemon never dies."""
     if now_ts is None:
@@ -2265,6 +2380,8 @@ def evaluate_once_guarded(
             syslog_burst_window_seconds=syslog_burst_window_seconds,
             syslog_burst_factor=syslog_burst_factor,
             bw_utilization_pct=bw_utilization_pct,
+            disk_temp_c=disk_temp_c,
+            disk_wear_pct=disk_wear_pct,
         )
         return True
     except Exception as exc:
@@ -2440,6 +2557,8 @@ def main(argv=None):
             syslog_burst_window_seconds=eff["syslog_burst_window_seconds"],
             syslog_burst_factor=eff["syslog_burst_factor"],
             bw_utilization_pct=eff["bw_utilization_pct"],
+            disk_temp_c=eff["disk_temp_c"],
+            disk_wear_pct=eff["disk_wear_pct"],
         )
         try:
             if ok:

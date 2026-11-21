@@ -53,7 +53,9 @@ var RULE_THRESHOLD_FIELDS = [
   { id: "set-thresh-icmp-latency", key: "alert_icmp_latency_ms" },
   { id: "set-thresh-syslog-burst", key: "alert_syslog_burst_threshold" },
   { id: "set-thresh-syslog-burst-window", key: "alert_syslog_burst_window_seconds" },
-  { id: "set-thresh-pve-storage", key: "alert_pve_storage_pct" }
+  { id: "set-thresh-pve-storage", key: "alert_pve_storage_pct" },
+  { id: "set-thresh-disk-temp", key: "alert_disk_temp_c" },
+  { id: "set-thresh-disk-wear", key: "alert_disk_wear_pct" }
 ];
 
 var RULE_TOGGLE_FIELDS = [
@@ -76,7 +78,11 @@ var RULE_TOGGLE_FIELDS = [
   { id: "toggle-rule-host-service-down", key: "rule_host_service_down_enabled" },
   { id: "toggle-rule-syslog-burst", key: "rule_syslog_burst_enabled" },
   { id: "toggle-rule-disk-full-forecast", key: "rule_disk_full_forecast_enabled" },
-  { id: "toggle-rule-pve-storage-high", key: "rule_pve_storage_high_enabled" }
+  { id: "toggle-rule-pve-storage-high", key: "rule_pve_storage_high_enabled" },
+  { id: "toggle-rule-disk-health-failed", key: "rule_disk_health_failed_enabled" },
+  { id: "toggle-rule-disk-temperature-high", key: "rule_disk_temperature_high_enabled" },
+  { id: "toggle-rule-disk-wear-high", key: "rule_disk_wear_high_enabled" },
+  { id: "toggle-rule-disk-bad-blocks-increase", key: "rule_disk_bad_blocks_increase_enabled" }
 ];
 
 var SERVER_WRITABLE = false;
@@ -1145,7 +1151,8 @@ var MAINTENANCE_RULES = [
   "high_bandwidth", "interface_down", "interface_flapping", "interface_errors", "interface_speed_drop", "failed_logins", "stale_source",
   "flow_port_scan", "flow_rare_connection", "flow_new_destination", "dns_service_down", "dns_blocklist_dropped",
   "host_cpu_high", "host_memory_high", "host_disk_high", "host_service_down", "icmp_loss_high", "icmp_latency_high",
-  "pve_storage_high", "syslog_burst", "disk_full_forecast"
+  "pve_storage_high", "syslog_burst", "disk_full_forecast",
+  "disk_health_failed", "disk_temperature_high", "disk_wear_high", "disk_bad_blocks_increase"
 ];
 
 async function createMaintenanceWindow() {

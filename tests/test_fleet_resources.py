@@ -42,6 +42,56 @@ class Base(unittest.TestCase):
         return {r["name"]: r for r in get_fleet_resources_view(self.repo, NOW, **kwargs)["rows"]}
 
 
+class TestDiskHealth(Base):
+    """G20: a machine whose agent reports disk health carries it in its row (None when it does not)."""
+
+    def push(self, ts, metrics):
+        self.repo.record_device_metrics("web", ts, [{"metric_name": n, "label": l, "value": float(v)} for n, l, v in metrics])
+
+    def test_a_machine_without_disk_health_has_none(self):
+        self.repo.record_device_metrics("web", NOW, {"cpu_load_pct": 12.0})
+        self.assertIsNone(self.rows()["web"]["disk_health"])
+
+    def test_disks_pools_and_the_summary(self):
+        self.repo.record_device_metrics("web", NOW, {"cpu_load_pct": 12.0})
+        self.push(NOW, [
+            ("disk_health_ok", "HDD one", 1), ("disk_temp_c", "HDD one", 33), ("disk_bad_blocks", "HDD one", 0),
+            ("disk_health_ok", "NVMe", 1), ("disk_temp_c", "NVMe", 41), ("disk_wear_pct", "NVMe", 7),
+            ("storage_pool_state", "zfs:tank", 1),
+        ])
+        health = self.rows()["web"]["disk_health"]
+        self.assertEqual((health["total"], health["failing"], health["max_temp_c"]), (3, 1, 41))
+        first = health["items"][0]  # the one that is not healthy comes first
+        self.assertEqual((first["label"], first["kind"], first["ok"], first["state"]), ("tank", "zfs", False, "degraded"))
+        nvme = [i for i in health["items"] if i["label"] == "NVMe"][0]
+        self.assertEqual((nvme["kind"], nvme["ok"], nvme["temp_c"], nvme["wear_pct"]), ("disk", True, 41, 7))
+        hdd = [i for i in health["items"] if i["label"] == "HDD one"][0]
+        self.assertEqual((hdd["bad_blocks"], hdd["wear_pct"]), (0, None))
+
+    def test_a_failed_disk_counts_as_failing(self):
+        self.repo.record_device_metrics("web", NOW, {"cpu_load_pct": 12.0})
+        self.push(NOW, [("disk_health_ok", "A", 0), ("disk_health_ok", "B", 1)])
+        health = self.rows()["web"]["disk_health"]
+        self.assertEqual((health["total"], health["failing"], health["max_temp_c"]), (2, 1, None))
+
+    def test_old_data_is_not_shown(self):
+        self.repo.record_device_metrics("web", NOW, {"cpu_load_pct": 12.0})
+        self.push(NOW - 2 * 3600, [("disk_health_ok", "A", 1)])
+        self.assertIsNone(self.rows()["web"]["disk_health"])
+
+    def test_only_the_newest_push_counts(self):
+        self.repo.record_device_metrics("web", NOW, {"cpu_load_pct": 12.0})
+        self.push(NOW - 600, [("disk_health_ok", "gone", 1), ("disk_temp_c", "gone", 50)])
+        self.push(NOW, [("disk_health_ok", "kept", 1)])
+        health = self.rows()["web"]["disk_health"]
+        self.assertEqual([i["label"] for i in health["items"]], ["kept"])
+        self.assertIsNone(health["max_temp_c"])
+
+    def test_a_guest_nobody_monitors_has_none(self):
+        self.guest(101, "db")
+        self.assertIsNone(self.rows()["db"]["disk_health"])
+
+
 class TestRows(Base):
     def test_a_guest_nobody_monitors_shows_what_the_hypervisor_reports(self):
         self.guest(101, "db", cpu=0.4, mem=256, maxmem=1024)

@@ -233,7 +233,7 @@ LibreNMS and Zabbix feature pages, Uptime Kuma README. Netdata and Observium wer
 | G17 (done 2026-11-14: `GET /api/metrics`, under the same read gate as the rest of the API) | Prometheus metrics (device up, CPU and memory, active alerts, database size) | Operation | S | Nil | S |
 | G18 | Config backup (Oxidized/RANCID style): **not** in the NOC (it needs credentials); link to Oxidized in the docs | Configuration | n/a | n/a | n/a |
 | G19 | Simple anomaly detection on a 7-day moving average, informational only, no push by default | Performance | L | High | N |
-| G20 (scope accepted 2026-11-16) | Disk health in the agent, opt-in: ZFS/`mdadm` state first, then SMART via `smartctl` (overall result, temperature), then NVMe wear; alert on a change of state, show in *Resources by Machine*; needs root on the host, so off unless the bootstrap script gets an explicit option | Performance | M | Low | N (needs real disks) |
+| G20 (done 2026-11-21, opt-in with `MININOC_DISK_HEALTH=yes`; real disks read on a Proxmox host, ZFS and `mdadm` only with fixtures) | Disk health in the agent, opt-in: ZFS/`mdadm` state first, then SMART via `smartctl` (overall result, temperature), then NVMe wear; alert on a change of state, show in *Resources by Machine*; needs root on the host, so off unless the bootstrap script gets an explicit option | Performance | M | Low | N (needs real disks) |
 
 ### Order of work
 
@@ -308,3 +308,11 @@ Today the agent reports CPU, memory, disk usage (with the full-disk forecast), l
 ## Session of 2026-11-21: burst noise from containers
 
 Reviewing a week of alerts on the reference deployment, nearly all were `syslog_burst`: builds and redeploys of a few containers wrote 100+ lines a minute (bridge and veth plumbing, mounts, scopes, shims) on the Docker host and in the guest, and the end of an ssh login (user manager stopping) was not covered by the session filter. Both now belong to `DEFAULT_SYSLOG_BURST_IGNORE`; replaying a day of real syslog through it took the minutes with 50 lines or more from 31 and 22 to 0. Docker warnings and errors and forced kills still count.
+
+### G20 as built (2026-11-21)
+
+The agent (root already, every 15 s) reads the disks at most every 10 minutes when `DISK_HEALTH=yes` is in `agent.conf` (written by the bootstrap
+script from `MININOC_DISK_HEALTH`); it parses the *text* of `smartctl -n standby -i -H -A`, `zpool list -H` and `/proc/mdstat` with `awk`, so it still needs
+nothing installed. Rows are plain `device_metrics` (`disk_health_ok`, `disk_temp_c`, `disk_wear_pct`, `disk_bad_blocks`, `storage_pool_state`), so there is no
+migration. Only the newest push counts and only for an hour. Not done: SAS/SCSI temperature beyond the basic line, per-vendor SSD wear attributes for SATA
+(they differ by maker), `smartd` self-test results, and hardware RAID controllers.

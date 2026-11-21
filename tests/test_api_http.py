@@ -468,8 +468,9 @@ class TestHttpApi(unittest.TestCase):
         self.assertEqual(data["source_status"], "ok")
         repo = create_repository("sqlite", seed_db)
         self.assertEqual(
-            [a["rule_id"] for a in repo.list_alerts(device_id="demo-nas", status="firing")], ["icmp_loss_high"]
-        )
+            [a["rule_id"] for a in repo.list_alerts(device_id="demo-nas", status="firing") if a["rule_id"].startswith("icmp_")],
+            ["icmp_loss_high"],
+        )  # the demo NAS also has a hot disk and a degraded pool (G20), which are other rules
         self.assertEqual(
             [a["rule_id"] for a in repo.list_alerts(device_id="demo-laptop", status="firing")], ["icmp_latency_high"]
         )
