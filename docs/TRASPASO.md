@@ -6,7 +6,7 @@ Un único fichero que se sobrescribe en cada cierre. No contiene datos de ningú
 
 Di **«quiero seguir»** (o pega esto) en un chat nuevo dentro de este repo:
 
-> Quiero seguir con PingPoint NOC. Lee `AGENTS.md`, `docs/TRASPASO.md` y la sección «Session of 2026-11-15» de `ROADMAP.md`. Comprueba con `git log origin/main..HEAD` qué hay sin subir; el CT de referencia lleva lo último de `main` (Syslog global y «All» por defecto). No hagas push, etiquetas ni despliegues sin que te lo pida. Antes de dar algo por bueno corre la suite completa.
+> Quiero seguir con PingPoint NOC. Lee `AGENTS.md`, `docs/TRASPASO.md` (Estado del 21-11 y Pendiente), y en `ROADMAP.md` la fila G21 y la sección «G20 as built». Comprueba con `git log origin/main..HEAD` qué hay sin subir (al cierre del 21-11 `main` y el CT de referencia estaban al día). No hagas push, etiquetas ni despliegues sin que te lo pida. Antes de dar algo por bueno corre la suite completa, y antes de desplegar mide contra la BD real (solo lectura) lo que toque consultas o vistas pesadas.
 
 ## Estado (21-11-2026)
 
@@ -51,11 +51,15 @@ Hecho y subido a `main`:
 
 ## Pendiente (en este orden)
 
-1. Opcional: exportar el Syslog de todos los equipos (hoy la exportación es por equipo y se oculta con «All»).
-2. **Resto de la instalación de cero:** el enrolado con `bootstrap.sh` contra el NOC recién instalado y `bootstrap_pve.sh` en un Proxmox real ya están probados (el segundo destapó un fallo: `pveum user list` imprime una tabla y el `grep` nunca encontraba al usuario; arreglado). Falta probar el mensaje de prueba de las notificaciones. adguard no necesita agente: es una sonda DNS dentro del CT 100.
-3. **Media pantalla (U6):** hechas con datos reales a 960-1100 px las tablas de invitados, almacenes, colectores y salud de equipos (reparto fijo de columnas, RAM en bytes o %, errores y discos recortados con tooltip). Siguen a 800 px la consola de Syslog y las tablas de Capacity & Trends, Coverage y flota de Health (`ROADMAP.md`). Para medir contra el NOC real: usuario `viewer` temporal con `PYTHONPATH=/opt/pingpoint` y `tools.manage_users --db-path`, inicio de sesión por la pantalla `#gate-username`, y borrarlo al acabar.
-4. El resto de ideas G1-G19 de `ROADMAP.md` (escalado de alertas, sondas HTTP/TCP y caducidad TLS, trampas SNMP...). F1: SCTP/TCP, plantillas de opciones, comparar con `nfdump`.
-5. **Fases 7 y 8** del plan (sondas HTTP/TCP, documentación en inglés); PyPI y la imagen de contenedor solo con el OK del mantenedor y tras reestructurar bajo un paquete único.
+1. **Probar el mensaje de prueba de las notificaciones** (Settings): es lo único que falta de la instalación de cero. adguard no necesita agente: es una sonda DNS dentro del CT 100.
+2. **G21, gráficas de historial por máquina** (`ROADMAP.md`): una fila de *Resources by Machine* que se abre en una gráfica grande con selector de 1 h / 24 h / 7 d y los umbrales dibujados; CPU, memoria, disco y temperatura de cada disco (los datos de G20 ya se guardan); recuperar las miniaturas en media pantalla si caben. Las series salen de `get_device_metrics_buckets`. Pensar antes la carga: ver el punto 3.
+3. **Rendimiento que queda** (tras el arreglo de CPU del 21-11): la flota a 7 días (~6 s) y la primera carga de *Capacity* tras reiniciar la API (mide `dbstat`). `device_metrics` tiene 6,4 M de filas y crece; un índice que cubra el valor aceleraría las series largas pero es caro de crear; otra opción es una tabla de resúmenes por hora que escriba el job de retención. Medir siempre con `tools`/scripts de solo lectura sobre la BD real, no con la demo.
+4. **G20 en más equipos:** activarlo con `MININOC_DISK_HEALTH=yes` al repetir `bootstrap.sh` (solo está en pve1). ZFS y `mdadm` solo se han probado con ficheros de muestra: comprobarlo en cuanto un equipo tenga pools o arrays. Sin desgaste de SSD SATA (los atributos cambian de fabricante a fabricante), sin resultados de autotest de `smartd` ni controladoras RAID por hardware.
+5. Opcional: exportar el Syslog de todos los equipos (hoy la exportación es por equipo y se oculta con «All»).
+6. El resto de ideas G1-G19 de `ROADMAP.md` (escalado de alertas, sondas HTTP/TCP y caducidad TLS, trampas SNMP...). F1: SCTP/TCP, plantillas de opciones, comparar con `nfdump`.
+7. **Fases 7 y 8** del plan (sondas HTTP/TCP, documentación en inglés); PyPI y la imagen de contenedor solo con el OK del mantenedor y tras reestructurar bajo un paquete único.
+
+Hecho y ya no pendiente: U6 (media pantalla, medido también en el NOC real), G20, el ruido de `syslog_burst`, la CPU del NOC al 100 % y las tarjetas del objetivo con ancho fijo.
 
 ## Reglas de trabajo
 
@@ -66,3 +70,8 @@ Hecho y subido a `main`:
 - En heredocs de Python por Bash, `\n` llega como salto de línea: usar `chr(92)` o escribir el fichero con la herramienta de escritura.
 - Despliegue de referencia: copia de la base de datos, `git archive`, copiar y descomprimir en el directorio de instalación, `chown` y reiniciar los `mini-noc-*` activos; la API tarda unos 15 s. El token de administración no se muestra nunca.
 - Cómo se probó lo difícil: contenedores Docker desechables para `rsyslog` (Debian, Alpine, Rocky) con un receptor UDP; un contenedor LXC Ubuntu 24.04 desechable para AppArmor; un equipo con `softflowd` para los flujos. Borrarlos al terminar.
+- Medir contra el NOC real: usuario `viewer` temporal (`tools.manage_users add/delete --db-path`, contraseña aleatoria en un fichero temporal que se borra), inicio de sesión por `#gate-username`, Chromium con `bypass_csp=True`, y borrar el usuario al acabar. Para probar CSS sin desplegar, inyectar `styles.css` con `page.add_style_tag`.
+- Tras tocar `web/static/js` ejecutar `python tools/build_bundle.py`: el navegador (y los tests) sirven `app.js`, no los módulos.
+- Al desplegar, reiniciar los `mini-noc-*` por nombre y comprobar que `systemctl show mini-noc-api -p ActiveEnterTimestamp` es de ahora; un bucle con `cut` sobre `list-units` no reinició nada. La copia de la BD de cada despliegue queda en el CT: borrar la propia al acabar.
+- Nunca `sh -x` sobre el agente de telemetría: imprime la cabecera con el token del equipo.
+- Los tests de navegador `refresh_races`, `health_layout`, `topology`, `palette`, `chart_labels` y `settings` fallan a veces bajo carga y pasan solos; si falla otro, o uno que toque lo que has cambiado, es real.
