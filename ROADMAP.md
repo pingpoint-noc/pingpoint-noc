@@ -291,7 +291,9 @@ value, moves nothing), the error is cut at two lines and the disks at three with
 type share one column (`tests/browser/test_browser_health_tables.py`). Closed 21-11 (`tests/browser/test_browser_half_screen.py`): in the 701-1000 px band every data table has tighter cells, the collector and
 device-health tables drop their fixed minimum width, Resources by Machine loses its decorative miniatures and the cell minimum, and the Syslog
 console hides the Facility column and lets a message break anywhere (a path with no spaces is as wide as it is). Measured on the demo at 800 and
-960 px: no panel and no page scrolls sideways. Not re-measured on the real NOC, whose log lines and collector errors are longer.
+960 px: no panel and no page scrolls sideways. Measured again on the real NOC at 800 / 960 / 1100 px as a temporary viewer (10 machines, with
+"All machines" and with one): no sideways scroll anywhere. It found two cuts that the demo could not show, both fixed: "proxmox.local" lost its last
+letters in the Device Health table once its fixed minimum width was gone, and "327.61 GB / 468.38 GB" was cut by 6 px in the Proxmox storage table.
 
 ### Scope decision: disk health and other host telemetry (accepted 2026-11-16 as G20)
 

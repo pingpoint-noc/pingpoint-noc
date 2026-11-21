@@ -21,6 +21,10 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
 - The last machine picked is remembered in the browser.
 
 ### Fixed
+- `get_latest_metric_rows` (used by the alert engine every cycle and by the Health, Overview and fleet views) now seeks the newest sample of
+  each metric by index instead of joining the names with the table, which made SQLite read every row of the device: 0.4-0.9 s per call on a
+  6-million-row table, enough to keep a small container at 100 % CPU and raise `host_cpu_high` on the NOC itself. The cost no longer grows
+  with the amount of history.
 - Half-screen layout (701-1000 px): the Health tables (collectors, device health, Resources by Machine, coverage) and the Syslog console no
   longer scroll sideways. The Facility column of the console gives way to the message, which breaks long unbroken text instead of widening the page.
 - `tools.preflight` on a fresh install: "Health" no longer fails because `/api/health` needs a session (it warns and takes

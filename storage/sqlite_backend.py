@@ -3493,28 +3493,32 @@ class SQLiteRepository(StorageRepository):
         Ranked lists (top domains, clients...) are stored as one row per entry sharing a timestamp;
         get_latest_device_metrics keeps one row per name, this keeps them all. Biggest value first.
         """
-        names = [str(n) for n in metric_names]
+        names = sorted({str(n) for n in metric_names})
         if not names:
             return []
-        marks = ",".join("?" for _ in names)
         conn = self.open_read()
         try:
-            rows = conn.execute(
-                """
-                SELECT m.metric_name, m.label, m.value, m.ts_utc
-                FROM device_metrics m
-                INNER JOIN (
-                    SELECT metric_name, MAX(ts_utc) AS max_ts
-                    FROM device_metrics
-                    WHERE device_id = ? AND metric_name IN (%s)
-                    GROUP BY metric_name
-                ) latest ON m.metric_name = latest.metric_name AND m.ts_utc = latest.max_ts
-                WHERE m.device_id = ?
-                ORDER BY m.metric_name ASC, m.value DESC, m.label ASC;
-                """ % marks,
-                [device_id] + names + [device_id],
-            ).fetchall()
-            return [dict(row) for row in rows]
+            # One index seek per name (idx_dev_metrics_lookup: device_id, metric_name, ts_utc), then the rows of that newest sample. A join
+            # of the names with the table made SQLite read every row of the device instead (0.4-0.9 s a call on 6 million rows, on every
+            # refresh of the fleet view and every cycle of the alert engine); the parameters here are constants on purpose, as in
+            # get_latest_device_metrics.
+            rows = []
+            for name in names:
+                rows.extend(
+                    dict(row)
+                    for row in conn.execute(
+                        """
+                        SELECT metric_name, label, value, ts_utc FROM device_metrics
+                        WHERE device_id = ? AND metric_name = ?
+                          AND ts_utc = (SELECT MAX(ts_utc) FROM device_metrics
+                                        WHERE device_id = ? AND metric_name = ?);
+                        """,
+                        (device_id, name, device_id, name),
+                    )
+                )
+            # metric name, then biggest value first (a missing value last), then label
+            rows.sort(key=lambda r: (r["metric_name"], r["value"] is None, -(r["value"] or 0.0), r["label"]))
+            return rows
         finally:
             conn.close()
 

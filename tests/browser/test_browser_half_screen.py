@@ -34,6 +34,27 @@ class HalfScreenTest(BrowserTestCase):
             for panel in HEALTH_PANELS:
                 self.assertLessEqual(self.sideways(page, "#%s .table-container" % panel), 1, "%s at %d px" % (panel, width))
 
+    def test_a_real_device_name_is_not_cut_in_the_device_health_table(self):
+        """Measured on the real NOC at 800 px: with the fixed minimum width gone, "proxmox.local" lost its last letters under the badge."""
+        page = self.open_page()
+        page.set_viewport_size({"width": 800, "height": 900})
+
+        def patch(route):
+            response = route.fetch()
+            body = response.json()
+            for device in body["devices"]:
+                device["name"] = "proxmox.local"
+            route.fulfill(response=response, json=body)
+
+        page.route("**/api/host-health*", patch)
+        page.wait_for_function("typeof switchTab === 'function'")
+        page.evaluate("() => { switchTab('tab-health'); document.querySelectorAll('details.health-group').forEach(d => d.open = true); }")
+        page.wait_for_function("document.querySelectorAll('#host-health-tbody tr th').length > 0")
+        page.wait_for_timeout(400)
+        self.assertEqual(
+            page.evaluate("[...document.querySelectorAll('#host-health-tbody tr th')].filter(e => e.scrollWidth > e.clientWidth + 1).length"), 0)
+        self.assertLessEqual(self.sideways(page, "#host-health-panel .table-container"), 1)
+
     def test_no_view_makes_the_page_scroll_sideways(self):
         for width in WIDTHS:
             page = self.open_page()

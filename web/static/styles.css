@@ -4608,6 +4608,10 @@ body[data-all-machines="1"] #tab-syslog > #logs-panel { display: block; }
   .table-collectors, .table-host-health { min-width: 0; }
   /* Syslog: the fixed columns take 455-595 px, so the facility (the least useful one) gives way to the message. */
   .table-logs .col-facility { display: none; }
+  /* Without their fixed minimum widths the device name ("proxmox.local") and the storage figures ("327.61 GB / 468.38 GB") need more of the box. */
+  .table-host-health col:nth-child(1) { width: 15%; } .table-host-health col:nth-child(5) { width: 20%; } .table-host-health col:nth-child(7) { width: 9%; }
+  .table-host-health tbody th { overflow-wrap: anywhere; }
+  .table-storage col:nth-child(1) { width: 15%; } .table-storage col:nth-child(5) { width: 23%; } .table-storage col:nth-child(7) { width: 20%; }
 }
 /* A path or an id with no spaces is as wide as it is: let the message break anywhere instead of widening the console. */
 .table-logs td.col-message { overflow-wrap: anywhere; }
