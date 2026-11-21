@@ -23,6 +23,11 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
   systemd session scopes and user manager, the accepted key and the disconnect of an ssh login): logging in many times, by hand or from
   a script, is not a flood (one root login writes about 35 lines). Failed logins and pre-authentication closes still count. The
   per-device `syslog_burst_ignore` pattern adds to this filter.
+- The same filter now also skips what the end of a login session writes (the user manager stopping) and the normal container
+  lifecycle on a Docker host or in a guest that runs Docker (bridge and veth plumbing, container mounts and scopes, containerd
+  shim messages, the overlayfs file-handle notice) plus two informational systemd lines. A build or a redeploy of a few
+  containers is not a flood; Docker warnings and errors, forced kills and everything else still count. The alert text says
+  "usual" instead of the Spanish "habituales".
 - A browser that never picked a machine (or whose remembered machine is gone) opens on "All machines" when there is more than one;
   a machine picked by hand is still remembered and wins.
 - No fade of the main area on first paint (the fade stays on view switches).

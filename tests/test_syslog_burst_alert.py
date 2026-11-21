@@ -89,6 +89,15 @@ class TestSyslogBurstAlert(unittest.TestCase):
             "session-%d.scope: Consumed 0.1s CPU time, 4.2M memory peak." % n,
             "Session %d logged out. Waiting for processes to exit." % n,
             "Removed session %d." % n,
+            "Stopped target default.target - Main User Target.",
+            "Stopped target basic.target - Basic System.",
+            "Stopped target paths.target - Paths.",
+            "Stopped target sockets.target - Sockets.",
+            "Stopped target timers.target - Timers.",
+            "Activating special unit exit.target...",
+            "Reached target shutdown.target - Shutdown.",
+            "Reached target exit.target - Exit the Session.",
+            "Finished systemd-exit.service - Exit the Session.",
             "Stopped user-runtime-dir@0.service - User Runtime Directory /run/user/0.",
             "Removed slice user-0.slice - User Slice of UID 0.",
             "run-user-0.mount: Deactivated successfully.",
@@ -97,10 +106,68 @@ class TestSyslogBurstAlert(unittest.TestCase):
     def test_a_burst_of_ssh_logins_by_an_administrator_is_not_a_flood(self):
         """Four logins in a minute (a script, `pct exec`, a deploy) wrote 130 lines on a hypervisor and raised a warning."""
         lines = []
-        for n in range(4):
+        for n in range(6):
             lines.extend(self.ssh_login_lifecycle(n))
         self.assertGreaterEqual(len(lines), 100)
         self.assertEqual(self.burst(lines), [])
+
+    def container_lifecycle(self, n):
+        """What one `docker run` / `docker build` step writes on a Docker host (bridge and veth, mounts, scope, shim) or in
+        an LXC guest that runs Docker (networkd, systemd conditions)."""
+        veth = "veth%07x" % (0xabc0000 + n)
+        cid = "%064x" % (0xdeadbeef + n)
+        return [
+            "docker0: port %d(%s) entered blocking state" % (n + 1, veth),
+            "docker0: port %d(%s) entered disabled state" % (n + 1, veth),
+            "br-0123456789ab: port %d(%s) entered forwarding state" % (n + 1, veth),
+            "%s: entered allmulticast mode" % veth,
+            "%s: entered promiscuous mode" % veth,
+            "eth0: renamed from %s" % veth,
+            "%s: renamed from eth0" % veth,
+            "%s (unregistering): left promiscuous mode" % veth,
+            "%s: Link UP" % veth,
+            "%s: Gained carrier" % veth,
+            "%s: Lost carrier" % veth,
+            "%s: Gained IPv6LL" % veth,
+            "docker0: Lost carrier",
+            'Interface "%s" not found.' % veth,
+            "WARNING:Unknown index %d seen, reloading interface list" % (n + 30),
+            "ERROR:Failed to get interface \"%s\" status: Command '['/usr/bin/networkctl', 'status']' returned non-zero exit status 1." % veth,
+            "var-lib-docker-tmp-buildkit\\x2dmount%d.mount: Deactivated successfully." % n,
+            "tmp-containerd\\x2dmount%d.mount: Deactivated successfully." % n,
+            "run-docker-netns-%x.mount: Deactivated successfully." % n,
+            "Started docker-%s.scope - libcontainer container %s." % (cid, cid),
+            "docker-%s.scope: Deactivated successfully." % cid,
+            "overlayfs: fs on '/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/%d/fs' does not support file handles, falling back to xino=off." % n,
+            'time="2026-11-21T14:00:00.000000000Z" level=info msg="connecting to shim %s" namespace=moby protocol=ttrpc' % cid,
+            'time="2026-11-21T14:00:01.000000000Z" level=info msg="shim disconnected" id=%s namespace=moby' % cid,
+            'time="2026-11-21T14:00:01.000000000Z" level=info msg="cleaning up after shim disconnected" id=%s namespace=moby' % cid,
+            'time="2026-11-21T14:00:01.000000000Z" level=info msg="received task-delete event from containerd" container=%s' % cid,
+            'time="2026-11-21T14:00:01.000000000Z" level=info msg="stopping restart-manager" container=%s' % cid,
+            "first-boot-complete.target - First Boot Complete was skipped because of an unmet condition check (ConditionFirstBoot=yes).",
+            "networkd-dispatcher.service: Got notification message from PID %d, but reception only permitted for main PID 412" % (900 + n),
+        ]
+
+    def test_container_start_and_stop_churn_is_not_a_flood(self):
+        """A build or a redeploy starts and stops several containers in a minute and wrote 100+ lines on the host and the guest."""
+        lines = []
+        for n in range(5):
+            lines.extend(self.container_lifecycle(n))
+        self.assertGreaterEqual(len(lines), 100)
+        self.assertEqual(self.burst(lines), [])
+
+    def test_docker_warnings_and_forced_kills_still_count_next_to_container_churn(self):
+        lines = []
+        for n in range(3):
+            lines.extend(self.container_lifecycle(n))
+        trouble = ['time="2026-11-21T14:00:00.000000000Z" level=error msg="healthcheck failed fatally" error="session %d"' % i for i in range(30)]
+        trouble += ['time="2026-11-21T14:00:00.000000000Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=%d' % i for i in range(30)]
+        self.assertEqual(len(self.burst(lines + trouble)), 1)
+
+    def test_the_message_is_in_english(self):
+        alerts = self.burst(["Failed password for invalid user admin from 203.0.113.%d port 4444 ssh2" % (i % 250) for i in range(80)])
+        self.assertIn("usual", alerts[0]["message"])
+        self.assertNotIn("habituales", alerts[0]["message"])
 
     def test_failed_and_pre_authentication_lines_still_count_next_to_logins(self):
         noise = []

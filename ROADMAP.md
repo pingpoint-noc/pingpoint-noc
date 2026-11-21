@@ -304,3 +304,7 @@ Today the agent reports CPU, memory, disk usage (with the full-disk forecast), l
   agent or a SOC tool (Netdata, Zabbix agent, Wazuh), not here. The test for any new metric: does it answer "is this machine or link up and
   healthy enough to do its job?" and can it be shown as one value and a state?
 - Suggested order if accepted: ZFS/`mdadm` state (no extra package), then SMART via `smartctl` when installed, then NVMe wear. Add it to P2 as G20.
+
+## Session of 2026-11-21: burst noise from containers
+
+Reviewing a week of alerts on the reference deployment, nearly all were `syslog_burst`: builds and redeploys of a few containers wrote 100+ lines a minute (bridge and veth plumbing, mounts, scopes, shims) on the Docker host and in the guest, and the end of an ssh login (user manager stopping) was not covered by the session filter. Both now belong to `DEFAULT_SYSLOG_BURST_IGNORE`; replaying a day of real syslog through it took the minutes with 50 lines or more from 31 and 22 to 0. Docker warnings and errors and forced kills still count.

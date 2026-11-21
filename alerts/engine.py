@@ -975,10 +975,29 @@ DEFAULT_SYSLOG_BURST_IGNORE = re.compile(
     r"|^queued start job for default target"
     r"|^reached target (?:default|basic|sockets|timers|paths)\.target"
     r"|^startup finished in \d+ms"
+    # ... and what it writes when the last session ends
+    r"|^stopped target (?:default|basic|paths|sockets|timers)\.target"
+    r"|^activating special unit exit\.target|^reached target (?:shutdown|exit)\.target|^finished systemd-exit\.service"
     # ssh after a successful authentication
     r"|^accepted (?:publickey|password|keyboard-interactive/pam) for \S+ from"
     r"|^disconnected from user \S+"
-    r"|^received disconnect from \S+ port \d+:\d+: disconnected by user",
+    r"|^received disconnect from \S+ port \d+:\d+: disconnected by user"
+    # container lifecycle on a Docker host or in a guest that runs Docker: every `docker run`, `docker build` step or redeploy
+    # writes dozens of these (bridge and veth plumbing, mounts, scopes, shims). Docker warnings and errors are NOT here.
+    r"|\bport \d+\(veth\w+\) entered (?:blocking|forwarding|disabled) state"
+    r"|^veth\w*(?: \(unregistering\))?: (?:entered|left) (?:allmulticast|promiscuous) mode"
+    r"|^\w+: renamed from veth\w+|^veth\w+: renamed from \w+"
+    r"|^(?:veth\w+|docker\d+|br-[0-9a-f]+): (?:link up|link down|gained carrier|lost carrier|gained ipv6ll)"
+    r"|interface \"veth\w+\" (?:not found|status)|failed to get interface \"veth\w+\" status"
+    r"|unknown index \d+ seen, reloading interface list"
+    r"|^(?:var-lib-docker|var-lib-containerd|tmp-containerd|run-docker|run-containerd)\S*\.mount: deactivated successfully"
+    r"|\bdocker-[0-9a-f]{12,}\.scope\b"
+    r"|^overlayfs: fs on '[^']*' does not support file handles"
+    r"|level=info msg=\"(?:shim disconnected|connecting to shim|cleaning up (?:dead shim|after shim disconnected)"
+    r"|received task-delete event|stopping restart-manager|sbjoin)"
+    # informational systemd lines that appear every time a unit is skipped or notifies from a child process
+    r"|\bwas skipped because of an unmet condition check\b"
+    r"|got notification message from pid \d+, but reception only permitted for main pid",
     re.IGNORECASE,
 )
 
@@ -1067,7 +1086,7 @@ def evaluate_syslog_burst_rule(
         is_triggered = False
 
     severity = "critical" if (count >= (4 * burst_threshold) and above_usual) else "warning"
-    msg = "Syslog burst detected: %d events in %d s (threshold >= %d) vs ~%d/min habituales" % (
+    msg = "Syslog burst detected: %d events in %d s (threshold >= %d) vs ~%d/min usual" % (
         count,
         burst_window_seconds,
         burst_threshold,
