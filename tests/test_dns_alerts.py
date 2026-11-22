@@ -34,7 +34,9 @@ class DNSAlertsTestCase(unittest.TestCase):
         self.repo.record_device_metrics(DNS_DEVICE, ts, metrics)
 
     def test_dns_service_down_triggers_on_high_latency(self):
-        # Latency of 650 ms exceeds default 500 ms threshold
+        # Latency of 650 ms exceeds default 500 ms threshold in 3 consecutive samples
+        self.record_dns_metrics(NOW - 60, latency_ms=700.0)
+        self.record_dns_metrics(NOW - 30, latency_ms=680.0)
         self.record_dns_metrics(NOW, latency_ms=650.0)
         engine.evaluate_once(self.repo, NOW)
 
@@ -53,6 +55,40 @@ class DNSAlertsTestCase(unittest.TestCase):
         resolved = self.repo.list_alerts(device_id=DNS_DEVICE, status="resolved")
         self.assertEqual(len(resolved), 1)
         self.assertEqual(resolved[0]["rule_id"], "dns_service_down")
+
+    def service_alerts(self):
+        return [a for a in self.repo.list_alerts(device_id=DNS_DEVICE, status="firing") if a["rule_id"] == "dns_service_down"]
+
+    def test_a_single_slow_answer_is_not_an_alert(self):
+        # 05:30 of 2026-11-22: one sample of 1031 ms between samples of 0.3 ms (an upstream cache miss).
+        self.record_dns_metrics(NOW - 60, latency_ms=0.3)
+        self.record_dns_metrics(NOW - 30, latency_ms=0.3)
+        self.record_dns_metrics(NOW, latency_ms=1031.8)
+        engine.evaluate_once(self.repo, NOW)
+
+        self.assertEqual(self.service_alerts(), [])
+
+    def test_two_slow_samples_are_still_not_enough(self):
+        self.record_dns_metrics(NOW - 30, latency_ms=900.0)
+        self.record_dns_metrics(NOW, latency_ms=900.0)
+        engine.evaluate_once(self.repo, NOW)
+
+        self.assertEqual(self.service_alerts(), [])
+
+    def test_a_storage_error_of_the_collector_is_not_a_dns_outage(self):
+        # 11:01 of 2026-11-22: the hourly retention locked the database and the poller could not write its metrics.
+        self.record_dns_metrics(NOW, latency_ms=0.3)
+        self.repo.record_collector_error("dns", DNS_DEVICE, NOW + 5, "Storage error: database is locked")
+        engine.evaluate_once(self.repo, NOW + 10)
+
+        self.assertEqual(self.service_alerts(), [])
+
+    def test_a_real_probe_error_still_fires_at_once(self):
+        self.record_dns_metrics(NOW, latency_ms=0.3)
+        self.repo.record_collector_error("dns", DNS_DEVICE, NOW + 5, "DNS probe failed: TIMEOUT")
+        engine.evaluate_once(self.repo, NOW + 10)
+
+        self.assertEqual(len(self.service_alerts()), 1)
 
     def test_dns_service_down_triggers_on_unreachable_collector_error(self):
         self.record_dns_metrics(NOW, latency_ms=-1.0)

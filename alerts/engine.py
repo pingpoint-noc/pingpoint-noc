@@ -1602,6 +1602,23 @@ def dns_filter_was_working(repo, device_id, now_ts):
     return False
 
 
+# One slow answer is not an outage (a cache miss that goes upstream can take 1 s): the latency must stay above the
+# threshold in this many consecutive samples (the DNS probe runs every ~30 s) before the rule fires.
+DNS_LATENCY_CONFIRM_SAMPLES = 3
+DNS_LATENCY_CONFIRM_WINDOW_SECONDS = 300
+# The collector also records its own failures to write to the database ("Storage error: database is locked"
+# while the hourly retention runs). That says nothing about the DNS server.
+DNS_STORAGE_ERROR_PREFIX = "Storage error"
+
+
+def dns_latency_sustained(repo, device_id, now_ts, threshold_ms):
+    """True if the last DNS_LATENCY_CONFIRM_SAMPLES latency samples are all above the threshold."""
+    start = int(now_ts) - DNS_LATENCY_CONFIRM_WINDOW_SECONDS
+    rows = repo.get_device_metrics_series(device_id, "dns_latency_ms", start, int(now_ts))
+    values = [row.get("value") for row in rows][-DNS_LATENCY_CONFIRM_SAMPLES:]
+    return len(values) >= DNS_LATENCY_CONFIRM_SAMPLES and all(v is not None and v > threshold_ms for v in values)
+
+
 def evaluate_dns_rules(
     repo,
     device_id,
@@ -1665,13 +1682,14 @@ def evaluate_dns_rules(
     if dns_status is not None:
         err_msg = dns_status.get("last_error_msg") or dns_status.get("last_error_message") or ""
 
-    if dns_status is not None and err_msg != "" and last_err_utc > last_ok_utc:
+    storage_error = err_msg.startswith(DNS_STORAGE_ERROR_PREFIX)
+    if dns_status is not None and err_msg != "" and last_err_utc > last_ok_utc and not storage_error:
         is_down = True
         down_msg = "DNS resolution error on %s: %s" % (device_id, err_msg)
     elif latency_ms is None or latency_ms < 0:
         is_down = True
         down_msg = "DNS resolution service unreachable or returning SERVFAIL on %s" % device_id
-    elif latency_ms > latency_threshold_ms:
+    elif latency_ms > latency_threshold_ms and dns_latency_sustained(repo, device_id, now_ts, latency_threshold_ms):
         is_down = True
         down_msg = "DNS resolution latency of %.1f ms exceeds threshold of %.1f ms on %s" % (
             latency_ms,

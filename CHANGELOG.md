@@ -21,6 +21,10 @@ security notes for each release are also in [SECURITY.md](SECURITY.md).
 - The last machine picked is remembered in the browser.
 
 ### Fixed
+- `dns_service_down` raised two false critical alerts: a single slow answer (1031 ms between samples of 0.3 ms) and the collector's own
+  `Storage error: database is locked` while the hourly retention held the write lock. Latency now has to stay over the threshold in 3
+  consecutive samples (about 90 s); a storage error of the collector no longer counts as a DNS outage (a probe timeout or SERVFAIL still
+  fires at once). SQLite `busy_timeout` goes from 5 s to 30 s so the retention no longer drops syslog, ICMP and DNS writes.
 - The indicator cards of the selected machine have one width whatever the machine: four fixed slots per ribbon (a free slot stays empty), both
   ribbons the same width, side by side from 1280 px as before (stacked below). A DNS machine with four cards used to squeeze the last two to 58 px and cut
   their text, and picking another machine moved everything. The small print of a card now wraps instead of being cut.

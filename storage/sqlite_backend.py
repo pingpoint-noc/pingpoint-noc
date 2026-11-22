@@ -1,6 +1,6 @@
 """SQLite implementation of StorageRepository.
 
-Encapsulates all SQLite-specific DDL, PRAGMAs (WAL, busy_timeout=5000,
+Encapsulates all SQLite-specific DDL, PRAGMAs (WAL, busy_timeout=30000,
 synchronous=NORMAL, cache_size=-20000, foreign_keys=ON, temp_store=MEMORY,
 auto_vacuum=INCREMENTAL, STRICT tables), read-only vs read-write URI connections,
 and explicit BEGIN IMMEDIATE write transactions. Contains no domain metric
@@ -324,10 +324,12 @@ def open_sqlite_connection(db_path, readonly=False):
     else:
         uri = build_sqlite_file_uri(path_obj, "rwc")
 
-    conn = sqlite3.connect(uri, uri=True, timeout=5.0, isolation_level=None)
+    # 30 s: the hourly retention holds the write lock for a few seconds on a 1 GB database, and 5 s lost the
+    # syslog, ICMP and DNS writes that arrived meanwhile ("database is locked").
+    conn = sqlite3.connect(uri, uri=True, timeout=30.0, isolation_level=None)
     conn.row_factory = sqlite3.Row
 
-    conn.execute("PRAGMA busy_timeout = 5000;")
+    conn.execute("PRAGMA busy_timeout = 30000;")
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA cache_size = -20000;")
     conn.execute("PRAGMA temp_store = MEMORY;")
