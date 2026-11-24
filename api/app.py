@@ -71,6 +71,14 @@ MAX_SILENCE_REASON = 200
 # Acknowledging only marks "somebody saw it" (K63); the note is a few words, not a ticket.
 MAX_ACK_NOTE = 200
 
+# Colour of the dark theme canvas (--bg-canvas in styles.css): splash screen and status bar of the installed app.
+PWA_COLOR = "#0c0e13"
+SERVICE_WORKER_JS = (
+    "/* Minimal service worker: it only makes the dashboard installable. It caches nothing. */\n"
+    "self.addEventListener('install', () => self.skipWaiting());\n"
+    "self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));\n"
+    "self.addEventListener('fetch', () => {});\n"
+)
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 STATIC_DIR = WEB_DIR / "static"
 TEMPLATES = Jinja2Templates(directory=str(WEB_DIR))
@@ -796,6 +804,29 @@ def create_app(db_path, clock=utc_now):
 
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+    # Installable as an app (home-screen shortcut, no browser bar). The service worker caches nothing: its fetch
+    # handler is empty, so every request goes to the network as before. Browsers only offer to install over https.
+    @app.get("/manifest.webmanifest")
+    def web_manifest():
+        icons = [
+            {"src": "/static/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/static/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "/static/pwa/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ]
+        return JSONResponse(
+            {
+                "name": "PingPoint NOC", "short_name": "NOC", "description": "Network operations dashboard.",
+                "id": "/", "start_url": "/", "scope": "/", "display": "standalone",
+                "background_color": PWA_COLOR, "theme_color": PWA_COLOR, "icons": icons,
+            },
+            media_type="application/manifest+json",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    @app.get("/sw.js")
+    def service_worker():
+        return Response(SERVICE_WORKER_JS, media_type="text/javascript", headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
 
     @app.get("/", response_class=HTMLResponse)
     def dashboard(request: Request):

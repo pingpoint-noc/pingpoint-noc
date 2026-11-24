@@ -8,6 +8,14 @@
   <meta name="mini-noc-tz" content="{{ tz }}">
   <meta name="mini-noc-read-auth" content="{{ read_auth }}">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ asset_v }}">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0c0e13">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="NOC">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="apple-touch-icon" href="/static/pwa/apple-touch-icon.png">
+  <script src="/static/pwa-register.js?v={{ asset_v }}" defer></script>
   <script src="/static/theme-init.js?v={{ asset_v }}"></script>
   <link rel="stylesheet" href="/static/styles.css?v={{ asset_v }}">
 </head>

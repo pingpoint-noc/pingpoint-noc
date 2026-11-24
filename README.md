@@ -92,6 +92,8 @@ The tests use the real samples in `samples/`. The optional browser tests (`tests
 
 ## Deployment
 
+**Install as an app.** The dashboard serves a web manifest and a minimal service worker (it caches nothing), so a phone can add it to the home screen and open it without the browser bar. Browsers only offer this over **https** (or on `localhost`): put it behind a reverse proxy with a certificate. Android: Chrome, menu, *Install app*. iPhone: Safari, Share, *Add to Home Screen*.
+
 The reference deployment is a Debian 13 host with Python 3.13, `rsyslog` receiving on UDP/514 (one file per source under
 `/var/log/remote/<ip>/syslog.log`) and `nfcapd` receiving IPFIX on UDP/2055 with `nfdump` 1.7.
 
